@@ -1,5 +1,16 @@
 # AGENTS.md
 
+## 共通ルール（Cursor / Claude ほか全エージェント）
+
+### Git / PR
+
+- **PR は必ず `main` に向ける**（base = main）。スタックする場合も中間ブランチを base にせず、
+  全 PR を main 向きにしてマージ順で管理する（先行マージで後続の差分は自動的に縮小する）。
+  中間ブランチへマージすると内容が main に届かず迷子になる。
+- **PR は squash マージする**。squash 時のコミットメッセージ（タイトル・説明）は
+  その時点の PR 内容に合わせて都度書き直すこと（古い説明の使い回し禁止）。
+- **`main` への `push -f`（force push）は禁止**。
+
 ## Cursor Cloud specific instructions
 
 `shader-math` はヘッダオンリーの C++20 ライブラリ（CMake、Boost はヘッダのみ利用）。
