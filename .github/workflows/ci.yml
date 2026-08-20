@@ -1,6 +1,9 @@
 # CI on Blacksmith runners: Ubuntu x64 (SSE2, plus one x86-64-v3/FMA job),
-# Ubuntu ARM (NEON), Windows x64 (SSE2 via MSVC), plus FORCE_SCALAR builds
-# on both Linux architectures.
+# Ubuntu ARM (NEON, plus one armv8.2-a+fp16 job for native half), Windows x64
+# (SSE2 via MSVC), plus FORCE_SCALAR builds on both Linux architectures.
+# NOTE: the fp16 job compiles FEAT_FP16 instructions unconditionally; the ARM
+# runners must support them (check fphp/asimdhp in /proc/cpuinfo) or the
+# tests SIGILL.
 # Prerequisite: the Blacksmith app must be installed on the GitHub org.
 name: ci
 
@@ -34,6 +37,10 @@ jobs:
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
             cmake_extra: -DSHADER_MATH_FORCE_SCALAR=ON
+          - name: linux-arm-gcc-fp16
+            runner: blacksmith-2vcpu-ubuntu-2404-arm
+            cxx: g++
+            cmake_extra: -DCMAKE_CXX_FLAGS=-march=armv8.2-a+fp16
           - name: linux-arm-gcc-scalar
             runner: blacksmith-2vcpu-ubuntu-2404-arm
             cxx: g++
