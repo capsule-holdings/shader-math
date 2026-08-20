@@ -232,11 +232,7 @@ template <class V, int M, int N2, class T>
     requires(detail::vec_size_v<V> == M && std::is_same_v<detail::vec_elem_t<V>, T>)
 SHADER_MATH_INLINE detail::fvec<N2, T> mul(const V& v0, const matrix<M, N2, T>& m) {
     const detail::fvec<M, T> v = detail::to_vec(v0);
-    detail::vreg<T> acc = detail::vops<T>::zero();
-    detail::unroll<M>([&]<int J>() {
-        acc = detail::vops<T>::fmadd(detail::vops<T>::template bcast<J>(v.q_), m.row_[J].q_, acc);
-    });
-    return detail::fvec<N2, T>(acc);
+    return detail::fvec<N2, T>(detail::mad_accum<M>(v.q_, m.row_));
 }
 
 // matrix x column vector
@@ -253,34 +249,22 @@ SHADER_MATH_INLINE detail::fvec<M, T> mul(const matrix<M, K, T>& m, const V& v0)
 template <int M, int K, int N2, class T>
 SHADER_MATH_INLINE matrix<M, N2, T> mul(const matrix<M, K, T>& a, const matrix<K, N2, T>& b) {
     matrix<M, N2, T> o;
-    for (int r = 0; r < M; ++r) {
-        detail::vreg<T> acc = detail::vops<T>::zero();
-        detail::unroll<K>([&]<int J>() {
-            acc = detail::vops<T>::fmadd(detail::vops<T>::template bcast<J>(a.row_[r].q_),
-                                         b.row_[J].q_, acc);
-        });
-        o.row_[r] = detail::fvec<N2, T>(acc);
-    }
+    for (int r = 0; r < M; ++r)
+        o.row_[r] = detail::fvec<N2, T>(detail::mad_accum<K>(a.row_[r].q_, b.row_));
     return o;
 }
 
 #if defined(SHADER_MATH_HAS_AVX_2ROW)
-// float 4x4 product: two rows per YMM register (AVX1 + FMA3). Same operation
-// sequence and rounding as the 128-bit path, so results are bit-identical;
-// this non-template overload simply wins overload resolution when available.
+// float 4x4 product on the shared YMM kernel (AVX1 + FMA3, bit-identical to
+// the 128-bit path); this non-template overload simply wins overload
+// resolution when available.
 SHADER_MATH_INLINE matrix<4, 4> mul(const matrix<4, 4>& a, const matrix<4, 4>& b) {
+    const detail::freg pk[4] = {a.row_[0].q_, a.row_[1].q_, a.row_[2].q_, a.row_[3].q_};
+    const detail::freg bc[4] = {b.row_[0].q_, b.row_[1].q_, b.row_[2].q_, b.row_[3].q_};
+    detail::freg out[4];
+    detail::avx2row::mul4x4(pk, bc, out);
     matrix<4, 4> o;
-    for (int r = 0; r < 4; r += 2) {
-        const detail::avx2row::dreg a2 =
-            detail::avx2row::pack(a.row_[r].q_, a.row_[r + 1].q_);
-        detail::avx2row::dreg acc = detail::avx2row::zero();
-        detail::unroll<4>([&]<int J>() {
-            acc = detail::avx2row::fmadd(detail::avx2row::bcast_per_lane<J>(a2),
-                                         detail::avx2row::bcast128(b.row_[J].q_), acc);
-        });
-        o.row_[r] = detail::fvec<4>(detail::avx2row::lo(acc));
-        o.row_[r + 1] = detail::fvec<4>(detail::avx2row::hi(acc));
-    }
+    for (int r = 0; r < 4; ++r) o.row_[r] = detail::fvec<4>(out[r]);
     return o;
 }
 #endif
@@ -289,20 +273,14 @@ SHADER_MATH_INLINE matrix<4, 4> mul(const matrix<4, 4>& a, const matrix<4, 4>& b
 template <int R, int C, class T>
 SHADER_MATH_INLINE matrix<C, R, T> transpose(const matrix<R, C, T>& m) {
     matrix<C, R, T> o;
-    for (int r = 0; r < R; ++r)
-        for (int c = 0; c < C; ++c) o.row_[c][r] = m.row_[r][c];
+    detail::transpose_regs<R, C>(m.row_, o.row_);
     return o;
 }
 
 template <int R, int C, class T>
 SHADER_MATH_INLINE T determinant(const matrix<R, C, T>& m) {
     static_assert(R == C, "shader-math: determinant requires a square matrix");
-    T p[R * C];
-    for (int r = 0; r < R; ++r)
-        for (int c = 0; c < C; ++c) p[r * C + c] = m.row_[r][c];
-    if constexpr (R == 2) return detail::det2(p);
-    if constexpr (R == 3) return detail::det3(p);
-    if constexpr (R == 4) return detail::det4(p);
+    return detail::det_regs<R>(m.row_);
 }
 
 // Extension: not an official HLSL intrinsic. Singular input yields inf/NaN
@@ -312,16 +290,8 @@ SHADER_MATH_INLINE T determinant(const matrix<R, C, T>& m) {
 template <int R, int C, class T>
 SHADER_MATH_INLINE matrix<R, C, T> inverse(const matrix<R, C, T>& m) {
     static_assert(R == C, "shader-math: inverse requires a square matrix");
-    T p[R * C];
-    T q[R * C];
-    for (int r = 0; r < R; ++r)
-        for (int c = 0; c < C; ++c) p[r * C + c] = m.row_[r][c];
-    if constexpr (R == 2) detail::inv2(p, q);
-    if constexpr (R == 3) detail::inv3(p, q);
-    if constexpr (R == 4) detail::inv4(p, q);
     matrix<R, C, T> o;
-    for (int r = 0; r < R; ++r)
-        for (int c = 0; c < C; ++c) o.row_[r][c] = q[r * C + c];
+    detail::inv_regs<R>(m.row_, o.row_);
     return o;
 }
 

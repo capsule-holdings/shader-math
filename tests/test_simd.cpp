@@ -37,6 +37,15 @@ using shader_math::detail::ops;
 #  error "shader-math: MSVC /arch:AVX2 target did not set SHADER_MATH_HAS_FMA"
 #endif
 
+// The interface contract itself must not be vacuous: a type without the ops
+// surface, or the right ops with the wrong register type, must fail it.
+// (Note: freg vs mreg cannot serve as the "wrong type" pair -- they are the
+// same __m128 on SSE2.)
+static_assert(!shader_math::detail::SimdFloatOps<int, shader_math::detail::freg,
+                                                 shader_math::detail::mreg, float>);
+static_assert(!shader_math::detail::SimdFloatOps<shader_math::detail::ops, int,
+                                                 shader_math::detail::mreg, float>);
+
 // FEAT_FP16 detection must not silently miss a capable target.
 #if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) && defined(SHADER_MATH_ISA_NEON) && \
     !defined(SHADER_MATH_HAS_FP16)
