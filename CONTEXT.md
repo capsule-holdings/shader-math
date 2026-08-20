@@ -86,7 +86,7 @@ concepts + オーバーロード不宣言 + `= delete` 相当の3段構え:
 
 - NEON（AArch64）と SSE2（x86-64）が第一級。不明アーキ（RISC-V 等）は scalar 4-wide に
   フォールバックしてビルド可能。RVV 対応は可能だが CI が薄いので初版見送り
-- PS5 = prospero-clang（Clang 系、x86-64/SSE）、Switch = GCC 系（AArch64/NEON）。
+- PS5 = prospero-clang（Clang 系、x86-64/SSE2）、Switch = GCC 系（AArch64/NEON）。
   主要コンパイラ（gcc 10+ / clang 10+ / MSVC 19.30+ / Apple Clang 12+）は concepts 対応済み
 - 制約は `<concepts>` ライブラリヘッダに依存せず、コア言語の `requires` 句のみで記述
 - Boost はヘッダのみ（Config = FORCEINLINE、Predef = ISA 検出）。concepts のポリフィルではない
@@ -97,9 +97,9 @@ concepts + オーバーロード不宣言 + `= delete` 相当の3段構え:
 
 Blacksmith ランナー（GitHub-hosted ではない）。`fail-fast: false`:
 
-- `blacksmith-2vcpu-ubuntu-2404` × g++ / clang++（SSE）
+- `blacksmith-2vcpu-ubuntu-2404` × g++ / clang++（SSE2）
 - `blacksmith-2vcpu-ubuntu-2404-arm` × g++ / clang++（NEON）
-- `blacksmith-2vcpu-windows-2025` × MSVC（SSE）
+- `blacksmith-2vcpu-windows-2025` × MSVC（SSE2）
 - x64 / ARM の g++ × `-DSHADER_MATH_FORCE_SCALAR=ON`
 
 前提: org に Blacksmith app がインストールされていること。
@@ -126,8 +126,8 @@ Blacksmith ランナー（GitHub-hosted ではない）。`fail-fast: false`:
 
 | 構成 | バックエンド |
 | --- | --- |
-| g++ 13 (x64) | SSE |
-| clang++ 18 (x64) | SSE |
+| g++ 13 (x64) | SSE2 |
+| clang++ 18 (x64) | SSE2 |
 | g++ 13 scalar twin | scalar |
 | g++ 13 FORCE_SCALAR 構成 | scalar |
 | aarch64-linux-gnu-g++ 13 + qemu-aarch64 | NEON（実SIMD） |

@@ -14,7 +14,7 @@
 - 通常ビルド + テスト: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest --test-dir build --output-on-failure`
 - アプリ実行: `./build/sandbox`
 - scalar 強制ビルド: `cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON`
-- テストバイナリを直接実行するとバックエンドと `N checks, 0 failures` を出力する（例: `SSE, 397 checks`）。
+- テストバイナリを直接実行するとバックエンドと `N checks, 0 failures` を出力する（例: `SSE2, 397 checks`）。
   既定ビルドでは `ctest` が SIMD 版と scalar twin（`shader_math_tests_scalar`）の 2 つを実行する。
 
 ### 非自明な注意点

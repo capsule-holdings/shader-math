@@ -1,6 +1,6 @@
 // Prove the compiled backend is the real SIMD ISA for this host.
 // Numerical tests pass on the scalar fallback too; this file fails if
-// ISA detection silently selected the 4-float struct on an SSE/NEON target.
+// ISA detection silently selected the 4-float struct on an SSE2/NEON target.
 #include <type_traits>
 
 #include <shader_math/shader_math.hpp>
@@ -12,15 +12,15 @@ using shader_math::detail::ops;
 
 // Compiler target flags, independent of Boost Predef / library macros.
 #if defined(__SSE2__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
-#  define SM_TEST_HOST_SSE 1
+#  define SM_TEST_HOST_SSE2 1
 #elif defined(__ARM_NEON) || defined(__ARM_NEON__) || defined(__aarch64__)
 #  define SM_TEST_HOST_NEON 1
 #endif
 
 #if !defined(SHADER_MATH_FORCE_SCALAR)
-#  if defined(SM_TEST_HOST_SSE)
-#    if !defined(SHADER_MATH_ISA_SSE)
-#      error "shader-math: x86 SSE2 host did not select the SSE backend"
+#  if defined(SM_TEST_HOST_SSE2)
+#    if !defined(SHADER_MATH_ISA_SSE2)
+#      error "shader-math: x86 SSE2 host did not select the SSE2 backend"
 #    endif
 #  elif defined(SM_TEST_HOST_NEON)
 #    if !defined(SHADER_MATH_ISA_NEON)
@@ -29,7 +29,7 @@ using shader_math::detail::ops;
 #  endif
 #endif
 
-#if defined(SHADER_MATH_ISA_SSE)
+#if defined(SHADER_MATH_ISA_SSE2)
 // GCC/Clang attach __vector_size__ to __m128; is_same_v is still the right
 // check but trips -Wignored-attributes.
 #  if defined(__GNUC__)
@@ -37,7 +37,7 @@ using shader_math::detail::ops;
 #    pragma GCC diagnostic ignored "-Wignored-attributes"
 #  endif
 static_assert(std::is_same_v<freg, __m128>,
-              "SSE backend must use __m128, not the scalar freg");
+              "SSE2 backend must use __m128, not the scalar freg");
 #  if defined(__GNUC__)
 #    pragma GCC diagnostic pop
 #  endif
@@ -56,8 +56,8 @@ static_assert(has_scalar_lanes<freg>::value,
 #endif
 
 void test_simd() {
-#if defined(SHADER_MATH_ISA_SSE)
-    // ops::add / ops::mul must be the SSE intrinsics (same bits, same type).
+#if defined(SHADER_MATH_ISA_SSE2)
+    // ops::add / ops::mul must be the SSE2-baseline intrinsics (same bits, same type).
     const __m128 a = _mm_set_ps(4.0f, 3.0f, 2.0f, 1.0f);
     const __m128 b = _mm_set_ps(40.0f, 30.0f, 20.0f, 10.0f);
     CHECK(_mm_movemask_ps(_mm_cmpeq_ps(ops::add(a, b), _mm_add_ps(a, b))) == 0xF);

@@ -1,4 +1,4 @@
-// 4-wide SIMD abstraction: NEON / SSE / scalar.
+// 4-wide SIMD abstraction: NEON / SSE2 / scalar.
 // All higher-level algorithms are written once against `ops`; only this file
 // knows about intrinsics.
 #pragma once
@@ -7,7 +7,7 @@
 
 #if defined(SHADER_MATH_ISA_NEON)
 #  include <arm_neon.h>
-#elif defined(SHADER_MATH_ISA_SSE)
+#elif defined(SHADER_MATH_ISA_SSE2)
 #  include <emmintrin.h>  // SSE2
 #endif
 
@@ -79,7 +79,7 @@ struct ops {
     }
 };
 
-#elif defined(SHADER_MATH_ISA_SSE)
+#elif defined(SHADER_MATH_ISA_SSE2)
 
 using freg = __m128;
 using mreg = __m128;  // comparison result masks live in float registers
@@ -142,7 +142,7 @@ struct ops {
     }
 };
 
-#else  // scalar reference backend (RISC-V and anything without NEON/SSE)
+#else  // scalar reference backend (RISC-V and anything without NEON/SSE2)
 
 struct alignas(16) freg {
     float f[4];
