@@ -44,19 +44,24 @@ struct avx2row {
     //   out[j], out[j+1] = sum_K bcast_per_lane<K>(pack(pk[j], pk[j+1]))
     //                            * bcast128(bc[K])
     // HLSL: pk = rows of a, bc = rows of b. GLSL: pk = columns of b,
-    // bc = columns of a. Same operation sequence and rounding as the 128-bit
-    // fmadd path, so results are bit-identical.
-    static SHADER_MATH_INLINE void mul4x4(const freg (&pk)[4], const freg (&bc)[4],
-                                          freg (&out)[4]) {
+    // bc = columns of a (the transpose symmetry swaps the roles). Same
+    // operation sequence and rounding as the 128-bit fmadd path, so results
+    // are bit-identical.
+    // V is fvec<4> passed as a template parameter: this header is included
+    // (via simd.hpp) before vector.hpp defines fvec, so the register arrays
+    // of both matrix types can be handed over directly without a copy at the
+    // call sites.
+    template <class V>
+    static SHADER_MATH_INLINE void mul4x4(const V* pk, const V* bc, V* out) {
         for (int j = 0; j < 4; j += 2) {
-            const dreg p2 = pack(pk[j], pk[j + 1]);
+            const dreg p2 = pack(pk[j].q_, pk[j + 1].q_);
             dreg acc = zero();
-            acc = fmadd(bcast_per_lane<0>(p2), bcast128(bc[0]), acc);
-            acc = fmadd(bcast_per_lane<1>(p2), bcast128(bc[1]), acc);
-            acc = fmadd(bcast_per_lane<2>(p2), bcast128(bc[2]), acc);
-            acc = fmadd(bcast_per_lane<3>(p2), bcast128(bc[3]), acc);
-            out[j] = lo(acc);
-            out[j + 1] = hi(acc);
+            acc = fmadd(bcast_per_lane<0>(p2), bcast128(bc[0].q_), acc);
+            acc = fmadd(bcast_per_lane<1>(p2), bcast128(bc[1].q_), acc);
+            acc = fmadd(bcast_per_lane<2>(p2), bcast128(bc[2].q_), acc);
+            acc = fmadd(bcast_per_lane<3>(p2), bcast128(bc[3].q_), acc);
+            out[j] = V(lo(acc));
+            out[j + 1] = V(hi(acc));
         }
     }
 };

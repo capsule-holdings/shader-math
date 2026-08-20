@@ -129,12 +129,8 @@ SHADER_MATH_INLINE matrix<C2, R1, T> operator*(const matrix<C1, R1, T>& a,
 // the 128-bit path). Columns swap roles versus HLSL: pack b's columns,
 // broadcast a's columns.
 SHADER_MATH_INLINE matrix<4, 4> operator*(const matrix<4, 4>& a, const matrix<4, 4>& b) {
-    const detail::freg pk[4] = {b.col_[0].q_, b.col_[1].q_, b.col_[2].q_, b.col_[3].q_};
-    const detail::freg bc[4] = {a.col_[0].q_, a.col_[1].q_, a.col_[2].q_, a.col_[3].q_};
-    detail::freg out[4];
-    detail::avx2row::mul4x4(pk, bc, out);
     matrix<4, 4> o;
-    for (int c = 0; c < 4; ++c) o.col_[c] = detail::fvec<4>(out[c]);
+    detail::avx2row::mul4x4(b.col_, a.col_, o.col_);
     return o;
 }
 #endif
