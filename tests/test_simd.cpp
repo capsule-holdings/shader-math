@@ -37,6 +37,12 @@ using shader_math::detail::ops;
 #  error "shader-math: MSVC /arch:AVX2 target did not set SHADER_MATH_HAS_FMA"
 #endif
 
+// FEAT_FP16 detection must not silently miss a capable target.
+#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) && defined(SHADER_MATH_ISA_NEON) && \
+    !defined(SHADER_MATH_HAS_FP16)
+#  error "shader-math: ARM FEAT_FP16 target did not set SHADER_MATH_HAS_FP16"
+#endif
+
 #if defined(SHADER_MATH_ISA_SSE2)
 // GCC/Clang attach __vector_size__ to __m128; is_same_v is still the right
 // check but trips -Wignored-attributes.

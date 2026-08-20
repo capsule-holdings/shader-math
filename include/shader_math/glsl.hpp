@@ -20,6 +20,17 @@ using bvec2 = detail::bvec<2>;
 using bvec3 = detail::bvec<3>;
 using bvec4 = detail::bvec<4>;
 
+// Half vectors (GLSL GL_EXT_shader_explicit_arithmetic_types float16_t /
+// f16vecN). Language-level packing: sizeof(f16vec3) == 8 (4 x binary16),
+// language compatibility, not a GPU ABI. Absent entirely on compilers
+// without a half scalar type.
+#if defined(SHADER_MATH_HAS_HALF)
+using float16_t = detail::half_t;
+using f16vec2 = detail::fvec<2, detail::half_t>;
+using f16vec3 = detail::fvec<3, detail::half_t>;
+using f16vec4 = detail::fvec<4, detail::half_t>;
+#endif
+
 using mat2 = matrix<2, 2>;
 using mat3 = matrix<3, 3>;
 using mat4 = matrix<4, 4>;
@@ -178,7 +189,9 @@ template <class A, class B>
     requires detail::SameVec<A, B>
 SHADER_MATH_INLINE bool operator==(const A& a, const B& b) {
     constexpr int n = detail::vec_size_v<A>;
-    return detail::ops::all_n(detail::ops::cmp_eq(detail::to_vec(a).q_, detail::to_vec(b).q_), n);
+    using T = detail::vec_elem_t<A>;
+    return detail::ops::all_n(detail::vops<T>::cmp_eq(detail::to_vec(a).q_, detail::to_vec(b).q_),
+                              n);
 }
 template <class A, class B>
     requires detail::SameVec<A, B>
@@ -212,7 +225,8 @@ SHADER_MATH_INLINE bool operator!=(const detail::bvec<N>& a, const detail::bvec<
         requires detail::SameVec<A, B>                                                   \
     SHADER_MATH_INLINE auto name(const A& a, const B& b) {                               \
         constexpr int n = detail::vec_size_v<A>;                                         \
-        return detail::bvec<n>(detail::ops::fn(detail::to_vec(a).q_, detail::to_vec(b).q_)); \
+        using T = detail::vec_elem_t<A>;                                                 \
+        return detail::bvec<n>(detail::vops<T>::fn(detail::to_vec(a).q_, detail::to_vec(b).q_)); \
     }
 
 SM_GLSL_CMP_FN(equal, cmp_eq)
