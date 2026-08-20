@@ -18,11 +18,11 @@ else()
     include(FetchContent)
     FetchContent_Declare(boost_config
         GIT_REPOSITORY https://github.com/boostorg/config.git
-        GIT_TAG boost-1.86.0
+        GIT_TAG boost-1.92.0
         GIT_SHALLOW TRUE)
     FetchContent_Declare(boost_predef
         GIT_REPOSITORY https://github.com/boostorg/predef.git
-        GIT_TAG boost-1.86.0
+        GIT_TAG boost-1.92.0
         GIT_SHALLOW TRUE)
     FetchContent_MakeAvailable(boost_config boost_predef)
     target_include_directories(shader_math INTERFACE
