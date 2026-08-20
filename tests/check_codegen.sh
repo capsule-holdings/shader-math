@@ -53,9 +53,9 @@ for sym in $KERNELS; do
 
     # Primary: the promised fused multiply-add instruction is present.
     case "$BACKEND" in
-        SSE2+FMA)
+        SSE2+FMA*)
             if ! printf '%s\n' "$body" | grep -q 'vfmadd'; then
-                echo "FAIL: $sym: no vfmadd instruction on SSE2+FMA"
+                echo "FAIL: $sym: no vfmadd instruction on $BACKEND"
                 symfail=1
             fi
             ;;
@@ -85,22 +85,43 @@ for sym in $KERNELS; do
     fi
 done
 
-# Half kernel: on NEON+FP16 the half multiply-add must use 16-bit lanes (.4h)
-# and stay straight-line. On every other backend half math is a widened f32
-# fallback with no instruction-level promise, so there is nothing to check.
+# AVX two-row packing: on SSE2+FMA+AVX the float 4x4 product kernels must
+# use YMM-width fused multiply-adds.
+if [ "$BACKEND" = "SSE2+FMA+AVX" ]; then
+    for ysym in sm_cg_hlsl_mul_m4m4 sm_cg_glsl_mul_m4m4; do
+        ybody="$(printf '%s\n' "$DIS" | awk -v s="<${ysym}>:" 'index($0, s) {f=1; next} f && /^$/ {exit} f')"
+        if [ -z "$ybody" ]; then
+            echo "FAIL: symbol $ysym not found in disassembly"
+            fail=1
+        elif ! printf '%s\n' "$ybody" | grep -Eq 'vfmadd[^ ]*[[:space:]].*ymm'; then
+            echo "FAIL: $ysym: no YMM-width vfmadd on SSE2+FMA+AVX"
+            fail=1
+        else
+            echo "OK: $ysym (ymm)"
+        fi
+    done
+fi
+
+# Half kernels: on NEON+FP16 half math must use 16-bit lanes (.4h). The
+# vector mad must additionally be straight-line (the matrix product has a
+# runtime outer for loop, same exemption as the float kernels). On every
+# other backend half math is a widened f32 fallback with no
+# instruction-level promise, so there is nothing to check.
 if [ "$BACKEND" = "NEON+FP16" ]; then
-    hsym=sm_cg_half4_mad
-    hbody="$(printf '%s\n' "$DIS" | awk -v s="<${hsym}>:" 'index($0, s) {f=1; next} f && /^$/ {exit} f')"
-    if [ -z "$hbody" ]; then
-        echo "FAIL: symbol $hsym not found in disassembly"
-        fail=1
-    else
+    for hsym in sm_cg_half4_mad sm_cg_hlsl_mul_h4h4; do
+        hbody="$(printf '%s\n' "$DIS" | awk -v s="<${hsym}>:" 'index($0, s) {f=1; next} f && /^$/ {exit} f')"
+        if [ -z "$hbody" ]; then
+            echo "FAIL: symbol $hsym not found in disassembly"
+            fail=1
+            continue
+        fi
         hfail=0
         if ! printf '%s\n' "$hbody" | grep -Eq '\.4h'; then
             echo "FAIL: $hsym: no 16-bit (.4h) lanes on NEON+FP16"
             hfail=1
         fi
-        if printf '%s\n' "$hbody" | grep -Eq "[[:space:]](${ARM_COND_BRANCHES})[[:space:]]"; then
+        if [ "$hsym" = "sm_cg_half4_mad" ] &&
+            printf '%s\n' "$hbody" | grep -Eq "[[:space:]](${ARM_COND_BRANCHES})[[:space:]]"; then
             echo "FAIL: $hsym: conditional branch found"
             hfail=1
         fi
@@ -109,7 +130,7 @@ if [ "$BACKEND" = "NEON+FP16" ]; then
         else
             fail=1
         fi
-    fi
+    done
 fi
 
 exit "$fail"

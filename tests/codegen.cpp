@@ -47,6 +47,12 @@ SM_CG_NOINLINE void sm_cg_half4_mad(const hlsl::half4& a, const hlsl::half4& b,
                                     const hlsl::half4& c, hlsl::half4& o) {
     o = a * b + c;
 }
+
+// half matrix product: hops::fmadd path, 16-bit fmla on FEAT_FP16.
+SM_CG_NOINLINE void sm_cg_hlsl_mul_h4h4(const hlsl::half4x4& a, const hlsl::half4x4& b,
+                                        hlsl::half4x4& o) {
+    o = hlsl::mul(a, b);
+}
 #endif
 
 }  // extern "C"
@@ -69,7 +75,9 @@ int main() {
     std::printf("NEON\n");
 #  endif
 #elif defined(SHADER_MATH_ISA_SSE2)
-#  if defined(SHADER_MATH_HAS_FMA)
+#  if defined(SHADER_MATH_HAS_AVX_2ROW)
+    std::printf("SSE2+FMA+AVX\n");
+#  elif defined(SHADER_MATH_HAS_FMA)
     std::printf("SSE2+FMA\n");
 #  else
     std::printf("SSE2\n");
