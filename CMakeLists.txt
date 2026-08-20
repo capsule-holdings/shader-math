@@ -32,6 +32,8 @@ endif()
 
 option(SHADER_MATH_FORCE_SCALAR "Force the scalar (non-SIMD) backend" OFF)
 option(SHADER_MATH_BUILD_TESTS "Build shader-math tests and examples" ON)
+option(SHADER_MATH_INTEROP_SLANG
+       "Build the Slang cross-compilation check (needs slangc + python3)" OFF)
 
 if(SHADER_MATH_BUILD_TESTS)
     enable_testing()
@@ -78,4 +80,54 @@ if(SHADER_MATH_BUILD_TESTS)
 
     add_executable(sandbox examples/sandbox.cpp)
     target_link_libraries(sandbox PRIVATE shader_math)
+
+    # Slang cross-compilation check: the same math_cases.hlsli is built with
+    # slangc (-target cpp, CPU execution) and with shader-math, and compare.py
+    # checks the outputs slot by slot (see docs/slang_compat.md).
+    if(SHADER_MATH_INTEROP_SLANG)
+        find_program(SLANGC_EXECUTABLE slangc HINTS ${SHADER_MATH_SLANG_DIR}/bin)
+        find_package(Python3 COMPONENTS Interpreter)
+        if(SLANGC_EXECUTABLE AND Python3_FOUND)
+            get_filename_component(SHADER_MATH_SLANG_ROOT
+                                   ${SLANGC_EXECUTABLE} DIRECTORY)          # <slang>/bin
+            get_filename_component(SHADER_MATH_SLANG_ROOT
+                                   ${SHADER_MATH_SLANG_ROOT} DIRECTORY)    # <slang>
+            set(SHADER_MATH_INTEROP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop)
+            set(SHADER_MATH_INTEROP_GEN ${CMAKE_CURRENT_BINARY_DIR}/kernels.gen.cpp)
+
+            add_custom_command(
+                OUTPUT ${SHADER_MATH_INTEROP_GEN}
+                COMMAND ${SLANGC_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/kernels.slang
+                        -target cpp -entry runCases -o ${SHADER_MATH_INTEROP_GEN}
+                DEPENDS ${SHADER_MATH_INTEROP_DIR}/kernels.slang
+                        ${SHADER_MATH_INTEROP_DIR}/shared/math_cases.hlsli
+                        ${SHADER_MATH_INTEROP_DIR}/shared/case_list.h
+                COMMENT "slangc: generating kernels.gen.cpp (CPU target)"
+                VERBATIM)
+
+            add_executable(slang_interop_runner
+                ${SHADER_MATH_INTEROP_GEN}
+                ${SHADER_MATH_INTEROP_DIR}/slang_driver.cpp)
+            target_include_directories(slang_interop_runner PRIVATE
+                ${SHADER_MATH_SLANG_ROOT}/include ${SHADER_MATH_INTEROP_DIR})
+            if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+                # -ffp-contract=off: keep Slang-side rounding fmadd-free;
+                # -w: the generated code is not this repo's to keep warning-clean.
+                target_compile_options(slang_interop_runner PRIVATE -ffp-contract=off -w)
+            endif()
+
+            add_executable(shader_math_interop_cpp
+                ${SHADER_MATH_INTEROP_DIR}/cpp_harness.cpp)
+            target_link_libraries(shader_math_interop_cpp PRIVATE shader_math)
+
+            add_test(NAME slang_interop_check
+                     COMMAND ${Python3_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/compare.py
+                             $<TARGET_FILE:slang_interop_runner>
+                             $<TARGET_FILE:shader_math_interop_cpp>)
+        else()
+            message(WARNING "SHADER_MATH_INTEROP_SLANG=ON but slangc or python3 "
+                            "was not found (set SHADER_MATH_SLANG_DIR); skipping "
+                            "the interop check")
+        endif()
+    endif()
 endif()
