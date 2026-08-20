@@ -41,10 +41,17 @@ using shader_math::detail::ops;
 // surface, or the right ops with the wrong register type, must fail it.
 // (Note: freg vs mreg cannot serve as the "wrong type" pair -- they are the
 // same __m128 on SSE2.)
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wignored-attributes"
+#endif
 static_assert(!shader_math::detail::SimdFloatOps<int, shader_math::detail::freg,
                                                  shader_math::detail::mreg, float>);
 static_assert(!shader_math::detail::SimdFloatOps<shader_math::detail::ops, int,
                                                  shader_math::detail::mreg, float>);
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 
 // FEAT_FP16 detection must not silently miss a capable target.
 #if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) && defined(SHADER_MATH_ISA_NEON) && \

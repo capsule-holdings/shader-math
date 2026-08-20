@@ -31,6 +31,11 @@ esac
 
 DIS="$(objdump -d --no-show-raw-insn "$BIN")" || exit 1
 
+# Print the disassembly body of one symbol (empty if the symbol is missing).
+disasm_of() {
+    printf '%s\n' "$DIS" | awk -v s="<${1}>:" 'index($0, s) {f=1; next} f && /^$/ {exit} f'
+}
+
 KERNELS="sm_cg_hlsl_mul_m4m4 sm_cg_hlsl_mul_v4m4 sm_cg_glsl_mul_m4m4 sm_cg_glsl_mul_m4v4"
 # The vector kernels iterate exclusively via the compile-time unroll<M>
 # template, so they must be straight-line code. The matrix*matrix kernels
@@ -44,7 +49,7 @@ ARM_COND_BRANCHES='b\.(eq|ne|lt|le|gt|ge|hi|hs|ls|lo|cc|cs|mi|pl|vs|vc)|cbn?z|tb
 fail=0
 for sym in $KERNELS; do
     symfail=0
-    body="$(printf '%s\n' "$DIS" | awk -v s="<${sym}>:" 'index($0, s) {f=1; next} f && /^$/ {exit} f')"
+    body="$(disasm_of "$sym")"
     if [ -z "$body" ]; then
         echo "FAIL: symbol $sym not found in disassembly"
         fail=1
@@ -89,7 +94,7 @@ done
 # use YMM-width fused multiply-adds.
 if [ "$BACKEND" = "SSE2+FMA+AVX" ]; then
     for ysym in sm_cg_hlsl_mul_m4m4 sm_cg_glsl_mul_m4m4; do
-        ybody="$(printf '%s\n' "$DIS" | awk -v s="<${ysym}>:" 'index($0, s) {f=1; next} f && /^$/ {exit} f')"
+        ybody="$(disasm_of "$ysym")"
         if [ -z "$ybody" ]; then
             echo "FAIL: symbol $ysym not found in disassembly"
             fail=1
@@ -109,7 +114,7 @@ fi
 # instruction-level promise, so there is nothing to check.
 if [ "$BACKEND" = "NEON+FP16" ]; then
     for hsym in sm_cg_half4_mad sm_cg_hlsl_mul_h4h4; do
-        hbody="$(printf '%s\n' "$DIS" | awk -v s="<${hsym}>:" 'index($0, s) {f=1; next} f && /^$/ {exit} f')"
+        hbody="$(disasm_of "$hsym")"
         if [ -z "$hbody" ]; then
             echo "FAIL: symbol $hsym not found in disassembly"
             fail=1
