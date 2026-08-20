@@ -130,6 +130,26 @@ SHADER_MATH_INLINE matrix<C2, R1, T> operator*(const matrix<C1, R1, T>& a,
     return o;
 }
 
+#if defined(SHADER_MATH_HAS_AVX_2ROW)
+// float mat4 product: two output columns per YMM register (AVX1 + FMA3).
+// Bit-identical to the 128-bit path (same operation sequence and rounding).
+SHADER_MATH_INLINE matrix<4, 4> operator*(const matrix<4, 4>& a, const matrix<4, 4>& b) {
+    matrix<4, 4> o;
+    for (int j = 0; j < 4; j += 2) {
+        const detail::avx2row::dreg b2 =
+            detail::avx2row::pack(b.col_[j].q_, b.col_[j + 1].q_);
+        detail::avx2row::dreg acc = detail::avx2row::zero();
+        detail::unroll<4>([&]<int K>() {
+            acc = detail::avx2row::fmadd(detail::avx2row::bcast_per_lane<K>(b2),
+                                         detail::avx2row::bcast128(a.col_[K].q_), acc);
+        });
+        o.col_[j] = detail::fvec<4>(detail::avx2row::lo(acc));
+        o.col_[j + 1] = detail::fvec<4>(detail::avx2row::hi(acc));
+    }
+    return o;
+}
+#endif
+
 // matrix * column vector
 template <int Cn, int Rn, class T, class V>
     requires(detail::vec_size_v<V> == Cn && std::is_same_v<detail::vec_elem_t<V>, T>)

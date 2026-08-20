@@ -16,6 +16,13 @@
 #  include "detail/simd_scalar.hpp"
 #endif
 
+// AVX1+FMA3 two-row packing for the float 4x4 matrix product. Kernel-internal
+// only: freg stays __m128 and no public type changes width.
+#if defined(SHADER_MATH_ISA_SSE2) && defined(SHADER_MATH_HAS_FMA) && defined(SHADER_MATH_HAS_AVX)
+#  include "detail/simd_avx.hpp"
+#  define SHADER_MATH_HAS_AVX_2ROW 1
+#endif
+
 // Half (binary16) layer: scalar type + 4-wide hreg/hops. Native 16-bit lanes
 // only on ARM FEAT_FP16; everywhere else lanes are widened to f32.
 #if defined(SHADER_MATH_HAS_HALF)

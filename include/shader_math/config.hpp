@@ -31,6 +31,15 @@
 #  define SHADER_MATH_HAS_FMA 1
 #endif
 
+//   SHADER_MATH_HAS_AVX - AVX1 (256-bit float ops). Used only to pack two
+//                         rows/columns of a 4x4 float matrix product into one
+//                         YMM register, and only together with FMA (AVX1-only
+//                         CPUs without FMA3 keep the 128-bit path). Public
+//                         types never change width.
+#if defined(__AVX__)
+#  define SHADER_MATH_HAS_AVX 1
+#endif
+
 // Half precision (binary16):
 //   SHADER_MATH_HAS_HALF - a usable half scalar type exists, so the half
 //                          vector types are defined at all. GCC/Clang expose

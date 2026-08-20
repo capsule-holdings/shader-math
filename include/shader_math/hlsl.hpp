@@ -264,6 +264,27 @@ SHADER_MATH_INLINE matrix<M, N2, T> mul(const matrix<M, K, T>& a, const matrix<K
     return o;
 }
 
+#if defined(SHADER_MATH_HAS_AVX_2ROW)
+// float 4x4 product: two rows per YMM register (AVX1 + FMA3). Same operation
+// sequence and rounding as the 128-bit path, so results are bit-identical;
+// this non-template overload simply wins overload resolution when available.
+SHADER_MATH_INLINE matrix<4, 4> mul(const matrix<4, 4>& a, const matrix<4, 4>& b) {
+    matrix<4, 4> o;
+    for (int r = 0; r < 4; r += 2) {
+        const detail::avx2row::dreg a2 =
+            detail::avx2row::pack(a.row_[r].q_, a.row_[r + 1].q_);
+        detail::avx2row::dreg acc = detail::avx2row::zero();
+        detail::unroll<4>([&]<int J>() {
+            acc = detail::avx2row::fmadd(detail::avx2row::bcast_per_lane<J>(a2),
+                                         detail::avx2row::bcast128(b.row_[J].q_), acc);
+        });
+        o.row_[r] = detail::fvec<4>(detail::avx2row::lo(acc));
+        o.row_[r + 1] = detail::fvec<4>(detail::avx2row::hi(acc));
+    }
+    return o;
+}
+#endif
+
 // ---- transpose / determinant / inverse ---------------------------------------
 template <int R, int C, class T>
 SHADER_MATH_INLINE matrix<C, R, T> transpose(const matrix<R, C, T>& m) {

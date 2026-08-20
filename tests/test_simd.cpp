@@ -70,6 +70,7 @@ static_assert(has_scalar_lanes<freg>::value,
 #endif
 
 void test_fmadd_rounding();
+void test_avx_2row();
 
 void test_simd() {
 #if defined(SHADER_MATH_ISA_SSE2)
@@ -110,6 +111,7 @@ void test_simd() {
 #endif
 
     test_fmadd_rounding();
+    test_avx_2row();
 }
 
 // Prove ops::fmadd has the rounding behavior the backend promises.
@@ -140,5 +142,36 @@ void test_fmadd_rounding() {
     // Scalar backend: a*b + c in one expression; the compiler may or may not
     // contract it into an fma depending on -ffp-contract and the host ISA.
     CHECK(got == fused || got == twostep);
+#endif
+}
+
+// The AVX1 two-row 4x4 kernel must be bit-identical to the 128-bit template
+// path (same operation sequence, same rounding). The template is still
+// callable with explicit template arguments, which bypasses the non-template
+// overload.
+void test_avx_2row() {
+#if defined(SHADER_MATH_HAS_AVX_2ROW)
+    {
+        using namespace shader_math::hlsl;
+        const float4x4 a(0.5f, -1.25f, 3.75f, 2.0f, 1.5f, 0.25f, -2.5f, 4.0f, -0.75f, 2.25f,
+                         1.0f, -3.0f, 0.125f, -4.5f, 2.75f, 1.75f);
+        const float4x4 b(2.0f, 0.5f, -1.0f, 3.25f, -0.25f, 1.75f, 2.5f, -3.5f, 4.25f, -2.0f,
+                         0.75f, 1.25f, -1.5f, 3.0f, -0.5f, 2.25f);
+        const float4x4 ymm = mul(a, b);                 // non-template AVX overload
+        const float4x4 xmm = mul<4, 4, 4, float>(a, b); // forced 128-bit template
+        for (int r = 0; r < 4; ++r)
+            for (int c = 0; c < 4; ++c) CHECK_EQF(ymm[r][c], xmm[r][c]);
+    }
+    {
+        using namespace shader_math::glsl;
+        const mat4 a(0.5f, -1.25f, 3.75f, 2.0f, 1.5f, 0.25f, -2.5f, 4.0f, -0.75f, 2.25f, 1.0f,
+                     -3.0f, 0.125f, -4.5f, 2.75f, 1.75f);
+        const mat4 b(2.0f, 0.5f, -1.0f, 3.25f, -0.25f, 1.75f, 2.5f, -3.5f, 4.25f, -2.0f, 0.75f,
+                     1.25f, -1.5f, 3.0f, -0.5f, 2.25f);
+        const mat4 ymm = a * b;                                // non-template AVX overload
+        const mat4 xmm = operator*<4, 4, 4, float>(a, b);      // forced 128-bit template
+        for (int c = 0; c < 4; ++c)
+            for (int r = 0; r < 4; ++r) CHECK_EQF(ymm[c][r], xmm[c][r]);
+    }
 #endif
 }
