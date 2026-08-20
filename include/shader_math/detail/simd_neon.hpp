@@ -41,6 +41,22 @@ struct ops {
     // a*b + c
     static SHADER_MATH_INLINE freg fmadd(freg a, freg b, freg c) { return vfmaq_f32(c, a, b); }
 
+    static SHADER_MATH_INLINE freg abs(freg a) { return vabsq_f32(a); }
+    // NaN handling of min/max is backend-defined (vminq/vmaxq propagate NaN),
+    // matching the shader languages' "undefined".
+    static SHADER_MATH_INLINE freg min(freg a, freg b) { return vminq_f32(a, b); }
+    static SHADER_MATH_INLINE freg max(freg a, freg b) { return vmaxq_f32(a, b); }
+    static SHADER_MATH_INLINE freg sqrt(freg a) { return vsqrtq_f32(a); }
+
+    static SHADER_MATH_INLINE freg rnd_floor(freg v) { return vrndmq_f32(v); }
+    static SHADER_MATH_INLINE freg rnd_ceil(freg v) { return vrndpq_f32(v); }
+    static SHADER_MATH_INLINE freg rnd_trunc(freg v) { return vrndq_f32(v); }
+    static SHADER_MATH_INLINE freg rnd_even(freg v) { return vrndnq_f32(v); }
+    static SHADER_MATH_INLINE freg rnd_away(freg v) { return vrndaq_f32(v); }
+
+    // m ? a : b, per lane
+    static SHADER_MATH_INLINE freg sel(mreg m, freg a, freg b) { return vbslq_f32(m, a, b); }
+
     static SHADER_MATH_INLINE mreg cmp_eq(freg a, freg b) { return vceqq_f32(a, b); }
     static SHADER_MATH_INLINE mreg cmp_ne(freg a, freg b) { return vmvnq_u32(vceqq_f32(a, b)); }
     static SHADER_MATH_INLINE mreg cmp_lt(freg a, freg b) { return vcltq_f32(a, b); }

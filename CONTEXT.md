@@ -115,11 +115,14 @@ Blacksmith ランナー（GitHub-hosted ではない）。`fail-fast: false`:
 - `%` は HLSL のみの演算（GLSL float に無い）→ 対象外。`++`/`--` も対象外
 - 言語互換でありメモリ ABI 互換ではない（`sizeof(float3) == 16`、定数バッファのパッキングは別）
 
-## v2 候補（未実装）
+## v2 候補
 
-成分ごと関数: `abs` `sign` `min` `max` `clamp` `saturate` `lerp` `step` `smoothstep`
-`floor` `ceil` `round` `trunc` `frac` `sqrt` `rsqrt` `rcp` `exp` `exp2` `log` `log2` `pow`
-`sin` `cos` `tan`。2行レジスタ詰め込み最適化。RVV バックエンド。
+- **実装済み**: 成分ごと関数（`abs`〜`tan` の 23 関数 + `roundEven`。ベクトル対象、
+  言語別名: HLSL `lerp`/`frac`/`rcp`/`rsqrt`/`saturate` ⇔ GLSL `mix`/`fract`/`inversesqrt`。
+  超越関数は per-lane libm、丸めは SSE2 のみ per-lane、他 backend はネイティブ）。
+  2 行レジスタ詰め込み最適化（AVX1+FMA3 の 4x4）。
+- **未実装**: RVV バックエンド。行列への成分ごと intrinsic（HLSL の `abs(m)` 等）。
+  純スカラーへの intrinsic（`std::` を使う）。
 
 ## 検証記録（2026-08-20、Cloud Agent VM）
 

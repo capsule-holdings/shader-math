@@ -38,6 +38,17 @@ concept SimdFloatOps = requires(Reg r, Mask m, const T* cp, T* p, T s, int i, bo
     { Ops::neg(r) } -> std::same_as<Reg>;
     { Ops::fmadd(r, r, r) } -> std::same_as<Reg>;
 
+    { Ops::abs(r) } -> std::same_as<Reg>;
+    { Ops::min(r, r) } -> std::same_as<Reg>;
+    { Ops::max(r, r) } -> std::same_as<Reg>;
+    { Ops::sqrt(r) } -> std::same_as<Reg>;
+    { Ops::rnd_floor(r) } -> std::same_as<Reg>;
+    { Ops::rnd_ceil(r) } -> std::same_as<Reg>;
+    { Ops::rnd_trunc(r) } -> std::same_as<Reg>;
+    { Ops::rnd_even(r) } -> std::same_as<Reg>;
+    { Ops::rnd_away(r) } -> std::same_as<Reg>;
+    { Ops::sel(m, r, r) } -> std::same_as<Reg>;
+
     { Ops::cmp_eq(r, r) } -> std::same_as<Mask>;
     { Ops::cmp_ne(r, r) } -> std::same_as<Mask>;
     { Ops::cmp_lt(r, r) } -> std::same_as<Mask>;
@@ -56,10 +67,11 @@ concept SimdFloatOps = requires(Reg r, Mask m, const T* cp, T* p, T s, int i, bo
 };
 
 // Half backend: same arithmetic surface; comparisons produce the SHARED
-// 32-bit float mask (Mask = mreg, exact after widening to f32). No mask
-// logic or reductions of its own -- bvec keeps using the float ops.
+// 32-bit float mask (Mask = mreg, exact after widening to f32), and sel
+// consumes that shared mask. No mask logic or reductions of its own --
+// bvec keeps using the float ops.
 template <class Ops, class Reg, class Mask, class T>
-concept SimdHalfOps = requires(Reg r, const T* cp, T* p, T s, int i) {
+concept SimdHalfOps = requires(Reg r, Mask m, const T* cp, T* p, T s, int i) {
     { Ops::zero() } -> std::same_as<Reg>;
     { Ops::splat(s) } -> std::same_as<Reg>;
     { Ops::set(s, s, s, s) } -> std::same_as<Reg>;
@@ -75,6 +87,17 @@ concept SimdHalfOps = requires(Reg r, const T* cp, T* p, T s, int i) {
     { Ops::div(r, r) } -> std::same_as<Reg>;
     { Ops::neg(r) } -> std::same_as<Reg>;
     { Ops::fmadd(r, r, r) } -> std::same_as<Reg>;
+
+    { Ops::abs(r) } -> std::same_as<Reg>;
+    { Ops::min(r, r) } -> std::same_as<Reg>;
+    { Ops::max(r, r) } -> std::same_as<Reg>;
+    { Ops::sqrt(r) } -> std::same_as<Reg>;
+    { Ops::rnd_floor(r) } -> std::same_as<Reg>;
+    { Ops::rnd_ceil(r) } -> std::same_as<Reg>;
+    { Ops::rnd_trunc(r) } -> std::same_as<Reg>;
+    { Ops::rnd_even(r) } -> std::same_as<Reg>;
+    { Ops::rnd_away(r) } -> std::same_as<Reg>;
+    { Ops::sel(m, r, r) } -> std::same_as<Reg>;
 
     { Ops::cmp_eq(r, r) } -> std::same_as<Mask>;
     { Ops::cmp_ne(r, r) } -> std::same_as<Mask>;

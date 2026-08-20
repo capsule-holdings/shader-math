@@ -11,6 +11,7 @@ void test_cross_lang();
 void test_restrict();
 void test_simd();
 void test_half();
+void test_funcs();
 
 int main() {
 #if defined(SHADER_MATH_ISA_NEON)
@@ -38,6 +39,7 @@ int main() {
     test_restrict();
     test_simd();
     test_half();
+    test_funcs();
 
     std::printf("[shader-math] %d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
