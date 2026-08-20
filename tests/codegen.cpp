@@ -75,7 +75,9 @@ int main() {
     std::printf("NEON\n");
 #  endif
 #elif defined(SHADER_MATH_ISA_SSE2)
-#  if defined(SHADER_MATH_HAS_FMA)
+#  if defined(SHADER_MATH_HAS_AVX_2ROW)
+    std::printf("SSE2+FMA+AVX\n");
+#  elif defined(SHADER_MATH_HAS_FMA)
     std::printf("SSE2+FMA\n");
 #  else
     std::printf("SSE2\n");

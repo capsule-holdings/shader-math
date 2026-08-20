@@ -53,9 +53,9 @@ for sym in $KERNELS; do
 
     # Primary: the promised fused multiply-add instruction is present.
     case "$BACKEND" in
-        SSE2+FMA)
+        SSE2+FMA*)
             if ! printf '%s\n' "$body" | grep -q 'vfmadd'; then
-                echo "FAIL: $sym: no vfmadd instruction on SSE2+FMA"
+                echo "FAIL: $sym: no vfmadd instruction on $BACKEND"
                 symfail=1
             fi
             ;;
@@ -84,6 +84,23 @@ for sym in $KERNELS; do
         fail=1
     fi
 done
+
+# AVX two-row packing: on SSE2+FMA+AVX the float 4x4 product kernels must
+# use YMM-width fused multiply-adds.
+if [ "$BACKEND" = "SSE2+FMA+AVX" ]; then
+    for ysym in sm_cg_hlsl_mul_m4m4 sm_cg_glsl_mul_m4m4; do
+        ybody="$(printf '%s\n' "$DIS" | awk -v s="<${ysym}>:" 'index($0, s) {f=1; next} f && /^$/ {exit} f')"
+        if [ -z "$ybody" ]; then
+            echo "FAIL: symbol $ysym not found in disassembly"
+            fail=1
+        elif ! printf '%s\n' "$ybody" | grep -Eq 'vfmadd[^ ]*[[:space:]].*ymm'; then
+            echo "FAIL: $ysym: no YMM-width vfmadd on SSE2+FMA+AVX"
+            fail=1
+        else
+            echo "OK: $ysym (ymm)"
+        fi
+    done
+fi
 
 # Half kernels: on NEON+FP16 half math must use 16-bit lanes (.4h). The
 # vector mad must additionally be straight-line (the matrix product has a
