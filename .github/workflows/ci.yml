@@ -1,0 +1,65 @@
+# CI on Blacksmith runners: Ubuntu x64 (SSE), Ubuntu ARM (NEON), Windows x64
+# (SSE via MSVC), plus FORCE_SCALAR builds on both Linux architectures.
+# Prerequisite: the Blacksmith app must be installed on the GitHub org.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64-gcc
+            runner: blacksmith-2vcpu-ubuntu-2404
+            cxx: g++
+          - name: linux-x64-clang
+            runner: blacksmith-2vcpu-ubuntu-2404
+            cxx: clang++
+          - name: linux-arm-gcc
+            runner: blacksmith-2vcpu-ubuntu-2404-arm
+            cxx: g++
+          - name: linux-arm-clang
+            runner: blacksmith-2vcpu-ubuntu-2404-arm
+            cxx: clang++
+          - name: linux-x64-gcc-scalar
+            runner: blacksmith-2vcpu-ubuntu-2404
+            cxx: g++
+            cmake_extra: -DSHADER_MATH_FORCE_SCALAR=ON
+          - name: linux-arm-gcc-scalar
+            runner: blacksmith-2vcpu-ubuntu-2404-arm
+            cxx: g++
+            cmake_extra: -DSHADER_MATH_FORCE_SCALAR=ON
+          - name: windows-x64-msvc
+            runner: blacksmith-2vcpu-windows-2025
+            cxx: cl
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake g++ clang libboost-dev
+
+      - name: Configure (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} ${{ matrix.cmake_extra }}
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        # Boost headers are fetched by CMake (FetchContent) when not installed.
+        run: cmake -S . -B build ${{ matrix.cmake_extra }}
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -C Release
