@@ -29,6 +29,20 @@ using shader_math::detail::ops;
 #  endif
 #endif
 
+// FMA3 sub-feature detection must not silently miss a capable target.
+#if defined(__FMA__) && !defined(SHADER_MATH_HAS_FMA)
+#  error "shader-math: __FMA__ target did not set SHADER_MATH_HAS_FMA"
+#endif
+#if defined(_MSC_VER) && defined(__AVX2__) && !defined(SHADER_MATH_HAS_FMA)
+#  error "shader-math: MSVC /arch:AVX2 target did not set SHADER_MATH_HAS_FMA"
+#endif
+
+// FEAT_FP16 detection must not silently miss a capable target.
+#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) && defined(SHADER_MATH_ISA_NEON) && \
+    !defined(SHADER_MATH_HAS_FP16)
+#  error "shader-math: ARM FEAT_FP16 target did not set SHADER_MATH_HAS_FP16"
+#endif
+
 #if defined(SHADER_MATH_ISA_SSE2)
 // GCC/Clang attach __vector_size__ to __m128; is_same_v is still the right
 // check but trips -Wignored-attributes.
@@ -54,6 +68,8 @@ static_assert(has_scalar_lanes<freg>::value,
 #else
 #  error "shader-math: no ISA backend macro is set"
 #endif
+
+void test_fmadd_rounding();
 
 void test_simd() {
 #if defined(SHADER_MATH_ISA_SSE2)
@@ -91,5 +107,38 @@ void test_simd() {
     CHECK_EQF(s.f[2], 33.0f);
     CHECK_EQF(s.f[3], 44.0f);
     CHECK(requires(freg r) { r.f[0]; });
+#endif
+
+    test_fmadd_rounding();
+}
+
+// Prove ops::fmadd has the rounding behavior the backend promises.
+// Probe: p = 1+2^-20, q = 1-2^-20, r = -1. p*q = 1 - 2^-40 exactly.
+//   fused (single rounding):   p*q + r = -2^-40
+//   two-step (SSE2 mul+add):   round(p*q) = 1.0f, then 1.0f + r = 0.0f
+// A bit-compare of ops::fmadd against _mm_fmadd_ps would be a tautology;
+// comparing against the exactly-representable true result is not.
+void test_fmadd_rounding() {
+    const float fused = -0x1.0p-40f;
+    const float twostep = 0.0f;
+
+    const shader_math::detail::freg p = ops::splat(1.0f + 0x1.0p-20f);
+    const shader_math::detail::freg q = ops::splat(1.0f - 0x1.0p-20f);
+    const shader_math::detail::freg r = ops::splat(-1.0f);
+    const float got = ops::lane(ops::fmadd(p, q, r), 0);
+
+#if defined(SHADER_MATH_ISA_NEON)
+    // vfmaq_f32 is always fused.
+    CHECK_EQF(got, fused);
+#elif defined(SHADER_MATH_ISA_SSE2)
+#  if defined(SHADER_MATH_HAS_FMA)
+    CHECK_EQF(got, fused);
+#  else
+    CHECK_EQF(got, twostep);
+#  endif
+#else
+    // Scalar backend: a*b + c in one expression; the compiler may or may not
+    // contract it into an fma depending on -ffp-contract and the host ISA.
+    CHECK(got == fused || got == twostep);
 #endif
 }

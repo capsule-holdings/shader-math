@@ -31,6 +31,11 @@ void glsl_side() {
 ## 型
 
 - ベクトル: `hlsl::float2/3/4` = `glsl::vec2/3/4`（**同一型のエイリアス**。両言語とも `*` は成分ごとなので共有できる）
+- half ベクトル: `hlsl::half2/3/4` = `glsl::f16vec2/3/4`（同じく同一型）。スカラーは `hlsl::half` / `glsl::float16_t`
+  - `sizeof(half3) == 8`（4×binary16 パック）。`sizeof(float3) == 16` と同様、**言語互換であり GPU ABI ではない**
+  - half と float の**暗黙混合演算は不可**（`half3 * float3` / `half3 * 2.0f` はコンパイルエラー、変換は explicit）。コンストラクタ引数は変換する（`half3(1.0f, 2.0f, 3.0f)` は可）
+  - コンパイラ下限: gcc/clang は `_Float16` が必要（x86 では gcc 12+ / clang 15+）。MSVC はビット格納のソフトウェア型で対応。未対応コンパイラでは half 型群は定義されない（float 面は無影響）
+  - ARM ターゲットでは `arm_neon.h` がグローバル `float16_t` を定義するため、`using namespace glsl` 下の非修飾 `float16_t` は曖昧になる。`glsl::float16_t` と修飾するか `hlsl::half` を使う
 - 行列: R,C ∈ {2,3,4} の全9形。`hlsl::floatRxC`（行格納・行優先 ctor）と `glsl::matCxR`（列格納・列優先 ctor）は **別型**、相互変換は explicit
 - 対応関係は非正方で入れ替わる: `float3x4`（3行4列）≡ `mat4x3`（4列3行）
 - 比較結果: `bool2/3/4`（= `bvec2/3/4`）と `boolRxC`。算術なし・bool への暗黙変換なし
@@ -67,6 +72,19 @@ void glsl_side() {
 - `-DSHADER_MATH_FORCE_SCALAR=ON` で scalar を強制。CI では SIMD と scalar の両方で全テストを実行する
 - Boost はヘッダのみ利用（Config / Predef による ISA 検出）。未インストール時は CMake が自動取得する
 
+### サブ機能（コンパイル時のみ、実行時切替なし）
+
+- `SHADER_MATH_HAS_FMA` — FMA3 検出時に `ops::fmadd` が `_mm_fmadd_ps`（単一丸め）になる。
+  gcc/clang は `__FMA__`（例: `-march=x86-64-v3`）、MSVC は `/arch:AVX2` で有効
+- `SHADER_MATH_HAS_FP16` — ARM FEAT_FP16（`-march=armv8.2-a+fp16`）検出時、half 演算が本物の
+  16-bit ベクトル ALU（`float16x4_t`、`fmla v.4h`）で実行される。
+  **それ以外のホスト（x86 / scalar / 古い ARM）では half はレーンを f32 に拡げて計算して戻す**。
+  この経路の丸めは GPU の half ALU とも ARM ネイティブとも一致しない（1 演算ごとに f32 丸めが 1 回入る）
+- 既定ベースライン（SSE2 / ARMv8.0）は上げない。**推奨**: x86 は `-march=x86-64-v3`（FMA）、
+  ARM で half を速くしたい場合は `-march=armv8.2-a+fp16`
+- AVX-512 / ZMM / AVX512-FP16 は非対応（対応予定なし）
+- FMA の有無で fmadd 系演算の丸めが変わる（fused = 単一丸め）。テストは許容比較でこれを吸収している
+
 ## ビルドとテスト
 
 ```bash
@@ -84,5 +102,5 @@ cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON  # scalar 強制
 - **行列の複数成分 swizzle**（`_m00_m11` 等）は未実装。単成分 `_m00`〜`_m33` / `_11`〜`_44` は全対応（範囲外は使用時にコンパイルエラー）。複数成分はメンバ宣言の組み合わせが最大 16⁴ 通りで現実的でないため
 - GLSL の `not()` は C++ キーワードのため `not_()`
 - `v.x` はプロキシ型（可変長引数に直接渡すときは `float(v.x)` にする）
-- 対象は float のみ。`int` / `double` / 半精度、`1xN` 行列、GPU 専用機能（テクスチャ・微分・atomic）は対象外
+- 対象は float と half（ベクトル）。`int` / `double`、`1xN` 行列、GPU 専用機能（テクスチャ・微分・atomic）は対象外
 - 言語互換であってメモリ ABI 互換ではない（`sizeof(float3) == 16`。定数バッファのパッキングとは別物）

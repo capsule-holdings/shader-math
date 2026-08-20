@@ -44,7 +44,8 @@ if(SHADER_MATH_BUILD_TESTS)
         tests/test_matrix_glsl.cpp
         tests/test_cross_lang.cpp
         tests/test_restrict.cpp
-        tests/test_simd.cpp)
+        tests/test_simd.cpp
+        tests/test_half.cpp)
 
     add_executable(shader_math_tests ${SHADER_MATH_TEST_SOURCES})
     target_link_libraries(shader_math_tests PRIVATE shader_math)
@@ -60,6 +61,18 @@ if(SHADER_MATH_BUILD_TESTS)
         target_link_libraries(shader_math_tests_scalar PRIVATE shader_math)
         target_compile_definitions(shader_math_tests_scalar PRIVATE SHADER_MATH_FORCE_SCALAR)
         add_test(NAME shader_math_tests_scalar COMMAND shader_math_tests_scalar)
+    endif()
+
+    # Disassembly-based codegen check: proves unroll<M> unrolls and that FMA
+    # backends really emit fused instructions. Optimized single-config builds
+    # only (Debug never unrolls); the script itself skips if objdump is absent.
+    if(NOT MSVC AND NOT SHADER_MATH_FORCE_SCALAR AND CMAKE_BUILD_TYPE MATCHES "Rel")
+        add_executable(shader_math_codegen tests/codegen.cpp)
+        target_link_libraries(shader_math_codegen PRIVATE shader_math)
+        add_test(NAME shader_math_codegen_check
+                 COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_codegen.sh
+                         $<TARGET_FILE:shader_math_codegen>)
+        set_tests_properties(shader_math_codegen_check PROPERTIES SKIP_RETURN_CODE 77)
     endif()
 
     add_executable(sandbox examples/sandbox.cpp)

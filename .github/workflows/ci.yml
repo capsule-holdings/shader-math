@@ -1,5 +1,6 @@
-# CI on Blacksmith runners: Ubuntu x64 (SSE), Ubuntu ARM (NEON), Windows x64
-# (SSE via MSVC), plus FORCE_SCALAR builds on both Linux architectures.
+# CI on Blacksmith runners: Ubuntu x64 (SSE2, plus one x86-64-v3/FMA job),
+# Ubuntu ARM (NEON), Windows x64 (SSE2 via MSVC), plus FORCE_SCALAR builds
+# on both Linux architectures.
 # Prerequisite: the Blacksmith app must be installed on the GitHub org.
 name: ci
 
@@ -25,6 +26,10 @@ jobs:
           - name: linux-arm-clang
             runner: blacksmith-2vcpu-ubuntu-2404-arm
             cxx: clang++
+          - name: linux-x64-gcc-v3
+            runner: blacksmith-2vcpu-ubuntu-2404
+            cxx: g++
+            cmake_extra: -DCMAKE_CXX_FLAGS=-march=x86-64-v3
           - name: linux-x64-gcc-scalar
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++

@@ -110,7 +110,8 @@ Blacksmith ランナー（GitHub-hosted ではない）。`fail-fast: false`:
   （複数成分はメンバ宣言が最大 16⁴ 通りで組み合わせ爆発するため。実シェーダでもほぼ未使用）
 - GLSL `not()` → `not_()`（C++ キーワード）
 - `v.x` はプロキシ型（varargs には `float(v.x)`）
-- 対象は float のみ。`int` / `double` / 半精度、1xN、GPU 専用機能（テクスチャ・微分・atomic）は対象外
+- 対象は float と half ベクトル（half は ARM FEAT_FP16 のみネイティブ、他は f32 昇格）。
+  `int` / `double`、1xN、GPU 専用機能（テクスチャ・微分・atomic）は対象外
 - `%` は HLSL のみの演算（GLSL float に無い）→ 対象外。`++`/`--` も対象外
 - 言語互換でありメモリ ABI 互換ではない（`sizeof(float3) == 16`、定数バッファのパッキングは別）
 
