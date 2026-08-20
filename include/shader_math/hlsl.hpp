@@ -18,6 +18,16 @@ using bool2 = detail::bvec<2>;
 using bool3 = detail::bvec<3>;
 using bool4 = detail::bvec<4>;
 
+// Half vectors (HLSL half). Language-level packing: sizeof(half3) == 8
+// (4 x binary16), just as sizeof(float3) == 16 — language compatibility, not
+// a GPU ABI. Absent entirely on compilers without a half scalar type.
+#if defined(SHADER_MATH_HAS_HALF)
+using half = detail::half_t;
+using half2 = detail::fvec<2, detail::half_t>;
+using half3 = detail::fvec<3, detail::half_t>;
+using half4 = detail::fvec<4, detail::half_t>;
+#endif
+
 using float2x2 = matrix<2, 2>;
 using float2x3 = matrix<2, 3>;
 using float2x4 = matrix<2, 4>;
@@ -111,19 +121,24 @@ SM_HLSL_MAT_COMPOUND(/)
         requires detail::SameVec<A, B>                                                   \
     SHADER_MATH_INLINE auto operator sym(const A& a, const B& b) {                       \
         constexpr int n = detail::vec_size_v<A>;                                         \
-        return detail::bvec<n>(detail::ops::fn(detail::to_vec(a).q_, detail::to_vec(b).q_)); \
+        using T = detail::vec_elem_t<A>;                                                 \
+        return detail::bvec<n>(detail::vops<T>::fn(detail::to_vec(a).q_, detail::to_vec(b).q_)); \
     }                                                                                    \
-    template <class A>                                                                   \
-        requires detail::VecLike<A>                                                      \
-    SHADER_MATH_INLINE auto operator sym(const A& a, float s) {                          \
+    template <class A, class S>                                                          \
+        requires(detail::VecLike<A> && detail::ScalarFor<S, detail::vec_elem_t<A>>)      \
+    SHADER_MATH_INLINE auto operator sym(const A& a, const S& s) {                       \
         constexpr int n = detail::vec_size_v<A>;                                         \
-        return detail::bvec<n>(detail::ops::fn(detail::to_vec(a).q_, detail::ops::splat(s))); \
+        using T = detail::vec_elem_t<A>;                                                 \
+        return detail::bvec<n>(                                                          \
+            detail::vops<T>::fn(detail::to_vec(a).q_, detail::vops<T>::splat(static_cast<T>(s)))); \
     }                                                                                    \
-    template <class B>                                                                   \
-        requires detail::VecLike<B>                                                      \
-    SHADER_MATH_INLINE auto operator sym(float s, const B& b) {                          \
+    template <class B, class S>                                                          \
+        requires(detail::VecLike<B> && detail::ScalarFor<S, detail::vec_elem_t<B>>)      \
+    SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                       \
         constexpr int n = detail::vec_size_v<B>;                                         \
-        return detail::bvec<n>(detail::ops::fn(detail::ops::splat(s), detail::to_vec(b).q_)); \
+        using T = detail::vec_elem_t<B>;                                                 \
+        return detail::bvec<n>(                                                          \
+            detail::vops<T>::fn(detail::vops<T>::splat(static_cast<T>(s)), detail::to_vec(b).q_)); \
     }                                                                                    \
     template <int R, int C>                                                              \
     SHADER_MATH_INLINE detail::bmat<R, C> operator sym(const matrix<R, C>& a,            \
@@ -160,15 +175,18 @@ SHADER_MATH_INLINE detail::bvec<N> operator!=(const detail::bvec<N>& a,
 
 // ---- mul: the 9 official overloads ------------------------------------------
 SHADER_MATH_INLINE float mul(float a, float b) { return a * b; }
+#if defined(SHADER_MATH_HAS_HALF)
+SHADER_MATH_INLINE detail::half_t mul(detail::half_t a, detail::half_t b) { return a * b; }
+#endif
 
-template <class V>
-    requires detail::VecLike<V>
-SHADER_MATH_INLINE auto mul(float s, const V& v) {
+template <class V, class S>
+    requires(detail::VecLike<V> && detail::ScalarFor<S, detail::vec_elem_t<V>>)
+SHADER_MATH_INLINE auto mul(const S& s, const V& v) {
     return s * detail::to_vec(v);
 }
-template <class V>
-    requires detail::VecLike<V>
-SHADER_MATH_INLINE auto mul(const V& v, float s) {
+template <class V, class S>
+    requires(detail::VecLike<V> && detail::ScalarFor<S, detail::vec_elem_t<V>>)
+SHADER_MATH_INLINE auto mul(const V& v, const S& s) {
     return detail::to_vec(v) * s;
 }
 template <int R, int C>
@@ -183,7 +201,7 @@ SHADER_MATH_INLINE matrix<R, C> mul(const matrix<R, C>& m, float s) {
 // vector x vector: equivalent to dot()
 template <class A, class B>
     requires detail::SameVec<A, B>
-SHADER_MATH_INLINE float mul(const A& a, const B& b) {
+SHADER_MATH_INLINE detail::vec_elem_t<A> mul(const A& a, const B& b) {
     return detail::dot(a, b);
 }
 

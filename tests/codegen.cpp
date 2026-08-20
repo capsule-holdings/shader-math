@@ -41,6 +41,14 @@ SM_CG_NOINLINE void sm_cg_glsl_mul_m4v4(const glsl::mat4& m, const glsl::vec4& v
     o = m * v;
 }
 
+#if defined(SHADER_MATH_HAS_HALF)
+// half multiply-add: on ARM FEAT_FP16 this must run on 16-bit lanes (.4h).
+SM_CG_NOINLINE void sm_cg_half4_mad(const hlsl::half4& a, const hlsl::half4& b,
+                                    const hlsl::half4& c, hlsl::half4& o) {
+    o = a * b + c;
+}
+#endif
+
 }  // extern "C"
 
 int main() {
@@ -55,7 +63,11 @@ int main() {
     (void)k3;
 
 #if defined(SHADER_MATH_ISA_NEON)
+#  if defined(SHADER_MATH_HAS_FP16)
+    std::printf("NEON+FP16\n");
+#  else
     std::printf("NEON\n");
+#  endif
 #elif defined(SHADER_MATH_ISA_SSE2)
 #  if defined(SHADER_MATH_HAS_FMA)
     std::printf("SSE2+FMA\n");

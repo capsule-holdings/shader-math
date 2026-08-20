@@ -85,4 +85,31 @@ for sym in $KERNELS; do
     fi
 done
 
+# Half kernel: on NEON+FP16 the half multiply-add must use 16-bit lanes (.4h)
+# and stay straight-line. On every other backend half math is a widened f32
+# fallback with no instruction-level promise, so there is nothing to check.
+if [ "$BACKEND" = "NEON+FP16" ]; then
+    hsym=sm_cg_half4_mad
+    hbody="$(printf '%s\n' "$DIS" | awk -v s="<${hsym}>:" 'index($0, s) {f=1; next} f && /^$/ {exit} f')"
+    if [ -z "$hbody" ]; then
+        echo "FAIL: symbol $hsym not found in disassembly"
+        fail=1
+    else
+        hfail=0
+        if ! printf '%s\n' "$hbody" | grep -Eq '\.4h'; then
+            echo "FAIL: $hsym: no 16-bit (.4h) lanes on NEON+FP16"
+            hfail=1
+        fi
+        if printf '%s\n' "$hbody" | grep -Eq "[[:space:]](${ARM_COND_BRANCHES})[[:space:]]"; then
+            echo "FAIL: $hsym: conditional branch found"
+            hfail=1
+        fi
+        if [ "$hfail" -eq 0 ]; then
+            echo "OK: $hsym"
+        else
+            fail=1
+        fi
+    fi
+fi
+
 exit "$fail"

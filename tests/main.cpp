@@ -10,10 +10,15 @@ void test_matrix_glsl();
 void test_cross_lang();
 void test_restrict();
 void test_simd();
+void test_half();
 
 int main() {
 #if defined(SHADER_MATH_ISA_NEON)
+#  if defined(SHADER_MATH_HAS_FP16)
+    std::printf("[shader-math] backend: NEON+FP16\n");
+#  else
     std::printf("[shader-math] backend: NEON\n");
+#  endif
 #elif defined(SHADER_MATH_ISA_SSE2)
 #  if defined(SHADER_MATH_HAS_FMA)
     std::printf("[shader-math] backend: SSE2+FMA\n");
@@ -32,6 +37,7 @@ int main() {
     test_cross_lang();
     test_restrict();
     test_simd();
+    test_half();
 
     std::printf("[shader-math] %d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

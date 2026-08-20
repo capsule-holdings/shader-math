@@ -49,3 +49,18 @@ inline bool near_f(float a, float b, float eps = 1e-5f) {
                         #b, static_cast<double>(va_), static_cast<double>(vb_));     \
         }                                                                            \
     } while (0)
+
+// Half-precision tolerant comparison: binary16 has ~11 mantissa bits
+// (ulp near 1.0 is about 9.8e-4), and the promoted fallback path adds one
+// extra f32 rounding per operation, so 1e-5 can never pass.
+#define CHECK_NEAR_H(a, b)                                                           \
+    do {                                                                             \
+        ++g_checks;                                                                  \
+        const float va_ = static_cast<float>(a);                                     \
+        const float vb_ = static_cast<float>(b);                                     \
+        if (!near_f(va_, vb_, 2e-3f)) {                                              \
+            ++g_failures;                                                            \
+            std::printf("FAIL %s:%d: %s ~=h %s (%g vs %g)\n", __FILE__, __LINE__,    \
+                        #a, #b, static_cast<double>(va_), static_cast<double>(vb_)); \
+        }                                                                            \
+    } while (0)

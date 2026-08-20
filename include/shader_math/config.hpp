@@ -31,6 +31,37 @@
 #  define SHADER_MATH_HAS_FMA 1
 #endif
 
+// Half precision (binary16):
+//   SHADER_MATH_HAS_HALF - a usable half scalar type exists, so the half
+//                          vector types are defined at all. GCC/Clang expose
+//                          _Float16 (x86: gcc 12+ / clang 15+, AArch64:
+//                          always) and advertise it via __FLT16_MANT_DIG__.
+//                          MSVC has no _Float16; a bit-stored software type
+//                          (detail::binary16) is used instead. On unsupported
+//                          compilers the half surface silently disappears;
+//                          the float surface is unaffected.
+//   SHADER_MATH_HAS_FP16 - the ARM FEAT_FP16 vector ALU is available
+//                          (__ARM_FEATURE_FP16_VECTOR_ARITHMETIC, e.g.
+//                          -march=armv8.2-a+fp16), so half math runs on real
+//                          16-bit lanes. Everywhere else half math widens the
+//                          lanes to f32, uses the float ops, and narrows back.
+// SHADER_MATH_TEST_FORCE_BINARY16 selects the MSVC software half
+// (detail::binary16) on any compiler; test hook for exercising that path
+// without MSVC. Not a user-facing option.
+#if defined(SHADER_MATH_TEST_FORCE_BINARY16)
+#  define SHADER_MATH_HAS_HALF 1
+#elif defined(_MSC_VER) && !defined(__clang__)
+#  define SHADER_MATH_HAS_HALF 1
+#elif defined(__FLT16_MANT_DIG__)
+#  define SHADER_MATH_HAS_HALF 1
+#  define SHADER_MATH_HALF_IS_FLOAT16 1
+#endif
+
+#if defined(SHADER_MATH_HAS_HALF) && defined(SHADER_MATH_ISA_NEON) && \
+    defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC)
+#  define SHADER_MATH_HAS_FP16 1
+#endif
+
 #if defined(__cpp_concepts)
 #  if __cpp_concepts < 201907L
 #    error "shader-math requires C++20 concepts (gcc 10+ / clang 10+ / MSVC 19.30+)"
