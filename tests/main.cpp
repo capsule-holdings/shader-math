@@ -14,8 +14,8 @@ void test_simd();
 int main() {
 #if defined(SHADER_MATH_ISA_NEON)
     std::printf("[shader-math] backend: NEON\n");
-#elif defined(SHADER_MATH_ISA_SSE)
-    std::printf("[shader-math] backend: SSE\n");
+#elif defined(SHADER_MATH_ISA_SSE2)
+    std::printf("[shader-math] backend: SSE2\n");
 #elif defined(SHADER_MATH_FORCE_SCALAR)
     std::printf("[shader-math] backend: scalar (forced)\n");
 #else
