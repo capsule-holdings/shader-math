@@ -124,6 +124,21 @@ Blacksmith ランナー（GitHub-hosted ではない）。`fail-fast: false`:
 - **未実装**: RVV バックエンド。行列への成分ごと intrinsic（HLSL の `abs(m)` 等）。
   純スカラーへの intrinsic（`std::` を使う）。
 
+## Slang 相互検証ハーネス（2026-08-20 追加）
+
+同一の `tests/interop/shared/math_cases.hlsli` を Slang（`slangc -target cpp` → g++ で
+CPU 実行）と shader-math（`cpp_harness.cpp`）の両方でビルド・実行し、
+`tests/interop/compare.py` が階層許容誤差（`exact_` = ビット一致 / `near_` = 相対 1e-5 /
+`half_` = 相対 2e-3）で照合する。dual compile 自体がサブセットの lint。
+実行方法: `-DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=<slang展開先>` で
+configure し `ctest -R slang_interop`。CI は `linux-x64-slang-interop` ジョブが
+Slang v2026.16（バージョン固定、renovate 対象外の手動更新）をダウンロードして実行する。
+
+実測記録（Slang v2026.16）: CPU ターゲットの C++ prelude は half ベクトル演算が未実装
+（`Vector<_Float16, 4>` に `operator*` 等が無い）ため、half ケースは共有ファイルに
+`SM_INTEROP_ENABLE_HALF` ガード付きで保持しつつ照合対象から除外し、SPIR-V 実行
+フェーズ（lavapipe）送りとした。サブセット定義・除外・意味差は `docs/slang_compat.md`。
+
 ## 検証記録（2026-08-20、Cloud Agent VM）
 
 同一スイート 397 checks を5構成で実行、すべて 0 failures:

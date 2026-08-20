@@ -41,6 +41,8 @@ void glsl_side() {
 - 行列: R,C ∈ {2,3,4} の全9形。`hlsl::floatRxC`（行格納・行優先 ctor）と `glsl::matCxR`（列格納・列優先 ctor）は **別型**、相互変換は explicit
 - 対応関係は非正方で入れ替わる: `float3x4`（3行4列）≡ `mat4x3`（4列3行）
 - 比較結果: `bool2/3/4`（= `bvec2/3/4`）と `boolRxC`。算術なし・bool への暗黙変換なし
+- Slang / HLSL と共有できる型・演算のサブセットは [docs/slang_compat.md](docs/slang_compat.md) 参照
+  （Slang との相互コンパイル検証ハーネスで CI 照合済み）
 
 ## 言語セマンティクスの互換表
 
@@ -132,3 +134,16 @@ cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON  # scalar 強制
 - `v.x` はプロキシ型（可変長引数に直接渡すときは `float(v.x)` にする）
 - 対象は float と half（ベクトル）。`int` / `double`、`1xN` 行列、GPU 専用機能（テクスチャ・微分・atomic）は対象外
 - 言語互換であってメモリ ABI 互換ではない（`sizeof(float3) == 16`。定数バッファのパッキングとは別物）
+
+## Slang との相互検証
+
+同一の数式ソースを Slang（`slangc -target cpp`、CPU 実行）と shader-math の両方で
+ビルド・実行して数値照合するハーネスが `tests/interop/` にある。共有可能サブセット・
+除外・意味差の対応表は [docs/slang_compat.md](docs/slang_compat.md) を参照。
+
+```bash
+cmake -S . -B build-interop -DCMAKE_BUILD_TYPE=Release \
+  -DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=<slangリリース展開先>
+cmake --build build-interop
+ctest --test-dir build-interop -R slang_interop --output-on-failure
+```
