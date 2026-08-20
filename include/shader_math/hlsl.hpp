@@ -70,6 +70,56 @@ using detail::dot;
 using detail::length;
 using detail::normalize;
 
+// component-wise intrinsics with identical names in both languages
+using detail::abs;
+using detail::ceil;
+using detail::clamp;
+using detail::cos;
+using detail::exp;
+using detail::exp2;
+using detail::floor;
+using detail::log;
+using detail::log2;
+using detail::max;
+using detail::min;
+using detail::pow;
+using detail::round;
+using detail::sign;
+using detail::sin;
+using detail::smoothstep;
+using detail::sqrt;
+using detail::step;
+using detail::tan;
+using detail::trunc;
+
+// HLSL-only spellings (defined here, not in detail, so they never leak into
+// glsl via ADL on the shared vector type)
+template <class... As>
+    requires requires(const As&... as) { detail::lerp_impl(as...); }
+SHADER_MATH_INLINE auto lerp(const As&... as) {
+    return detail::lerp_impl(as...);
+}
+template <class A>
+    requires detail::VecLike<A>
+SHADER_MATH_INLINE auto saturate(const A& a) {
+    return detail::saturate_impl(a);
+}
+template <class A>
+    requires detail::VecLike<A>
+SHADER_MATH_INLINE auto frac(const A& a) {
+    return detail::fract_impl(a);
+}
+template <class A>
+    requires detail::VecLike<A>
+SHADER_MATH_INLINE auto rcp(const A& a) {
+    return detail::rcp_impl(a);
+}
+template <class A>
+    requires detail::VecLike<A>
+SHADER_MATH_INLINE auto rsqrt(const A& a) {
+    return detail::rsqrt_impl(a);
+}
+
 // ---- component-wise matrix operators ----------------------------------------
 // Same-shape matrices only; `float3x4 * float4x3` does not compile (use mul).
 #define SM_HLSL_MAT_BINOP(sym, fn)                                                       \

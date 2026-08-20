@@ -58,6 +58,23 @@ struct hops {
     // a*b + c, fused on the 16-bit ALU
     static SHADER_MATH_INLINE hreg fmadd(hreg a, hreg b, hreg c) { return vfma_f16(c, a, b); }
 
+    static SHADER_MATH_INLINE hreg abs(hreg a) { return vabs_f16(a); }
+    static SHADER_MATH_INLINE hreg min(hreg a, hreg b) { return vmin_f16(a, b); }
+    static SHADER_MATH_INLINE hreg max(hreg a, hreg b) { return vmax_f16(a, b); }
+    static SHADER_MATH_INLINE hreg sqrt(hreg a) { return vsqrt_f16(a); }
+
+    static SHADER_MATH_INLINE hreg rnd_floor(hreg v) { return vrndm_f16(v); }
+    static SHADER_MATH_INLINE hreg rnd_ceil(hreg v) { return vrndp_f16(v); }
+    static SHADER_MATH_INLINE hreg rnd_trunc(hreg v) { return vrnd_f16(v); }
+    static SHADER_MATH_INLINE hreg rnd_even(hreg v) { return vrndn_f16(v); }
+    static SHADER_MATH_INLINE hreg rnd_away(hreg v) { return vrnda_f16(v); }
+
+    // m ? a : b with the shared 32-bit mask: select in the f32 domain
+    // (selection is exact, so widening costs no precision).
+    static SHADER_MATH_INLINE hreg sel(mreg m, hreg a, hreg b) {
+        return narrow(ops::sel(m, widen(a), widen(b)));
+    }
+
     // Comparisons reuse the 32-bit mask path: widen, compare as f32. Exact for
     // every pair of half values (the widening conversion is exact).
     static SHADER_MATH_INLINE mreg cmp_eq(hreg a, hreg b) { return ops::cmp_eq(widen(a), widen(b)); }

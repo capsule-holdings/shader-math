@@ -67,6 +67,30 @@ struct hops {
         return narrow(ops::fmadd(widen(a), widen(b), widen(c)));
     }
 
+#define SHADER_MATH_HP_UNARY(name, fn)                             \
+    static SHADER_MATH_INLINE hreg name(hreg a) {                  \
+        return narrow(ops::fn(widen(a)));                          \
+    }
+    SHADER_MATH_HP_UNARY(abs, abs)
+    SHADER_MATH_HP_UNARY(sqrt, sqrt)
+    SHADER_MATH_HP_UNARY(rnd_floor, rnd_floor)
+    SHADER_MATH_HP_UNARY(rnd_ceil, rnd_ceil)
+    SHADER_MATH_HP_UNARY(rnd_trunc, rnd_trunc)
+    SHADER_MATH_HP_UNARY(rnd_even, rnd_even)
+    SHADER_MATH_HP_UNARY(rnd_away, rnd_away)
+#undef SHADER_MATH_HP_UNARY
+
+    static SHADER_MATH_INLINE hreg min(hreg a, hreg b) {
+        return narrow(ops::min(widen(a), widen(b)));
+    }
+    static SHADER_MATH_INLINE hreg max(hreg a, hreg b) {
+        return narrow(ops::max(widen(a), widen(b)));
+    }
+    // m ? a : b with the shared 32-bit mask (selection is exact via f32)
+    static SHADER_MATH_INLINE hreg sel(mreg m, hreg a, hreg b) {
+        return narrow(ops::sel(m, widen(a), widen(b)));
+    }
+
     // Comparisons via f32 are exact for every pair of half values.
     static SHADER_MATH_INLINE mreg cmp_eq(hreg a, hreg b) { return ops::cmp_eq(widen(a), widen(b)); }
     static SHADER_MATH_INLINE mreg cmp_ne(hreg a, hreg b) { return ops::cmp_ne(widen(a), widen(b)); }

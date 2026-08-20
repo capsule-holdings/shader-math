@@ -91,6 +91,28 @@ void glsl_side() {
 - AVX-512 / ZMM / AVX512-FP16 は非対応（対応予定なし）
 - FMA の有無で fmadd 系演算の丸めが変わる（fused = 単一丸め）。テストは許容比較でこれを吸収している
 
+## 成分ごと関数（intrinsics）
+
+ベクトル（float / half）に対する成分ごと関数。スカラー第 2/3 引数は演算子と同じ規則
+（float ベクトルは算術スカラー可、half ベクトルは half のみ）。純スカラーには定義しない
+（`std::` を使う）。行列への成分ごと適用は未対応。
+
+- 両言語共通: `abs` `sign` `min` `max` `clamp` `step` `smoothstep` `floor` `ceil` `trunc`
+  `round` `sqrt` `exp` `exp2` `log` `log2` `pow` `sin` `cos` `tan`
+- HLSL のみ: `lerp` `frac` `rcp` `rsqrt` `saturate`
+- GLSL のみ: `mix` `fract` `inversesqrt` `roundEven`（GLSL に `saturate` / `rcp` は無い →
+  定義していない。逆も同様で、言語に無い名前はコンパイルエラー）
+
+意味論の注記:
+
+- `round` は half-away-from-zero（`std::round` 同等）。GPU 実装は RNE が多く、
+  正確な .5 の丸めは環境依存。RNE が必要なら `glsl::roundEven`
+- `sign` は両言語とも同じベクトル型を返す（HLSL 本家の int 返しは採用しない）
+- `min` / `max` / `saturate` の NaN 挙動は backend 依存（シェーダ言語仕様も未定義）
+- `rcp` / `rsqrt` / `inversesqrt` は近似命令（`rcpps` / `rsqrtps`）を使わない正確版
+- 超越関数は per-lane で libm を呼ぶ（SIMD 多項式近似はしない）。`pow(負, 非整数)` は NaN
+- Windows で `<windows.h>` を使う場合は `NOMINMAX` が必要（`min` / `max` マクロと衝突）
+
 ## ビルドとテスト
 
 ```bash

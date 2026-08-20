@@ -13,6 +13,10 @@
 
 #include "simd.hpp"
 
+#if defined(min) || defined(max)
+#  error "shader-math: min/max are defined as macros (windows.h?); define NOMINMAX first"
+#endif
+
 namespace shader_math {
 namespace detail {
 
@@ -472,6 +476,250 @@ SHADER_MATH_INLINE auto normalize(const A& a) {
     using T = vec_elem_t<A>;
     const fvec<n, T> v = to_vec(a);
     return v / length(v);
+}
+
+// ---- component-wise functions (same meaning in both languages) --------------
+// Language-specific spellings (hlsl lerp/frac/rcp/rsqrt/saturate, glsl
+// mix/fract/inversesqrt/roundEven) forward to the *_impl cores below from
+// their own namespaces so they never leak across languages via ADL.
+
+#define SM_VEC_UNARY_FN(name, fn)                                    \
+    template <class A>                                               \
+        requires VecLike<A>                                          \
+    SHADER_MATH_INLINE auto name(const A& a) {                       \
+        constexpr int n = vec_size_v<A>;                             \
+        using T = vec_elem_t<A>;                                     \
+        return fvec<n, T>(vops<T>::fn(to_vec(a).q_));                \
+    }
+
+SM_VEC_UNARY_FN(abs, abs)
+SM_VEC_UNARY_FN(sqrt, sqrt)
+SM_VEC_UNARY_FN(floor, rnd_floor)
+SM_VEC_UNARY_FN(ceil, rnd_ceil)
+SM_VEC_UNARY_FN(trunc, rnd_trunc)
+// round is half-away-from-zero (std::round). GPU implementations commonly
+// round-to-even; halfway cases are therefore environment-dependent.
+SM_VEC_UNARY_FN(round, rnd_away)
+SM_VEC_UNARY_FN(round_even_impl, rnd_even)  // glsl::roundEven
+#undef SM_VEC_UNARY_FN
+
+#define SM_VEC_MINMAX_FN(name)                                                 \
+    template <class A, class B>                                                \
+        requires SameVec<A, B>                                                 \
+    SHADER_MATH_INLINE auto name(const A& a, const B& b) {                     \
+        constexpr int n = vec_size_v<A>;                                       \
+        using T = vec_elem_t<A>;                                               \
+        return fvec<n, T>(vops<T>::name(to_vec(a).q_, to_vec(b).q_));          \
+    }                                                                          \
+    template <class A, class S>                                                \
+        requires(VecLike<A> && ScalarFor<S, vec_elem_t<A>>)                    \
+    SHADER_MATH_INLINE auto name(const A& a, const S& s) {                     \
+        constexpr int n = vec_size_v<A>;                                       \
+        using T = vec_elem_t<A>;                                               \
+        return fvec<n, T>(                                                     \
+            vops<T>::name(to_vec(a).q_, vops<T>::splat(static_cast<T>(s))));   \
+    }
+
+SM_VEC_MINMAX_FN(min)
+SM_VEC_MINMAX_FN(max)
+#undef SM_VEC_MINMAX_FN
+
+// sign: -1 / 0 / +1 as the same vector type in both languages (HLSL's int
+// return type is intentionally not replicated). sign(NaN) == 0.
+template <class A>
+    requires VecLike<A>
+SHADER_MATH_INLINE auto sign(const A& a) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    const auto v = to_vec(a).q_;
+    const auto zero = vops<T>::zero();
+    const auto one = vops<T>::splat(T(1.0f));
+    return fvec<n, T>(vops<T>::sub(vops<T>::sel(vops<T>::cmp_gt(v, zero), one, zero),
+                                   vops<T>::sel(vops<T>::cmp_lt(v, zero), one, zero)));
+}
+
+template <class A, class B, class C>
+    requires(SameVec<A, B> && SameVec<A, C>)
+SHADER_MATH_INLINE auto clamp(const A& x, const B& lo, const C& hi) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    return fvec<n, T>(
+        vops<T>::min(vops<T>::max(to_vec(x).q_, to_vec(lo).q_), to_vec(hi).q_));
+}
+template <class A, class SL, class SH>
+    requires(VecLike<A> && ScalarFor<SL, vec_elem_t<A>> && ScalarFor<SH, vec_elem_t<A>>)
+SHADER_MATH_INLINE auto clamp(const A& x, const SL& lo, const SH& hi) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    return fvec<n, T>(vops<T>::min(
+        vops<T>::max(to_vec(x).q_, vops<T>::splat(static_cast<T>(lo))),
+        vops<T>::splat(static_cast<T>(hi))));
+}
+
+// hlsl::saturate (GLSL has no saturate; use clamp(x, 0.0, 1.0))
+template <class A>
+    requires VecLike<A>
+SHADER_MATH_INLINE auto saturate_impl(const A& a) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    return fvec<n, T>(vops<T>::min(vops<T>::max(to_vec(a).q_, vops<T>::zero()),
+                                   vops<T>::splat(T(1.0f))));
+}
+
+// hlsl::lerp / glsl::mix: a + t*(b - a), fmadd path (rounding differs with FMA)
+template <class A, class B, class C>
+    requires(SameVec<A, B> && SameVec<A, C>)
+SHADER_MATH_INLINE auto lerp_impl(const A& a, const B& b, const C& t) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    const auto av = to_vec(a).q_;
+    return fvec<n, T>(vops<T>::fmadd(to_vec(t).q_, vops<T>::sub(to_vec(b).q_, av), av));
+}
+template <class A, class B, class S>
+    requires(SameVec<A, B> && ScalarFor<S, vec_elem_t<A>>)
+SHADER_MATH_INLINE auto lerp_impl(const A& a, const B& b, const S& t) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    const auto av = to_vec(a).q_;
+    return fvec<n, T>(vops<T>::fmadd(vops<T>::splat(static_cast<T>(t)),
+                                     vops<T>::sub(to_vec(b).q_, av), av));
+}
+
+// step(edge, x): x >= edge ? 1 : 0 (note the edge-first argument order)
+template <class A, class B>
+    requires SameVec<A, B>
+SHADER_MATH_INLINE auto step(const A& edge, const B& x) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    return fvec<n, T>(vops<T>::sel(vops<T>::cmp_ge(to_vec(x).q_, to_vec(edge).q_),
+                                   vops<T>::splat(T(1.0f)), vops<T>::zero()));
+}
+template <class S, class B>
+    requires(VecLike<B> && ScalarFor<S, vec_elem_t<B>>)
+SHADER_MATH_INLINE auto step(const S& edge, const B& x) {
+    constexpr int n = vec_size_v<B>;
+    using T = vec_elem_t<B>;
+    return fvec<n, T>(
+        vops<T>::sel(vops<T>::cmp_ge(to_vec(x).q_, vops<T>::splat(static_cast<T>(edge))),
+                     vops<T>::splat(T(1.0f)), vops<T>::zero()));
+}
+
+// smoothstep(lo, hi, x): undefined for lo == hi (division by zero)
+template <class T>
+SHADER_MATH_INLINE vreg<T> smoothstep_core(vreg<T> lo, vreg<T> hi, vreg<T> x) {
+    const vreg<T> d = vops<T>::div(vops<T>::sub(x, lo), vops<T>::sub(hi, lo));
+    const vreg<T> t =
+        vops<T>::min(vops<T>::max(d, vops<T>::zero()), vops<T>::splat(T(1.0f)));
+    // t*t*(3 - 2t)
+    return vops<T>::mul(vops<T>::mul(t, t),
+                        vops<T>::fmadd(vops<T>::splat(T(-2.0f)), t, vops<T>::splat(T(3.0f))));
+}
+template <class A, class B, class C>
+    requires(SameVec<A, B> && SameVec<A, C>)
+SHADER_MATH_INLINE auto smoothstep(const A& lo, const B& hi, const C& x) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    return fvec<n, T>(smoothstep_core<T>(to_vec(lo).q_, to_vec(hi).q_, to_vec(x).q_));
+}
+template <class SL, class SH, class C>
+    requires(VecLike<C> && ScalarFor<SL, vec_elem_t<C>> && ScalarFor<SH, vec_elem_t<C>>)
+SHADER_MATH_INLINE auto smoothstep(const SL& lo, const SH& hi, const C& x) {
+    constexpr int n = vec_size_v<C>;
+    using T = vec_elem_t<C>;
+    return fvec<n, T>(smoothstep_core<T>(vops<T>::splat(static_cast<T>(lo)),
+                                         vops<T>::splat(static_cast<T>(hi)), to_vec(x).q_));
+}
+
+// hlsl::frac / glsl::fract: x - floor(x)
+template <class A>
+    requires VecLike<A>
+SHADER_MATH_INLINE auto fract_impl(const A& a) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    const auto v = to_vec(a).q_;
+    return fvec<n, T>(vops<T>::sub(v, vops<T>::rnd_floor(v)));
+}
+
+// hlsl::rcp: exact 1/x (the approximate rcpps is NOT used: its precision is
+// implementation-defined even across GPUs, which would make results
+// impossible to cross-check)
+template <class A>
+    requires VecLike<A>
+SHADER_MATH_INLINE auto rcp_impl(const A& a) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    return fvec<n, T>(vops<T>::div(vops<T>::splat(T(1.0f)), to_vec(a).q_));
+}
+
+// hlsl::rsqrt / glsl::inversesqrt: exact 1/sqrt(x) (rsqrtps not used, as above)
+template <class A>
+    requires VecLike<A>
+SHADER_MATH_INLINE auto rsqrt_impl(const A& a) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    return fvec<n, T>(vops<T>::div(vops<T>::splat(T(1.0f)), vops<T>::sqrt(to_vec(a).q_)));
+}
+
+// ---- transcendental functions: per-lane libm --------------------------------
+// No SIMD polynomial approximations: correctness and cross-checkability first.
+// half computes in f32 and narrows. Lanes >= N stay zero (the fvec invariant).
+template <int N, class T, class F>
+SHADER_MATH_INLINE fvec<N, T> map_lanes(const fvec<N, T>& v, F&& f) {
+    T in[4];
+    vops<T>::store4(v.q_, in);
+    T out[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
+    for (int i = 0; i < N; ++i) out[i] = static_cast<T>(f(static_cast<float>(in[i])));
+    return fvec<N, T>(vops<T>::load4(out));
+}
+template <int N, class T, class F>
+SHADER_MATH_INLINE fvec<N, T> map_lanes2(const fvec<N, T>& a, const fvec<N, T>& b, F&& f) {
+    T ta[4];
+    T tb[4];
+    vops<T>::store4(a.q_, ta);
+    vops<T>::store4(b.q_, tb);
+    T out[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
+    for (int i = 0; i < N; ++i)
+        out[i] = static_cast<T>(f(static_cast<float>(ta[i]), static_cast<float>(tb[i])));
+    return fvec<N, T>(vops<T>::load4(out));
+}
+
+#define SM_VEC_LIBM_FN(name, call)                                   \
+    template <class A>                                               \
+        requires VecLike<A>                                          \
+    SHADER_MATH_INLINE auto name(const A& a) {                       \
+        constexpr int n = vec_size_v<A>;                             \
+        using T = vec_elem_t<A>;                                     \
+        const fvec<n, T> v = to_vec(a);                              \
+        return map_lanes(v, [](float x) { return call; });           \
+    }
+
+SM_VEC_LIBM_FN(exp, std::exp(x))
+SM_VEC_LIBM_FN(exp2, std::exp2(x))
+SM_VEC_LIBM_FN(log, std::log(x))
+SM_VEC_LIBM_FN(log2, std::log2(x))
+SM_VEC_LIBM_FN(sin, std::sin(x))
+SM_VEC_LIBM_FN(cos, std::cos(x))
+SM_VEC_LIBM_FN(tan, std::tan(x))
+#undef SM_VEC_LIBM_FN
+
+// pow(x < 0, non-integer) is NaN per libm (undefined in the shader languages)
+template <class A, class B>
+    requires SameVec<A, B>
+SHADER_MATH_INLINE auto pow(const A& a, const B& b) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    const fvec<n, T> av = to_vec(a);
+    const fvec<n, T> bv = to_vec(b);
+    return map_lanes2(av, bv, [](float x, float y) { return std::pow(x, y); });
+}
+template <class A, class S>
+    requires(VecLike<A> && ScalarFor<S, vec_elem_t<A>>)
+SHADER_MATH_INLINE auto pow(const A& a, const S& s) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    const fvec<n, T> av = to_vec(a);
+    const float y = static_cast<float>(static_cast<T>(s));
+    return map_lanes(av, [y](float x) { return std::pow(x, y); });
 }
 
 // ---- bvec: comparison result type ------------------------------------------
