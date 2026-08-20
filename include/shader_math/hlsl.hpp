@@ -259,12 +259,8 @@ SHADER_MATH_INLINE matrix<M, N2, T> mul(const matrix<M, K, T>& a, const matrix<K
 // the 128-bit path); this non-template overload simply wins overload
 // resolution when available.
 SHADER_MATH_INLINE matrix<4, 4> mul(const matrix<4, 4>& a, const matrix<4, 4>& b) {
-    const detail::freg pk[4] = {a.row_[0].q_, a.row_[1].q_, a.row_[2].q_, a.row_[3].q_};
-    const detail::freg bc[4] = {b.row_[0].q_, b.row_[1].q_, b.row_[2].q_, b.row_[3].q_};
-    detail::freg out[4];
-    detail::avx2row::mul4x4(pk, bc, out);
     matrix<4, 4> o;
-    for (int r = 0; r < 4; ++r) o.row_[r] = detail::fvec<4>(out[r]);
+    detail::avx2row::mul4x4(a.row_, b.row_, o.row_);
     return o;
 }
 #endif
