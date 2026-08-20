@@ -54,7 +54,12 @@
 //                          -march=armv8.2-a+fp16), so half math runs on real
 //                          16-bit lanes. Everywhere else half math widens the
 //                          lanes to f32, uses the float ops, and narrows back.
-#if defined(_MSC_VER) && !defined(__clang__)
+// SHADER_MATH_TEST_FORCE_BINARY16 selects the MSVC software half
+// (detail::binary16) on any compiler; test hook for exercising that path
+// without MSVC. Not a user-facing option.
+#if defined(SHADER_MATH_TEST_FORCE_BINARY16)
+#  define SHADER_MATH_HAS_HALF 1
+#elif defined(_MSC_VER) && !defined(__clang__)
 #  define SHADER_MATH_HAS_HALF 1
 #elif defined(__FLT16_MANT_DIG__)
 #  define SHADER_MATH_HAS_HALF 1
