@@ -47,6 +47,12 @@ SM_CG_NOINLINE void sm_cg_half4_mad(const hlsl::half4& a, const hlsl::half4& b,
                                     const hlsl::half4& c, hlsl::half4& o) {
     o = a * b + c;
 }
+
+// half matrix product: hops::fmadd path, 16-bit fmla on FEAT_FP16.
+SM_CG_NOINLINE void sm_cg_hlsl_mul_h4h4(const hlsl::half4x4& a, const hlsl::half4x4& b,
+                                        hlsl::half4x4& o) {
+    o = hlsl::mul(a, b);
+}
 #endif
 
 }  // extern "C"

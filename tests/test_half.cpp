@@ -45,6 +45,24 @@ static_assert(!std::is_convertible_v<h::float3, h::half3>);
 static_assert(std::is_constructible_v<h::float3, h::half3>);
 static_assert(std::is_constructible_v<h::half3, h::float3>);
 
+// matrices follow the same rules
+static_assert(sizeof(h::half4x4) == 32);  // 4 rows x 4 x binary16
+static_assert(can_mul_op<h::half3x3, h::half3x3>);        // Hadamard (HLSL)
+static_assert(!can_mul_op<h::half3x3, h::float3x3>);      // no implicit mixing
+static_assert(!can_add_op<h::half3x3, h::float3x3>);
+static_assert(!can_mul_op<h::half3x3, float>);            // half3x3 * 2.0f fails
+static_assert(can_mul_op<h::half3x3, h::half>);
+static_assert(!std::is_convertible_v<h::half3x3, h::float3x3>);
+static_assert(std::is_constructible_v<h::float3x3, h::half3x3>);  // explicit
+static_assert(std::is_constructible_v<h::half3x3, h::float3x3>);
+static_assert(!std::is_convertible_v<g::f16mat3, h::half3x3>);    // cross-language
+static_assert(std::is_constructible_v<h::half3x3, g::f16mat3>);
+template <class M, class V>
+concept can_hlsl_mul = requires(const M& m, const V& v) { shader_math::hlsl::mul(m, v); };
+static_assert(can_hlsl_mul<h::half3x3, h::half3>);
+static_assert(!can_hlsl_mul<h::half3x3, h::float3>);  // element types must match
+static_assert(!can_hlsl_mul<h::float3x3, h::half3>);
+
 static void test_half_hlsl() {
     using namespace shader_math::hlsl;
 
@@ -159,9 +177,116 @@ static void test_half_glsl() {
     CHECK_NEAR_H(dot(a, b), 14.0f);
 }
 
+static void test_half_matrix_hlsl() {
+    using namespace shader_math::hlsl;
+
+    // ctor order (row-major fill) and element accessors: exact
+    half2x2 m(1.0f, 2.0f, 3.0f, 4.0f);
+    CHECK_EQF(static_cast<float>(m._m01), 2.0f);
+    CHECK_EQF(static_cast<float>(m._m10), 3.0f);
+    CHECK_EQF(static_cast<float>(m._22), 4.0f);
+    m._m00 = half(9.0f);
+    CHECK_EQF(static_cast<float>(m[0][0]), 9.0f);
+
+    // scalar splat ctor (HLSL rule) and Hadamard * : exact
+    const half2x2 twos(half(2.0f));
+    const half2x2 had = m * twos;
+    CHECK_EQF(static_cast<float>(had[0][0]), 18.0f);
+    CHECK_EQF(static_cast<float>(had[1][1]), 8.0f);
+
+    // identity mul: exact
+    const half3x3 id = half3x3::identity();
+    const half3 v(1.0f, 2.0f, 3.0f);
+    const half3 same = mul(id, v);
+    CHECK_EQF(static_cast<float>(same[0]), 1.0f);
+    CHECK_EQF(static_cast<float>(same[2]), 3.0f);
+
+    // simple scale matrix: mul in both directions and the matrix product
+    const half3x3 scale(2.0f, 0.0f, 0.0f,
+                        0.0f, 4.0f, 0.0f,
+                        0.0f, 0.0f, 8.0f);
+    const half3 sv = mul(scale, v);
+    CHECK_NEAR_H(sv[0], 2.0f);
+    CHECK_NEAR_H(sv[1], 8.0f);
+    CHECK_NEAR_H(sv[2], 24.0f);
+    const half3 vs = mul(v, scale);
+    CHECK_NEAR_H(vs[1], 8.0f);
+    const half3x3 sq = mul(scale, scale);
+    CHECK_NEAR_H(static_cast<float>(sq[2][2]), 64.0f);
+
+    // transpose: exact
+    const half2x3 wide(1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f);
+    const half3x2 tall = transpose(wide);
+    CHECK_EQF(static_cast<float>(tall[2][1]), 6.0f);
+
+    // det / inverse: identity and a simple diagonal only (true fp16
+    // underflows quickly), relaxed comparison
+    CHECK_EQF(static_cast<float>(determinant(id)), 1.0f);
+    CHECK_NEAR_H(determinant(scale), 64.0f);
+    const half3x3 inv = inverse(scale);
+    CHECK_NEAR_H(static_cast<float>(inv[0][0]), 0.5f);
+    CHECK_NEAR_H(static_cast<float>(inv[1][1]), 0.25f);
+    CHECK_NEAR_H(static_cast<float>(inv[2][2]), 0.125f);
+
+    // comparisons: per-component bmat, reduce with all()/any()
+    CHECK(all(id == id));
+    CHECK(any(id != scale));
+
+    // element-type conversion: explicit, both ways
+    const float3x3 widened(scale);
+    CHECK_EQF(widened[1][1], 4.0f);
+    const half3x3 narrowed(float3x3(1.0f, 0.0f, 0.0f,
+                                    0.0f, 0.5f, 0.0f,
+                                    0.0f, 0.0f, 0.25f));
+    CHECK_EQF(static_cast<float>(narrowed[2][2]), 0.25f);
+}
+
+static void test_half_matrix_glsl() {
+    using namespace shader_math::glsl;
+
+    // GLSL scalar ctor: diagonal (f16mat3(1.0) is the identity)
+    const f16mat3 id(1.0f);
+    CHECK_EQF(static_cast<float>(id[0][0]), 1.0f);
+    CHECK_EQF(static_cast<float>(id[1][0]), 0.0f);
+
+    // column-major ctor order
+    const f16mat2 m(1.0f, 2.0f, 3.0f, 4.0f);
+    CHECK_EQF(static_cast<float>(m[0][1]), 2.0f);  // column 0, row 1
+    CHECK_EQF(static_cast<float>(m[1][0]), 3.0f);
+
+    // linear-algebra * : identity and simple scale
+    const f16vec3 v(1.0f, 2.0f, 3.0f);
+    const f16vec3 same = id * v;
+    CHECK_EQF(static_cast<float>(same[1]), 2.0f);
+    const f16mat3 scale(2.0f, 0.0f, 0.0f,
+                        0.0f, 4.0f, 0.0f,
+                        0.0f, 0.0f, 8.0f);
+    const f16vec3 sv = scale * v;
+    CHECK_NEAR_H(sv[2], 24.0f);
+    const f16vec3 vs = v * scale;
+    CHECK_NEAR_H(vs[0], 2.0f);
+
+    // matrixCompMult / transpose: exact
+    const f16mat2 had = matrixCompMult(m, m);
+    CHECK_EQF(static_cast<float>(had[1][1]), 16.0f);
+    const f16mat2 t = transpose(m);
+    CHECK_EQF(static_cast<float>(t[0][1]), 3.0f);
+
+    // det / inverse on the simple scale: relaxed
+    CHECK_NEAR_H(determinant(scale), 64.0f);
+    const f16mat3 inv = inverse(scale);
+    CHECK_NEAR_H(static_cast<float>(inv[1][1]), 0.25f);
+
+    // == is a single bool in GLSL
+    CHECK(id == id);
+    CHECK(id != scale);
+}
+
 void test_half() {
     test_half_hlsl();
     test_half_glsl();
+    test_half_matrix_hlsl();
+    test_half_matrix_glsl();
 }
 
 #else  // no half scalar type on this compiler: the half surface is absent
