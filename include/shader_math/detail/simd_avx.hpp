@@ -39,6 +39,26 @@ struct avx2row {
     static SHADER_MATH_INLINE dreg fmadd(dreg a, dreg b, dreg c) {
         return _mm256_fmadd_ps(a, b, c);
     }
+
+    // Shared float 4x4 product kernel, two output registers per YMM:
+    //   out[j], out[j+1] = sum_K bcast_per_lane<K>(pack(pk[j], pk[j+1]))
+    //                            * bcast128(bc[K])
+    // HLSL: pk = rows of a, bc = rows of b. GLSL: pk = columns of b,
+    // bc = columns of a. Same operation sequence and rounding as the 128-bit
+    // fmadd path, so results are bit-identical.
+    static SHADER_MATH_INLINE void mul4x4(const freg (&pk)[4], const freg (&bc)[4],
+                                          freg (&out)[4]) {
+        for (int j = 0; j < 4; j += 2) {
+            const dreg p2 = pack(pk[j], pk[j + 1]);
+            dreg acc = zero();
+            acc = fmadd(bcast_per_lane<0>(p2), bcast128(bc[0]), acc);
+            acc = fmadd(bcast_per_lane<1>(p2), bcast128(bc[1]), acc);
+            acc = fmadd(bcast_per_lane<2>(p2), bcast128(bc[2]), acc);
+            acc = fmadd(bcast_per_lane<3>(p2), bcast128(bc[3]), acc);
+            out[j] = lo(acc);
+            out[j + 1] = hi(acc);
+        }
+    }
 };
 
 }  // namespace detail

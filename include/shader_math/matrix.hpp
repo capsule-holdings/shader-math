@@ -150,6 +150,61 @@ SHADER_MATH_INLINE void inv4(const T* m, T* o) {
     o[15] = (m[8] * s3 - m[9] * s1 + m[10] * s0) * id;
 }
 
+// ---- register-array cores shared by both language surfaces -----------------
+// hlsl::matrix stores rows, glsl::matrix stores columns, but both are plain
+// arrays of fvec<L, T>. Everything below is storage-direction agnostic; the
+// mathematical correctness of reusing the row-major det/inv cores for the
+// column-major pack is det(A) == det(A^T) and inv(A^T) == inv(A)^T.
+
+// acc = sum_J bcast<J>(coeff) * regs[J]   (the matrix-product accumulator)
+template <int K, int L, class T>
+SHADER_MATH_INLINE vreg<T> mad_accum(vreg<T> coeff, const fvec<L, T>* regs) {
+    vreg<T> acc = vops<T>::zero();
+    unroll<K>([&]<int J>() {
+        acc = vops<T>::fmadd(vops<T>::template bcast<J>(coeff), regs[J].q_, acc);
+    });
+    return acc;
+}
+
+// N registers of L lanes <-> dense array p[i * L + j] = regs[i][j]
+template <int N, int L, class T>
+SHADER_MATH_INLINE void pack_dense(const fvec<L, T>* regs, T* p) {
+    for (int i = 0; i < N; ++i)
+        for (int j = 0; j < L; ++j) p[i * L + j] = regs[i][j];
+}
+template <int N, int L, class T>
+SHADER_MATH_INLINE void unpack_dense(const T* q, fvec<L, T>* regs) {
+    for (int i = 0; i < N; ++i)
+        for (int j = 0; j < L; ++j) regs[i][j] = q[i * L + j];
+}
+
+template <int N, class T>
+SHADER_MATH_INLINE T det_regs(const fvec<N, T>* regs) {
+    T p[N * N];
+    pack_dense<N, N>(regs, p);
+    if constexpr (N == 2) return det2(p);
+    if constexpr (N == 3) return det3(p);
+    if constexpr (N == 4) return det4(p);
+}
+
+template <int N, class T>
+SHADER_MATH_INLINE void inv_regs(const fvec<N, T>* in, fvec<N, T>* out) {
+    T p[N * N];
+    T q[N * N];
+    pack_dense<N, N>(in, p);
+    if constexpr (N == 2) inv2(p, q);
+    if constexpr (N == 3) inv3(p, q);
+    if constexpr (N == 4) inv4(p, q);
+    unpack_dense<N, N>(q, out);
+}
+
+// out[j][i] = in[i][j]  (in: NI regs x LI lanes, out: LI regs x NI lanes)
+template <int NI, int LI, class T>
+SHADER_MATH_INLINE void transpose_regs(const fvec<LI, T>* in, fvec<NI, T>* out) {
+    for (int i = 0; i < NI; ++i)
+        for (int j = 0; j < LI; ++j) out[j][i] = in[i][j];
+}
+
 }  // namespace detail
 
 // ============================ hlsl::matrix ==================================

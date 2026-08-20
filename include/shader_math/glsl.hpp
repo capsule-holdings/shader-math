@@ -119,33 +119,22 @@ template <int C1, int R1, int C2, class T>
 SHADER_MATH_INLINE matrix<C2, R1, T> operator*(const matrix<C1, R1, T>& a,
                                                const matrix<C2, C1, T>& b) {
     matrix<C2, R1, T> o;
-    for (int j = 0; j < C2; ++j) {
-        detail::vreg<T> acc = detail::vops<T>::zero();
-        detail::unroll<C1>([&]<int K>() {
-            acc = detail::vops<T>::fmadd(detail::vops<T>::template bcast<K>(b.col_[j].q_),
-                                         a.col_[K].q_, acc);
-        });
-        o.col_[j] = detail::fvec<R1, T>(acc);
-    }
+    for (int j = 0; j < C2; ++j)
+        o.col_[j] = detail::fvec<R1, T>(detail::mad_accum<C1>(b.col_[j].q_, a.col_));
     return o;
 }
 
 #if defined(SHADER_MATH_HAS_AVX_2ROW)
-// float mat4 product: two output columns per YMM register (AVX1 + FMA3).
-// Bit-identical to the 128-bit path (same operation sequence and rounding).
+// float mat4 product on the shared YMM kernel (AVX1 + FMA3, bit-identical to
+// the 128-bit path). Columns swap roles versus HLSL: pack b's columns,
+// broadcast a's columns.
 SHADER_MATH_INLINE matrix<4, 4> operator*(const matrix<4, 4>& a, const matrix<4, 4>& b) {
+    const detail::freg pk[4] = {b.col_[0].q_, b.col_[1].q_, b.col_[2].q_, b.col_[3].q_};
+    const detail::freg bc[4] = {a.col_[0].q_, a.col_[1].q_, a.col_[2].q_, a.col_[3].q_};
+    detail::freg out[4];
+    detail::avx2row::mul4x4(pk, bc, out);
     matrix<4, 4> o;
-    for (int j = 0; j < 4; j += 2) {
-        const detail::avx2row::dreg b2 =
-            detail::avx2row::pack(b.col_[j].q_, b.col_[j + 1].q_);
-        detail::avx2row::dreg acc = detail::avx2row::zero();
-        detail::unroll<4>([&]<int K>() {
-            acc = detail::avx2row::fmadd(detail::avx2row::bcast_per_lane<K>(b2),
-                                         detail::avx2row::bcast128(a.col_[K].q_), acc);
-        });
-        o.col_[j] = detail::fvec<4>(detail::avx2row::lo(acc));
-        o.col_[j + 1] = detail::fvec<4>(detail::avx2row::hi(acc));
-    }
+    for (int c = 0; c < 4; ++c) o.col_[c] = detail::fvec<4>(out[c]);
     return o;
 }
 #endif
@@ -155,11 +144,7 @@ template <int Cn, int Rn, class T, class V>
     requires(detail::vec_size_v<V> == Cn && std::is_same_v<detail::vec_elem_t<V>, T>)
 SHADER_MATH_INLINE detail::fvec<Rn, T> operator*(const matrix<Cn, Rn, T>& m, const V& v0) {
     const detail::fvec<Cn, T> v = detail::to_vec(v0);
-    detail::vreg<T> acc = detail::vops<T>::zero();
-    detail::unroll<Cn>([&]<int K>() {
-        acc = detail::vops<T>::fmadd(detail::vops<T>::template bcast<K>(v.q_), m.col_[K].q_, acc);
-    });
-    return detail::fvec<Rn, T>(acc);
+    return detail::fvec<Rn, T>(detail::mad_accum<Cn>(v.q_, m.col_));
 }
 
 // row vector * matrix
@@ -329,21 +314,15 @@ outerProduct(const A& c0, const B& r0) {
 template <int Cn, int Rn, class T>
 SHADER_MATH_INLINE matrix<Rn, Cn, T> transpose(const matrix<Cn, Rn, T>& m) {
     matrix<Rn, Cn, T> o;
-    for (int j = 0; j < Rn; ++j)
-        for (int i = 0; i < Cn; ++i) o.col_[j][i] = m.col_[i][j];
+    detail::transpose_regs<Cn, Rn>(m.col_, o.col_);
     return o;
 }
 
 template <int Cn, int Rn, class T>
 SHADER_MATH_INLINE T determinant(const matrix<Cn, Rn, T>& m) {
     static_assert(Cn == Rn, "shader-math: determinant requires a square matrix");
-    // Pack column-major; det(A) == det(A^T) so the row-major core applies as-is.
-    T p[Cn * Rn];
-    for (int c = 0; c < Cn; ++c)
-        for (int r = 0; r < Rn; ++r) p[c * Rn + r] = m.col_[c][r];
-    if constexpr (Cn == 2) return detail::det2(p);
-    if constexpr (Cn == 3) return detail::det3(p);
-    if constexpr (Cn == 4) return detail::det4(p);
+    // Column-major pack; det(A) == det(A^T) so the row-major core applies as-is.
+    return detail::det_regs<Cn>(m.col_);
 }
 
 // GLSL official inverse(). Singular input yields inf/NaN (undefined in GLSL).
@@ -354,16 +333,8 @@ SHADER_MATH_INLINE matrix<Cn, Rn, T> inverse(const matrix<Cn, Rn, T>& m) {
     static_assert(Cn == Rn, "shader-math: inverse requires a square matrix");
     // The packed array is column-major = row-major of A^T. The core returns
     // inv(A^T) = inv(A)^T in row-major, which is inv(A) in column-major.
-    T p[Cn * Rn];
-    T q[Cn * Rn];
-    for (int c = 0; c < Cn; ++c)
-        for (int r = 0; r < Rn; ++r) p[c * Rn + r] = m.col_[c][r];
-    if constexpr (Cn == 2) detail::inv2(p, q);
-    if constexpr (Cn == 3) detail::inv3(p, q);
-    if constexpr (Cn == 4) detail::inv4(p, q);
     matrix<Cn, Rn, T> o;
-    for (int c = 0; c < Cn; ++c)
-        for (int r = 0; r < Rn; ++r) o.col_[c][r] = q[c * Rn + r];
+    detail::inv_regs<Cn>(m.col_, o.col_);
     return o;
 }
 
