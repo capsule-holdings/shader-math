@@ -181,10 +181,12 @@ static void test_half_matrix_hlsl() {
     using namespace shader_math::hlsl;
 
     // ctor order (row-major fill) and element accessors: exact
+    // NOTE: element accessors convert to `half` first; a direct
+    // static_cast<float> would need two user conversions with binary16 (MSVC).
     half2x2 m(1.0f, 2.0f, 3.0f, 4.0f);
-    CHECK_EQF(static_cast<float>(m._m01), 2.0f);
-    CHECK_EQF(static_cast<float>(m._m10), 3.0f);
-    CHECK_EQF(static_cast<float>(m._22), 4.0f);
+    CHECK_EQF(static_cast<float>(static_cast<half>(m._m01)), 2.0f);
+    CHECK_EQF(static_cast<float>(static_cast<half>(m._m10)), 3.0f);
+    CHECK_EQF(static_cast<float>(static_cast<half>(m._22)), 4.0f);
     m._m00 = half(9.0f);
     CHECK_EQF(static_cast<float>(m[0][0]), 9.0f);
 
