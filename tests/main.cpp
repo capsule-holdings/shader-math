@@ -15,7 +15,11 @@ int main() {
 #if defined(SHADER_MATH_ISA_NEON)
     std::printf("[shader-math] backend: NEON\n");
 #elif defined(SHADER_MATH_ISA_SSE2)
+#  if defined(SHADER_MATH_HAS_FMA)
+    std::printf("[shader-math] backend: SSE2+FMA\n");
+#  else
     std::printf("[shader-math] backend: SSE2\n");
+#  endif
 #elif defined(SHADER_MATH_FORCE_SCALAR)
     std::printf("[shader-math] backend: scalar (forced)\n");
 #else

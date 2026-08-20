@@ -6,7 +6,11 @@
 #  error "shader-math: include <shader_math/simd.hpp> instead of detail/simd_sse2.hpp"
 #endif
 
-#include <emmintrin.h>  // SSE2
+#if defined(SHADER_MATH_HAS_FMA)
+#  include <immintrin.h>  // SSE2 + FMA3 (VEX)
+#else
+#  include <emmintrin.h>  // SSE2
+#endif
 
 namespace shader_math {
 namespace detail {
@@ -41,8 +45,13 @@ struct ops {
     static SHADER_MATH_INLINE freg mul(freg a, freg b) { return _mm_mul_ps(a, b); }
     static SHADER_MATH_INLINE freg div(freg a, freg b) { return _mm_div_ps(a, b); }
     static SHADER_MATH_INLINE freg neg(freg a) { return _mm_sub_ps(_mm_setzero_ps(), a); }
+    // a*b + c: single rounding with FMA3, two roundings on plain SSE2
     static SHADER_MATH_INLINE freg fmadd(freg a, freg b, freg c) {
+#if defined(SHADER_MATH_HAS_FMA)
+        return _mm_fmadd_ps(a, b, c);
+#else
         return _mm_add_ps(_mm_mul_ps(a, b), c);
+#endif
     }
 
     static SHADER_MATH_INLINE mreg cmp_eq(freg a, freg b) { return _mm_cmpeq_ps(a, b); }

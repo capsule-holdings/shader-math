@@ -23,6 +23,14 @@
 #  define SHADER_MATH_ISA_SCALAR 1
 #endif
 
+// Sub-feature flags (compile-time only; no runtime dispatch):
+//   SHADER_MATH_HAS_FMA - FMA3 available. GCC/Clang define __FMA__ (e.g. with
+//                         -mfma or -march=x86-64-v3). MSVC never defines
+//                         __FMA__, but /arch:AVX2 (__AVX2__) implies FMA3.
+#if defined(__FMA__) || (defined(_MSC_VER) && defined(__AVX2__))
+#  define SHADER_MATH_HAS_FMA 1
+#endif
+
 #if defined(__cpp_concepts)
 #  if __cpp_concepts < 201907L
 #    error "shader-math requires C++20 concepts (gcc 10+ / clang 10+ / MSVC 19.30+)"
