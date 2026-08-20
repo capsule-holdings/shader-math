@@ -75,8 +75,9 @@ using detail::normalize;
     SHADER_MATH_INLINE matrix<Cn, Rn, T> operator sym(const matrix<Cn, Rn, T>& a,        \
                                                       const matrix<Cn, Rn, T>& b) {      \
         matrix<Cn, Rn, T> o;                                                             \
-        for (int c = 0; c < Cn; ++c)                                                     \
-            o.col_[c] = detail::fvec<Rn, T>(detail::vops<T>::fn(a.col_[c].q_, b.col_[c].q_)); \
+        detail::regs_fill<Cn>(o.col_, [&](int c) {                                       \
+            return detail::vops<T>::fn(a.col_[c].q_, b.col_[c].q_);                      \
+        });                                                                              \
         return o;                                                                        \
     }                                                                                    \
     template <int Cn, int Rn, class T, class S>                                          \
@@ -85,8 +86,8 @@ using detail::normalize;
                                                       const S& s) {                     \
         matrix<Cn, Rn, T> o;                                                             \
         const auto sp = detail::vops<T>::splat(static_cast<T>(s));                       \
-        for (int c = 0; c < Cn; ++c)                                                     \
-            o.col_[c] = detail::fvec<Rn, T>(detail::vops<T>::fn(a.col_[c].q_, sp));      \
+        detail::regs_fill<Cn>(o.col_,                                                    \
+                              [&](int c) { return detail::vops<T>::fn(a.col_[c].q_, sp); }); \
         return o;                                                                        \
     }                                                                                    \
     template <int Cn, int Rn, class T, class S>                                          \
@@ -95,8 +96,8 @@ using detail::normalize;
                                                       const matrix<Cn, Rn, T>& b) {     \
         matrix<Cn, Rn, T> o;                                                             \
         const auto sp = detail::vops<T>::splat(static_cast<T>(s));                       \
-        for (int c = 0; c < Cn; ++c)                                                     \
-            o.col_[c] = detail::fvec<Rn, T>(detail::vops<T>::fn(sp, b.col_[c].q_));      \
+        detail::regs_fill<Cn>(o.col_,                                                    \
+                              [&](int c) { return detail::vops<T>::fn(sp, b.col_[c].q_); }); \
         return o;                                                                        \
     }
 
@@ -108,8 +109,7 @@ SM_GLSL_MAT_BINOP(/, div)
 template <int Cn, int Rn, class T>
 SHADER_MATH_INLINE matrix<Cn, Rn, T> operator-(const matrix<Cn, Rn, T>& a) {
     matrix<Cn, Rn, T> o;
-    for (int c = 0; c < Cn; ++c)
-        o.col_[c] = detail::fvec<Rn, T>(detail::vops<T>::neg(a.col_[c].q_));
+    detail::regs_fill<Cn>(o.col_, [&](int c) { return detail::vops<T>::neg(a.col_[c].q_); });
     return o;
 }
 
@@ -163,8 +163,7 @@ template <int Cn, int Rn, class T, class S>
 SHADER_MATH_INLINE matrix<Cn, Rn, T> operator*(const matrix<Cn, Rn, T>& a, const S& s) {
     matrix<Cn, Rn, T> o;
     const auto sp = detail::vops<T>::splat(static_cast<T>(s));
-    for (int c = 0; c < Cn; ++c)
-        o.col_[c] = detail::fvec<Rn, T>(detail::vops<T>::mul(a.col_[c].q_, sp));
+    detail::regs_fill<Cn>(o.col_, [&](int c) { return detail::vops<T>::mul(a.col_[c].q_, sp); });
     return o;
 }
 template <int Cn, int Rn, class T, class S>
@@ -289,8 +288,8 @@ template <int Cn, int Rn, class T>
 SHADER_MATH_INLINE matrix<Cn, Rn, T> matrixCompMult(const matrix<Cn, Rn, T>& a,
                                                     const matrix<Cn, Rn, T>& b) {
     matrix<Cn, Rn, T> o;
-    for (int c = 0; c < Cn; ++c)
-        o.col_[c] = detail::fvec<Rn, T>(detail::vops<T>::mul(a.col_[c].q_, b.col_[c].q_));
+    detail::regs_fill<Cn>(
+        o.col_, [&](int c) { return detail::vops<T>::mul(a.col_[c].q_, b.col_[c].q_); });
     return o;
 }
 
@@ -306,8 +305,9 @@ outerProduct(const A& c0, const B& r0) {
     const detail::fvec<RR, T> c = detail::to_vec(c0);
     const detail::fvec<CC, T> r = detail::to_vec(r0);
     matrix<CC, RR, T> o;
-    for (int j = 0; j < CC; ++j)
-        o.col_[j] = detail::fvec<RR, T>(detail::vops<T>::mul(c.q_, detail::vops<T>::splat(r[j])));
+    detail::regs_fill<CC>(o.col_, [&](int j) {
+        return detail::vops<T>::mul(c.q_, detail::vops<T>::splat(r[j]));
+    });
     return o;
 }
 

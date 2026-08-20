@@ -166,6 +166,14 @@ SHADER_MATH_INLINE vreg<T> mad_accum(vreg<T> coeff, const fvec<L, T>* regs) {
     return acc;
 }
 
+// o[i] = fvec(f(i)) for i in [0, N): the component-wise matrix loop shared by
+// both language surfaces (binary/scalar operators, negation, matrixCompMult).
+// f receives the register index and returns a vreg<T>.
+template <int N, int L, class T, class F>
+SHADER_MATH_INLINE void regs_fill(fvec<L, T>* o, F&& f) {
+    for (int i = 0; i < N; ++i) o[i] = fvec<L, T>(f(i));
+}
+
 // N registers of L lanes <-> dense array p[i * L + j] = regs[i][j]
 template <int N, int L, class T>
 SHADER_MATH_INLINE void pack_dense(const fvec<L, T>* regs, T* p) {
@@ -262,11 +270,7 @@ struct matrix {
         requires(sizeof...(S) == R * C && R * C > 1 && (detail::CvtScalar<S, T> && ...))
     SHADER_MATH_INLINE matrix(S... s) : row_{} {
         const T a[R * C] = {static_cast<T>(s)...};
-        for (int r = 0; r < R; ++r) {
-            T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
-            for (int c = 0; c < C; ++c) t[c] = a[r * C + c];
-            row_[r] = detail::fvec<C, T>(detail::vops<T>::load4(t));
-        }
+        detail::unpack_dense<R, C>(a, row_);  // lanes >= C stay zero from row_{}
     }
 
     // R row vectors.
@@ -343,11 +347,7 @@ struct matrix {
         requires(sizeof...(S) == Cn * Rn && Cn * Rn > 1 && (detail::CvtScalar<S, T> && ...))
     SHADER_MATH_INLINE matrix(S... s) {
         const T a[Cn * Rn] = {static_cast<T>(s)...};
-        for (int c = 0; c < Cn; ++c) {
-            T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
-            for (int r = 0; r < Rn; ++r) t[r] = a[c * Rn + r];
-            col_[c] = detail::fvec<Rn, T>(detail::vops<T>::load4(t));
-        }
+        detail::unpack_dense<Cn, Rn>(a, col_);  // lanes >= Rn stay zero from fvec()
     }
 
     // Cn column vectors.
@@ -389,25 +389,19 @@ struct matrix {
 }  // namespace glsl
 
 // ---- cross-namespace conversions (definitions) -----------------------------
+// Crossing the storage direction (rows <-> columns of the same mathematical
+// object) is exactly a register-array transpose.
 namespace hlsl {
 template <int R, int C, class T>
 SHADER_MATH_INLINE matrix<R, C, T>::matrix(const glsl::matrix<C, R, T>& g) : row_{} {
-    for (int r = 0; r < R; ++r) {
-        T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
-        for (int c = 0; c < C; ++c) t[c] = g.col_[c][r];
-        row_[r] = detail::fvec<C, T>(detail::vops<T>::load4(t));
-    }
+    detail::transpose_regs<C, R>(g.col_, row_);
 }
 }  // namespace hlsl
 
 namespace glsl {
 template <int Cn, int Rn, class T>
 SHADER_MATH_INLINE matrix<Cn, Rn, T>::matrix(const hlsl::matrix<Rn, Cn, T>& h) {
-    for (int c = 0; c < Cn; ++c) {
-        T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
-        for (int r = 0; r < Rn; ++r) t[r] = h.row_[r][c];
-        col_[c] = detail::fvec<Rn, T>(detail::vops<T>::load4(t));
-    }
+    detail::transpose_regs<Rn, Cn>(h.row_, col_);
 }
 }  // namespace glsl
 

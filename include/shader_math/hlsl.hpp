@@ -77,8 +77,9 @@ using detail::normalize;
     SHADER_MATH_INLINE matrix<R, C, T> operator sym(const matrix<R, C, T>& a,            \
                                                     const matrix<R, C, T>& b) {          \
         matrix<R, C, T> o;                                                               \
-        for (int r = 0; r < R; ++r)                                                      \
-            o.row_[r] = detail::fvec<C, T>(detail::vops<T>::fn(a.row_[r].q_, b.row_[r].q_)); \
+        detail::regs_fill<R>(o.row_, [&](int r) {                                        \
+            return detail::vops<T>::fn(a.row_[r].q_, b.row_[r].q_);                      \
+        });                                                                              \
         return o;                                                                        \
     }                                                                                    \
     template <int R, int C, class T, class S>                                            \
@@ -86,8 +87,8 @@ using detail::normalize;
     SHADER_MATH_INLINE matrix<R, C, T> operator sym(const matrix<R, C, T>& a, const S& s) { \
         matrix<R, C, T> o;                                                               \
         const auto sp = detail::vops<T>::splat(static_cast<T>(s));                       \
-        for (int r = 0; r < R; ++r)                                                      \
-            o.row_[r] = detail::fvec<C, T>(detail::vops<T>::fn(a.row_[r].q_, sp));       \
+        detail::regs_fill<R>(o.row_,                                                     \
+                             [&](int r) { return detail::vops<T>::fn(a.row_[r].q_, sp); }); \
         return o;                                                                        \
     }                                                                                    \
     template <int R, int C, class T, class S>                                            \
@@ -95,8 +96,8 @@ using detail::normalize;
     SHADER_MATH_INLINE matrix<R, C, T> operator sym(const S& s, const matrix<R, C, T>& b) { \
         matrix<R, C, T> o;                                                               \
         const auto sp = detail::vops<T>::splat(static_cast<T>(s));                       \
-        for (int r = 0; r < R; ++r)                                                      \
-            o.row_[r] = detail::fvec<C, T>(detail::vops<T>::fn(sp, b.row_[r].q_));       \
+        detail::regs_fill<R>(o.row_,                                                     \
+                             [&](int r) { return detail::vops<T>::fn(sp, b.row_[r].q_); }); \
         return o;                                                                        \
     }
 
@@ -109,8 +110,7 @@ SM_HLSL_MAT_BINOP(/, div)
 template <int R, int C, class T>
 SHADER_MATH_INLINE matrix<R, C, T> operator-(const matrix<R, C, T>& a) {
     matrix<R, C, T> o;
-    for (int r = 0; r < R; ++r)
-        o.row_[r] = detail::fvec<C, T>(detail::vops<T>::neg(a.row_[r].q_));
+    detail::regs_fill<R>(o.row_, [&](int r) { return detail::vops<T>::neg(a.row_[r].q_); });
     return o;
 }
 

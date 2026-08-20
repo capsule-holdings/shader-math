@@ -40,6 +40,12 @@
 
 // Contract check: the selected backend must satisfy the full interface,
 // whether or not every function is currently used somewhere.
+// GCC/Clang attach __vector_size__ to __m128 / float32x4_t; passing them as
+// template arguments is still correct but trips -Wignored-attributes.
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wignored-attributes"
+#endif
 namespace shader_math {
 namespace detail {
 static_assert(SimdFloatOps<ops, freg, mreg, float>,
@@ -50,5 +56,8 @@ static_assert(SimdHalfOps<hops, hreg, mreg, half_t>,
 #endif
 }  // namespace detail
 }  // namespace shader_math
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 
 #undef SHADER_MATH_SIMD_DISPATCH
