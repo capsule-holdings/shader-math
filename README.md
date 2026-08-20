@@ -67,6 +67,14 @@ void glsl_side() {
 - `-DSHADER_MATH_FORCE_SCALAR=ON` で scalar を強制。CI では SIMD と scalar の両方で全テストを実行する
 - Boost はヘッダのみ利用（Config / Predef による ISA 検出）。未インストール時は CMake が自動取得する
 
+### サブ機能（コンパイル時のみ、実行時切替なし）
+
+- `SHADER_MATH_HAS_FMA` — FMA3 検出時に `ops::fmadd` が `_mm_fmadd_ps`（単一丸め）になる。
+  gcc/clang は `__FMA__`（例: `-march=x86-64-v3`）、MSVC は `/arch:AVX2` で有効
+- 既定ベースライン（SSE2 / ARMv8.0）は上げない。**推奨**: x86 では `-march=x86-64-v3` でビルドすると FMA が有効になる
+- AVX-512 / ZMM は非対応（対応予定なし）
+- FMA の有無で fmadd 系演算の丸めが変わる（fused = 単一丸め）。テストは許容比較でこれを吸収している
+
 ## ビルドとテスト
 
 ```bash
