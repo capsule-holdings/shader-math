@@ -77,12 +77,16 @@ struct swz {
                       "shader-math: swizzle component out of range for this vector width");
         return d[idx[0]];
     }
-    SHADER_MATH_INLINE operator fvec<M, T>() const
+    // Width is clamped in the *declaration* so that fvec<1, T> is never named:
+    // MSVC instantiates member declaration types while building the enclosing
+    // class, which would trip fvec's width static_assert for M == 1 swizzles.
+    // The requires-clause still limits the operator to M >= 2.
+    SHADER_MATH_INLINE operator fvec<(M >= 2 ? M : 2), T>() const
         requires(M >= 2)
     {
         static_assert(in_range,
                       "shader-math: swizzle component out of range for this vector width");
-        return fvec<M, T>(d[Is]...);
+        return fvec<(M >= 2 ? M : 2), T>(d[Is]...);
     }
 
     // ---- writes (constraint-based: misuse is a compile error) ----------
@@ -92,7 +96,7 @@ struct swz {
         d[idx[0]] = static_cast<T>(s);
         return *this;
     }
-    SHADER_MATH_INLINE swz& operator=(const fvec<M, T>& v)
+    SHADER_MATH_INLINE swz& operator=(const fvec<(M >= 2 ? M : 2), T>& v)
         requires(M >= 2 && writable)
     {
         T t[4];
