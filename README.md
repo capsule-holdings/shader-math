@@ -32,6 +32,8 @@ void glsl_side() {
 
 - ベクトル: `hlsl::float2/3/4` = `glsl::vec2/3/4`（**同一型のエイリアス**。両言語とも `*` は成分ごとなので共有できる）
 - half ベクトル: `hlsl::half2/3/4` = `glsl::f16vec2/3/4`（同じく同一型）。スカラーは `hlsl::half` / `glsl::float16_t`
+- half 行列: `hlsl::halfRxC` と `glsl::f16matCxR`（float と同じく**別型**・explicit 変換。非正方の形対応も float と同一）。
+  `determinant` / `inverse` も half のまま計算する。真の fp16 は underflow / overflow が早いので、条件の悪い行列を渡さないこと
   - `sizeof(half3) == 8`（4×binary16 パック）。`sizeof(float3) == 16` と同様、**言語互換であり GPU ABI ではない**
   - half と float の**暗黙混合演算は不可**（`half3 * float3` / `half3 * 2.0f` はコンパイルエラー、変換は explicit）。コンストラクタ引数は変換する（`half3(1.0f, 2.0f, 3.0f)` は可）
   - コンパイラ下限: gcc/clang は `_Float16` が必要（x86 では gcc 12+ / clang 15+）。MSVC はビット格納のソフトウェア型で対応。未対応コンパイラでは half 型群は定義されない（float 面は無影響）

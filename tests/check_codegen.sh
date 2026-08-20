@@ -85,22 +85,26 @@ for sym in $KERNELS; do
     fi
 done
 
-# Half kernel: on NEON+FP16 the half multiply-add must use 16-bit lanes (.4h)
-# and stay straight-line. On every other backend half math is a widened f32
-# fallback with no instruction-level promise, so there is nothing to check.
+# Half kernels: on NEON+FP16 half math must use 16-bit lanes (.4h). The
+# vector mad must additionally be straight-line (the matrix product has a
+# runtime outer for loop, same exemption as the float kernels). On every
+# other backend half math is a widened f32 fallback with no
+# instruction-level promise, so there is nothing to check.
 if [ "$BACKEND" = "NEON+FP16" ]; then
-    hsym=sm_cg_half4_mad
-    hbody="$(printf '%s\n' "$DIS" | awk -v s="<${hsym}>:" 'index($0, s) {f=1; next} f && /^$/ {exit} f')"
-    if [ -z "$hbody" ]; then
-        echo "FAIL: symbol $hsym not found in disassembly"
-        fail=1
-    else
+    for hsym in sm_cg_half4_mad sm_cg_hlsl_mul_h4h4; do
+        hbody="$(printf '%s\n' "$DIS" | awk -v s="<${hsym}>:" 'index($0, s) {f=1; next} f && /^$/ {exit} f')"
+        if [ -z "$hbody" ]; then
+            echo "FAIL: symbol $hsym not found in disassembly"
+            fail=1
+            continue
+        fi
         hfail=0
         if ! printf '%s\n' "$hbody" | grep -Eq '\.4h'; then
             echo "FAIL: $hsym: no 16-bit (.4h) lanes on NEON+FP16"
             hfail=1
         fi
-        if printf '%s\n' "$hbody" | grep -Eq "[[:space:]](${ARM_COND_BRANCHES})[[:space:]]"; then
+        if [ "$hsym" = "sm_cg_half4_mad" ] &&
+            printf '%s\n' "$hbody" | grep -Eq "[[:space:]](${ARM_COND_BRANCHES})[[:space:]]"; then
             echo "FAIL: $hsym: conditional branch found"
             hfail=1
         fi
@@ -109,7 +113,7 @@ if [ "$BACKEND" = "NEON+FP16" ]; then
         else
             fail=1
         fi
-    fi
+    done
 fi
 
 exit "$fail"
