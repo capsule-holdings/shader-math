@@ -72,61 +72,98 @@ struct GpuVertex {
     float nrm[3];
 };
 
-struct SkinnedMesh {
-    std::vector<Corner> corners;          // 3 per triangle
-    std::vector<ufbx_node*> joints;       // cluster -> bone node
-    std::vector<float4x4> geom_to_bone;   // cluster bind matrices
+// A palette entry is either a skin cluster (node_to_world * geometry_to_bone)
+// or a rigid mesh instance (geometry_to_world with weight 1); static meshes
+// are just the degenerate case of skinning.
+struct PaletteEntry {
+    ufbx_node* node;
+    float4x4 bind;  // geometry_to_bone for clusters, unused for rigid entries
+    bool is_skin;
 };
 
-static bool build_mesh(ufbx_scene* scene, SkinnedMesh& out) {
-    ufbx_mesh* mesh = nullptr;
-    ufbx_skin_deformer* skin = nullptr;
-    for (size_t i = 0; i < scene->meshes.count && !mesh; ++i) {
-        if (scene->meshes.data[i]->skin_deformers.count > 0) {
-            mesh = scene->meshes.data[i];
-            skin = mesh->skin_deformers.data[0];
-        }
-    }
-    if (!mesh) {
-        std::fprintf(stderr, "no skinned mesh found in FBX\n");
-        return false;
-    }
+struct SkinnedMesh {
+    std::vector<Corner> corners;  // 3 per triangle
+    std::vector<PaletteEntry> entries;
+};
 
-    out.joints.reserve(skin->clusters.count);
-    for (size_t c = 0; c < skin->clusters.count; ++c) {
-        ufbx_skin_cluster* cluster = skin->clusters.data[c];
-        out.joints.push_back(cluster->bone_node);
-        out.geom_to_bone.push_back(from_ufbx(cluster->geometry_to_bone));
-    }
+static constexpr size_t kMaxCorners = 600000;  // keep llvmpipe interactive
 
+static void append_mesh(ufbx_mesh* mesh, ufbx_skin_deformer* skin, int palette_base,
+                        SkinnedMesh& out) {
     std::vector<uint32_t> tri(mesh->max_face_triangles * 3);
     for (size_t f = 0; f < mesh->faces.count; ++f) {
+        if (out.corners.size() >= kMaxCorners) return;
         const size_t ntri =
             ufbx_triangulate_face(tri.data(), tri.size(), mesh, mesh->faces.data[f]);
         for (size_t t = 0; t < ntri * 3; ++t) {
             const uint32_t ix = tri[t];
             Corner corner{};
             const ufbx_vec3 p = ufbx_get_vertex_vec3(&mesh->vertex_position, ix);
-            const ufbx_vec3 n = ufbx_get_vertex_vec3(&mesh->vertex_normal, ix);
             corner.rest_pos = float3((float)p.x, (float)p.y, (float)p.z);
-            corner.rest_nrm = float3((float)n.x, (float)n.y, (float)n.z);
-
-            const uint32_t cp = mesh->vertex_indices.data[ix];
-            const ufbx_skin_vertex sv = skin->vertices.data[cp];
-            float total = 0.0f;
-            for (uint32_t w = 0; w < sv.num_weights && w < 4; ++w) {
-                const ufbx_skin_weight sw = skin->weights.data[sv.weight_begin + w];
-                corner.joint[w] = (int)sw.cluster_index;
-                corner.weight[w] = (float)sw.weight;
-                total += corner.weight[w];
+            if (mesh->vertex_normal.exists) {
+                const ufbx_vec3 n = ufbx_get_vertex_vec3(&mesh->vertex_normal, ix);
+                corner.rest_nrm = float3((float)n.x, (float)n.y, (float)n.z);
+            } else {
+                corner.rest_nrm = float3(0.0f, 1.0f, 0.0f);
             }
-            if (total > 0.0f)
-                for (int w = 0; w < 4; ++w) corner.weight[w] /= total;
+
+            if (skin) {
+                const uint32_t cp = mesh->vertex_indices.data[ix];
+                const ufbx_skin_vertex sv = skin->vertices.data[cp];
+                float total = 0.0f;
+                for (uint32_t w = 0; w < sv.num_weights && w < 4; ++w) {
+                    const ufbx_skin_weight sw = skin->weights.data[sv.weight_begin + w];
+                    corner.joint[w] = palette_base + (int)sw.cluster_index;
+                    corner.weight[w] = (float)sw.weight;
+                    total += corner.weight[w];
+                }
+                if (total > 0.0f)
+                    for (int w = 0; w < 4; ++w) corner.weight[w] /= total;
+                else {  // unweighted control point: rigidly follow the first joint
+                    corner.joint[0] = palette_base;
+                    corner.weight[0] = 1.0f;
+                }
+            } else {  // rigid: weight 1 on the instance entry
+                corner.joint[0] = palette_base;
+                corner.weight[0] = 1.0f;
+            }
             out.corners.push_back(corner);
         }
     }
-    std::printf("mesh: %zu triangles, %zu joints\n", out.corners.size() / 3,
-                out.joints.size());
+}
+
+static bool build_scene(ufbx_scene* scene, SkinnedMesh& out) {
+    size_t skinned = 0;
+    size_t rigid = 0;
+    for (size_t i = 0; i < scene->meshes.count; ++i) {
+        ufbx_mesh* mesh = scene->meshes.data[i];
+        if (mesh->skin_deformers.count > 0) {
+            ufbx_skin_deformer* skin = mesh->skin_deformers.data[0];
+            const int base = (int)out.entries.size();
+            for (size_t c = 0; c < skin->clusters.count; ++c) {
+                ufbx_skin_cluster* cluster = skin->clusters.data[c];
+                out.entries.push_back(
+                    {cluster->bone_node, from_ufbx(cluster->geometry_to_bone), true});
+            }
+            append_mesh(mesh, skin, base, out);
+            ++skinned;
+        } else {
+            // one rigid entry per instance node
+            for (size_t n = 0; n < mesh->instances.count; ++n) {
+                const int base = (int)out.entries.size();
+                out.entries.push_back({mesh->instances.data[n], float4x4(), false});
+                append_mesh(mesh, nullptr, base, out);
+                ++rigid;
+            }
+        }
+    }
+    if (out.corners.empty()) {
+        std::fprintf(stderr, "no renderable mesh found in FBX\n");
+        return false;
+    }
+    std::printf("scene: %zu triangles, %zu palette entries "
+                "(%zu skinned meshes, %zu rigid instances)\n",
+                out.corners.size() / 3, out.entries.size(), skinned, rigid);
     return true;
 }
 
@@ -211,7 +248,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     SkinnedMesh mesh;
-    if (!build_mesh(scene, mesh)) return 1;
+    if (!build_scene(scene, mesh)) return 1;
     ufbx_anim* anim = scene->anim;
     const double anim_len =
         anim && anim->time_end > anim->time_begin ? anim->time_end - anim->time_begin : 2.0;
@@ -333,12 +370,38 @@ int main(int argc, char** argv) {
         readback = SDL_CreateGPUTransferBuffer(dev, &ri);
     }
 
-    // ---- frame loop -----------------------------------------------------------
-    std::vector<float4x4> palette(mesh.joints.size());
+    // ---- palette evaluation helper ---------------------------------------------
+    std::vector<float4x4> palette(mesh.entries.size());
+    auto eval_palette = [&](double at) {
+        ufbx_scene* eval = ufbx_evaluate_scene(scene, anim, at, nullptr, nullptr);
+        for (size_t j = 0; j < mesh.entries.size(); ++j) {
+            const PaletteEntry& e = mesh.entries[j];
+            const ufbx_node* node = eval->nodes.data[e.node->typed_id];
+            palette[j] = e.is_skin ? mul(from_ufbx(node->node_to_world), e.bind)
+                                   : from_ufbx(node->geometry_to_world);
+        }
+        ufbx_free_scene(eval);
+    };
+
+    // ---- camera: auto-frame from the frame-0 pose --------------------------------
     std::vector<GpuVertex> vertices;
-    const float4x4 proj = perspective_vk(1.0f, (float)width / (float)height, 0.05f, 50.0f);
-    const float4x4 view = look_at(float3(2.4f, 1.9f, 2.4f), float3(0.0f, 0.9f, 0.0f),
-                                  float3(0.0f, 1.0f, 0.0f));
+    eval_palette(anim ? anim->time_begin : 0.0);
+    skin_mesh(mesh, palette, vertices);
+    float3 bb_min(1e30f, 1e30f, 1e30f);
+    float3 bb_max(-1e30f, -1e30f, -1e30f);
+    for (const GpuVertex& v : vertices) {
+        const float3 p(v.pos[0], v.pos[1], v.pos[2]);
+        bb_min = min(bb_min, p);
+        bb_max = max(bb_max, p);
+    }
+    const float3 center = (bb_min + bb_max) * 0.5f;
+    const float half_diag = length((bb_max - bb_min) * 0.5f);
+    const float radius = (half_diag > 0.001f ? half_diag : 0.001f) * 1.35f;
+    const float dist = radius / std::tan(0.5f);  // fovy = 1.0 rad
+    const float3 eye = center + normalize(float3(1.0f, 0.55f, 1.0f)) * dist;
+    const float4x4 proj =
+        perspective_vk(1.0f, (float)width / (float)height, dist * 0.01f, dist * 10.0f);
+    const float4x4 view = look_at(eye, center, float3(0.0f, 1.0f, 0.0f));
     const float4x4 view_proj = mul(proj, view);  // shader-math matrix product
 
     const int total_frames = headless ? headless_frames : -1;
@@ -356,14 +419,9 @@ int main(int argc, char** argv) {
         const double anim_t =
             (anim ? anim->time_begin : 0.0) + std::fmod(t, anim_len);
 
-        // evaluate the animation, build the joint palette, skin on the CPU
-        ufbx_scene* eval = ufbx_evaluate_scene(scene, anim, anim_t, nullptr, nullptr);
-        for (size_t j = 0; j < mesh.joints.size(); ++j) {
-            const ufbx_node* node = eval->nodes.data[mesh.joints[j]->typed_id];
-            palette[j] = mul(from_ufbx(node->node_to_world), mesh.geom_to_bone[j]);
-        }
+        // evaluate the animation, build the palette, skin on the CPU
+        eval_palette(anim_t);
         skin_mesh(mesh, palette, vertices);
-        ufbx_free_scene(eval);
 
         SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(dev);
 

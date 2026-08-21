@@ -41,6 +41,20 @@ SDL_VIDEO_DRIVER=offscreen ./build-demo/sdl_gpu_skinning --headless 24 --out /tm
 - `gen_asset.py` — 同梱アセット `tentacle.fbx`（3 ボーンの触手 + スウェイアニメ）を
   Blender で生成するスクリプト。アセットは本リポジトリ生成物でライセンスはリポジトリに従う
 
+## 外部 FBX でのスモークテスト
+
+デモは同梱アセット以外も読める（スキンなしメッシュは剛体としてノード変換で描画、
+複数メッシュ対応、カメラは初期ポーズの AABB から自動フレーミング）。エクスポータ差の
+スモークテストとして、ufbx テストスイート（MIT）から Blender / Maya / 3ds Max 産の
+3 ファイルを取得して描画するスクリプトを同梱:
+
+```bash
+SDL_VIDEO_DRIVER=offscreen ./examples/sdl_gpu_skinning/test_external_assets.sh \
+    ./build-demo/sdl_gpu_skinning /tmp/ext_assets
+```
+
+（ファイルはスクラッチディレクトリへダウンロードするのみで、リポジトリには含めない）
+
 ## 制約（意図的）
 
 - シェーダは SPIR-V のみコミット（Vulkan バックエンド前提）。D3D12 / Metal で動かす場合は
