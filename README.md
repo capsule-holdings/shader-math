@@ -125,6 +125,9 @@ ctest --test-dir build --output-on-failure
 cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON  # scalar 強制
 ```
 
+デモ: `-DSHADER_MATH_DEMO_SDLGPU=ON` で SDL_GPU + FBX（ufbx）+ CPU スキニングの
+サンプルをビルドできる（[examples/sdl_gpu_skinning/](examples/sdl_gpu_skinning/README.md)）。
+
 要件: C++20（concepts）。gcc 10+ / clang 10+ / MSVC 19.30+ / Apple Clang 12+。
 
 ## 既知の逸脱（HLSL/GLSL との差分）
