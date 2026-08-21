@@ -63,9 +63,13 @@ struct Corner {           // one triangle corner (expanded, no index reuse)
     float weight[4];
 };
 
-struct GpuVertex {        // what the GPU sees (pitch 24)
-    float px, py, pz;
-    float nx, ny, nz;
+// What the GPU sees (pitch 24). Deliberately plain floats, NOT shader-math
+// float3: sizeof(float3) == 16 (register storage) is language compatibility,
+// not a GPU ABI, so vertex layouts must pack tightly themselves. fvec::store()
+// is the sanctioned bridge (writes exactly N lanes).
+struct GpuVertex {
+    float pos[3];
+    float nrm[3];
 };
 
 struct SkinnedMesh {
@@ -144,8 +148,8 @@ static void skin_mesh(const SkinnedMesh& mesh, const std::vector<float4x4>& pale
             p += mul(m, rp) * c.weight[w];
             n += mul(m, rn) * c.weight[w];
         }
-        const float3 nn = normalize(float3(n[0], n[1], n[2]));
-        out[i] = {p[0], p[1], p[2], nn[0], nn[1], nn[2]};
+        float3(p).store(out[i].pos);                 // truncate w, write 3 lanes
+        normalize(float3(n)).store(out[i].nrm);
     }
 }
 
