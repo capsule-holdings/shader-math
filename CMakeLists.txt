@@ -131,3 +131,31 @@ if(SHADER_MATH_BUILD_TESTS)
         endif()
     endif()
 endif()
+
+# SDL_GPU skinned-mesh demo (FBX via ufbx, CPU skinning via shader-math).
+# Off by default: fetches and builds SDL3, so it is opt-in.
+option(SHADER_MATH_DEMO_SDLGPU "Build the SDL_GPU skinning demo" OFF)
+if(SHADER_MATH_DEMO_SDLGPU)
+    enable_language(C)  # SDL3 and ufbx are C
+    include(FetchContent)
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+    set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(SDL3
+        GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+        GIT_TAG release-3.4.14
+        GIT_SHALLOW TRUE)
+    FetchContent_Declare(ufbx
+        GIT_REPOSITORY https://github.com/ufbx/ufbx.git
+        GIT_TAG v0.23.0
+        GIT_SHALLOW TRUE)
+    FetchContent_MakeAvailable(SDL3 ufbx)
+
+    add_library(ufbx_lib STATIC ${ufbx_SOURCE_DIR}/ufbx.c)
+    target_include_directories(ufbx_lib PUBLIC ${ufbx_SOURCE_DIR})
+
+    add_executable(sdl_gpu_skinning examples/sdl_gpu_skinning/main.cpp)
+    target_link_libraries(sdl_gpu_skinning PRIVATE shader_math SDL3::SDL3-static ufbx_lib)
+    target_compile_definitions(sdl_gpu_skinning PRIVATE
+        SM_DEMO_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/examples/sdl_gpu_skinning")
+endif()
