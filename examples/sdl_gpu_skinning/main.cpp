@@ -24,7 +24,12 @@
 #include <shader_math/shader_math.hpp>
 #include <ufbx.h>
 
+#include "skin_batch.hpp"
+
 using namespace shader_math::hlsl;
+using smdemo::Corner;
+using smdemo::GpuVertex;
+using smdemo::SkinBackend;
 
 // ---- small camera helpers on shader-math types (column-vector convention) --
 static float4x4 perspective_vk(float fovy, float aspect, float zn, float zf) {
@@ -56,21 +61,7 @@ static float4x4 from_ufbx(const ufbx_matrix& m) {
 }
 
 // ---- skinned mesh data ------------------------------------------------------
-struct Corner {           // one triangle corner (expanded, no index reuse)
-    float3 rest_pos;
-    float3 rest_nrm;
-    int joint[4];
-    float weight[4];
-};
-
-// What the GPU sees (pitch 24). Deliberately plain floats, NOT shader-math
-// float3: sizeof(float3) == 16 (register storage) is language compatibility,
-// not a GPU ABI, so vertex layouts must pack tightly themselves. fvec::store()
-// is the sanctioned bridge (writes exactly N lanes).
-struct GpuVertex {
-    float pos[3];
-    float nrm[3];
-};
+// Corner / GpuVertex and the skinning backends live in skin_batch.hpp.
 
 // A palette entry is either a skin cluster (node_to_world * geometry_to_bone)
 // or a rigid mesh instance (geometry_to_world with weight 1); static meshes
@@ -170,24 +161,13 @@ static bool build_scene(ufbx_scene* scene, SkinnedMesh& out) {
 // ---- the shader-math part: CPU linear-blend skinning ------------------------
 // Per joint: palette = node_to_world(t) * geometry_to_bone  (float4x4 mul)
 // Per corner: pos' = sum_j w_j * mul(palette_j, float4(pos, 1))
-static void skin_mesh(const SkinnedMesh& mesh, const std::vector<float4x4>& palette,
+// Backend implementations (scalar / simd4 / avx2pair) are in skin_batch.hpp.
+static void skin_mesh(SkinBackend backend, const SkinnedMesh& mesh,
+                      const std::vector<float4x4>& palette,
                       std::vector<GpuVertex>& out) {
     out.resize(mesh.corners.size());
-    for (size_t i = 0; i < mesh.corners.size(); ++i) {
-        const Corner& c = mesh.corners[i];
-        const float4 rp(c.rest_pos, 1.0f);
-        const float4 rn(c.rest_nrm, 0.0f);
-        float4 p = float4(0.0f);
-        float4 n = float4(0.0f);
-        for (int w = 0; w < 4; ++w) {
-            if (c.weight[w] <= 0.0f) continue;
-            const float4x4& m = palette[c.joint[w]];
-            p += mul(m, rp) * c.weight[w];
-            n += mul(m, rn) * c.weight[w];
-        }
-        float3(p).store(out[i].pos);                 // truncate w, write 3 lanes
-        normalize(float3(n)).store(out[i].nrm);
-    }
+    smdemo::skin_batch(backend, mesh.corners.data(), mesh.corners.size(),
+                       palette.data(), palette.size(), out.data());
 }
 
 // ---- SDL_GPU plumbing --------------------------------------------------------
@@ -224,6 +204,7 @@ static SDL_GPUShader* load_shader(SDL_GPUDevice* dev, const std::string& path,
 int main(int argc, char** argv) {
     int headless_frames = 0;
     bool wireframe = false;
+    SkinBackend backend = SkinBackend::Simd4;
     std::string asset_dir = SM_DEMO_ASSET_DIR;
     std::string fbx_path = asset_dir + "/tentacle.fbx";
     std::string out_dir = ".";
@@ -233,7 +214,20 @@ int main(int argc, char** argv) {
         else if (a == "--wireframe") wireframe = true;
         else if (a == "--fbx" && i + 1 < argc) fbx_path = argv[++i];
         else if (a == "--out" && i + 1 < argc) out_dir = argv[++i];
+        else if (a == "--backend" && i + 1 < argc) {
+            const std::string b = argv[++i];
+            if (b == "scalar") backend = SkinBackend::Scalar;
+            else if (b == "simd4") backend = SkinBackend::Simd4;
+            else if (b == "avx2pair") backend = SkinBackend::Avx2Pair;
+            else { std::fprintf(stderr, "unknown backend %s\n", b.c_str()); return 1; }
+        }
     }
+    if (!smdemo::skin_backend_available(backend)) {
+        std::fprintf(stderr, "backend %s not available in this build\n",
+                     smdemo::skin_backend_name(backend));
+        return 1;
+    }
+    std::printf("skin backend: %s\n", smdemo::skin_backend_name(backend));
     const bool headless = headless_frames > 0;
     if (headless) SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "offscreen");
 
@@ -386,7 +380,7 @@ int main(int argc, char** argv) {
     // ---- camera: auto-frame from the frame-0 pose --------------------------------
     std::vector<GpuVertex> vertices;
     eval_palette(anim ? anim->time_begin : 0.0);
-    skin_mesh(mesh, palette, vertices);
+    skin_mesh(backend, mesh, palette, vertices);
     float3 bb_min(1e30f, 1e30f, 1e30f);
     float3 bb_max(-1e30f, -1e30f, -1e30f);
     for (const GpuVertex& v : vertices) {
@@ -421,7 +415,7 @@ int main(int argc, char** argv) {
 
         // evaluate the animation, build the palette, skin on the CPU
         eval_palette(anim_t);
-        skin_mesh(mesh, palette, vertices);
+        skin_mesh(backend, mesh, palette, vertices);
 
         SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(dev);
 

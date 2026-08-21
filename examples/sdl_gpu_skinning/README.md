@@ -29,8 +29,23 @@ SDL3（release-3.4.14）と ufbx（v0.23.0）は FetchContent で取得する。
 ./build-demo/sdl_gpu_skinning --wireframe     # ワイヤーフレーム
 # ヘッドレス（ソフトウェア Vulkan / lavapipe で動作確認済み）:
 SDL_VIDEO_DRIVER=offscreen ./build-demo/sdl_gpu_skinning --headless 24 --out /tmp/frames
-./build-demo/sdl_gpu_skinning --fbx path/to/your.fbx   # 任意の FBX（スキン付き最初のメッシュ）
+./build-demo/sdl_gpu_skinning --fbx path/to/your.fbx   # 任意の FBX
+./build-demo/sdl_gpu_skinning --backend scalar|simd4|avx2pair   # スキニング実装の切替
 ```
+
+## スキニング backend（skin_batch.hpp）
+
+スキニングは切替可能なバッチ API（`smdemo::skin_batch`）。shader-math 本体は
+コンパイル時切替のみだが、アプリ層なので実行時切替してよい:
+
+- `scalar` — 素の float ループ（参照実装）
+- `simd4` — shader-math の per-vertex 水平 4-wide（既定）
+- `avx2pair` — **2 頂点/YMM の垂直化**（FMA+AVX ビルドのみ）。`avx2row` と同じ
+  per-128-lane broadcast で、両ハーフに**別の行列**を掛けられることを利用
+
+各 backend の近似性は `tests/test_skin_batch.cpp`（SDL 不要、既定 ctest に登録）で証明:
+double オラクルとの誤差上限（位置 相対 1e-5 / 法線 絶対 1e-4、実測 ~2e-7）、backend
+間の相互一致、性質検査（単位パレット → レストポーズ再現、剛体パレット → 距離保存）。
 
 ## ファイル
 

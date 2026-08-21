@@ -81,6 +81,12 @@ if(SHADER_MATH_BUILD_TESTS)
     add_executable(sandbox examples/sandbox.cpp)
     target_link_libraries(sandbox PRIVATE shader_math)
 
+    # Approximate-equivalence proof for the batch skinning backends (pure CPU,
+    # no SDL): oracle bound + pairwise agreement + invariance properties.
+    add_executable(skin_batch_check tests/test_skin_batch.cpp)
+    target_link_libraries(skin_batch_check PRIVATE shader_math)
+    add_test(NAME skin_batch_check COMMAND skin_batch_check)
+
     # Slang cross-compilation check: the same math_cases.hlsli is built with
     # slangc (-target cpp, CPU execution) and with shader-math, and compare.py
     # checks the outputs slot by slot (see docs/slang_compat.md).
