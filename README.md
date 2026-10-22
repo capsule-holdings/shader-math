@@ -127,6 +127,34 @@ cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON  # scalar 強制
 
 `-DSHADER_MATH_WARNINGS_AS_ERRORS=ON` でテスト・サンプルの警告（`-Wall -Wextra -Wpedantic` / `/W4`）をエラーにする（CI は常に ON）。
 
+### 他プロジェクトからの利用（CMake）
+
+ターゲットはどの方法でも `shader_math::shader_math`。
+
+```cmake
+# A) サブプロジェクト（add_subdirectory / FetchContent）
+include(FetchContent)
+FetchContent_Declare(shader_math
+    GIT_REPOSITORY https://github.com/capsule-holdings/shader-math.git
+    GIT_TAG <commit>)
+FetchContent_MakeAvailable(shader_math)
+
+# B) インストール済みパッケージ
+#    cmake --install build --prefix <prefix> したものを CMAKE_PREFIX_PATH で指す
+find_package(shader_math 0.1 REQUIRED CONFIG)
+
+target_link_libraries(app PRIVATE shader_math::shader_math)
+```
+
+- サブプロジェクトとして取り込んだ場合、テスト・サンプル・install ルールは生成しない
+  （`SHADER_MATH_BUILD_TESTS` / `SHADER_MATH_INSTALL` で上書き可）
+- Boost（Config / Predef ヘッダ）はパッケージに同梱しない。`find_package` 時に利用側で探し、
+  見つからなければ `SHADER_MATH_BOOST_INCLUDE`（Predef が別の場所なら
+  `SHADER_MATH_BOOST_PREDEF_INCLUDE` も）を指定する
+- `SHADER_MATH_FORCE_SCALAR` はこのリポジトリのテスト用。利用側で scalar を強制するときは
+  `SHADER_MATH_FORCE_SCALAR` マクロを自分のターゲットに定義する
+- バージョンは 0.x の間は同一マイナーのみ互換（`SameMinorVersion`）
+
 デモ: `-DSHADER_MATH_DEMO_SDLGPU=ON` で SDL_GPU + FBX（ufbx）+ CPU スキニングの
 サンプルをビルドできる（[examples/sdl_gpu_skinning/](examples/sdl_gpu_skinning/README.md)）。
 
