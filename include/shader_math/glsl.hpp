@@ -68,9 +68,24 @@ using detail::cross;
 using detail::dot;
 using detail::length;
 using detail::normalize;
+using detail::distance;
+using detail::reflect;
+using detail::refract;
+using detail::faceforward;
 
 // component-wise functions with identical names in both languages
 using detail::abs;
+using detail::acos;
+using detail::asin;
+using detail::atan;
+using detail::cosh;
+using detail::degrees;
+using detail::isinf;
+using detail::isnan;
+using detail::modf;
+using detail::radians;
+using detail::sinh;
+using detail::tanh;
 using detail::ceil;
 using detail::clamp;
 using detail::cos;
@@ -112,6 +127,22 @@ template <class A>
     requires detail::VecLike<A>
 SHADER_MATH_INLINE auto roundEven(const A& a) {
     return detail::round_even_impl(a);
+}
+// atan(y, x): GLSL spells the two-argument arctangent as an atan overload
+template <class A, class B>
+    requires requires(const A& y, const B& x) { detail::atan2_impl(y, x); }
+SHADER_MATH_INLINE auto atan(const A& y, const B& x) {
+    return detail::atan2_impl(y, x);
+}
+template <class A, class B>
+    requires requires(const A& a, const B& b) { detail::mod_impl(a, b); }
+SHADER_MATH_INLINE auto mod(const A& a, const B& b) {
+    return detail::mod_impl(a, b);
+}
+template <class A, class B, class C>
+    requires requires(const A& a, const B& b, const C& c) { detail::mad_impl(a, b, c); }
+SHADER_MATH_INLINE auto fma(const A& a, const B& b, const C& c) {
+    return detail::mad_impl(a, b, c);
 }
 
 // ---- component-wise matrix operators (+ - / and scalar forms) ---------------

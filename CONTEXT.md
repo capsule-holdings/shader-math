@@ -138,6 +138,10 @@ Blacksmith ランナー（GitHub-hosted ではない）。`fail-fast: false`:
 
 ## v2 候補
 
+- **実装済み**: 逆三角 / 双曲線 / 幾何（`distance` `reflect` `refract` `faceforward`）/
+  `atan2`（GLSL `atan(y, x)`）/ `fmod`（HLSL, trunc 基準）と `mod`（GLSL, floor 基準）/
+  `mad`・`fma` / `isnan` `isinf` `isfinite` / `modf` / `sincos` / `radians` `degrees`。
+  `fmod` / `mod` は `*` と同型の意味差なので言語別に分離し、相手側の名前はコンパイルエラー。
 - **実装済み**: 成分ごと関数（`abs`〜`tan` の 23 関数 + `roundEven`。ベクトル対象、
   言語別名: HLSL `lerp`/`frac`/`rcp`/`rsqrt`/`saturate` ⇔ GLSL `mix`/`fract`/`inversesqrt`。
   超越関数は per-lane libm、丸めは SSE2 のみ per-lane、他 backend はネイティブ）。
