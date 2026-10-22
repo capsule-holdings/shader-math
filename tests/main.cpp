@@ -13,6 +13,7 @@ void test_simd();
 void test_half();
 void test_funcs();
 void test_pad_lanes();
+void test_random();
 
 int main() {
 #if defined(SHADER_MATH_ISA_NEON)
@@ -42,6 +43,7 @@ int main() {
     test_half();
     test_funcs();
     test_pad_lanes();
+    test_random();
 
     std::printf("[shader-math] %d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
