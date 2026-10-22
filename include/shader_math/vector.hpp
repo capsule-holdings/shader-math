@@ -5,6 +5,9 @@
 //   it is shared by float and half vectors (half comparisons widen to f32).
 // Full swizzle support via proxy members (read: implicit conversion,
 // write: constrained operator=; duplicate/out-of-range writes do not compile).
+// Storage is always a 4-lane register. Lanes >= N are unspecified (splats,
+// scalar operands and division leave arbitrary values, NaN included), so
+// every operation must read lanes [0, N) only (tests/test_pad_lanes.cpp).
 #pragma once
 
 #include <cmath>
@@ -667,7 +670,7 @@ SHADER_MATH_INLINE auto rsqrt_impl(const A& a) {
 
 // ---- transcendental functions: per-lane libm --------------------------------
 // No SIMD polynomial approximations: correctness and cross-checkability first.
-// half computes in f32 and narrows. Lanes >= N stay zero (the fvec invariant).
+// half computes in f32 and narrows.
 template <int N, class T, class F>
 SHADER_MATH_INLINE fvec<N, T> map_lanes(const fvec<N, T>& v, F&& f) {
     T in[4];

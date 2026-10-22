@@ -163,7 +163,6 @@ static void test_funcs_near() {
     CHECK_NEAR(cos(x)[1], std::cos(1.0f));
     CHECK_NEAR(tan(x)[0], std::tan(0.5f));
 
-    // lanes beyond N stay zero (fvec invariant survives map_lanes)
     const float2 l2 = log(float2(1.0f, 2.0f));
     CHECK_EQF(l2[0], 0.0f);
 }
