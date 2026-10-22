@@ -131,6 +131,16 @@ if(SHADER_MATH_BUILD_TESTS)
     shader_math_warnings(sandbox)
     add_test(NAME sandbox COMMAND sandbox)
 
+    # Micro-benchmarks (informational, not a ctest test): SIMD and the
+    # scalar reference side by side, like the test suite.
+    add_executable(shader_math_bench bench/bench.cpp)
+    target_link_libraries(shader_math_bench PRIVATE shader_math)
+    shader_math_warnings(shader_math_bench)
+    add_executable(shader_math_bench_scalar bench/bench.cpp)
+    target_link_libraries(shader_math_bench_scalar PRIVATE shader_math)
+    target_compile_definitions(shader_math_bench_scalar PRIVATE SHADER_MATH_FORCE_SCALAR)
+    shader_math_warnings(shader_math_bench_scalar)
+
     # Approximate-equivalence proof for the batch skinning backends (pure CPU,
     # no SDL): oracle bound + pairwise agreement + invariance properties.
     add_executable(skin_batch_check tests/test_skin_batch.cpp)

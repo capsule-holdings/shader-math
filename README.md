@@ -160,6 +160,11 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
   `SHADER_MATH_FORCE_SCALAR` マクロを自分のターゲットに定義する
 - バージョンは 0.x の間は同一マイナーのみ互換（`SameMinorVersion`）
 
+ベンチマーク: `./build/shader_math_bench`（SIMD）と `./build/shader_math_bench_scalar`
+（scalar 強制）で主要カーネルの ns / 要素を比較できる（`--markdown` で表形式）。
+CI では `linux-x64-gcc` / `linux-x64-gcc-v3` / `linux-arm-gcc` で実行し、ジョブサマリーに出す
+（共有ランナーの値なので参考値。合否判定はしない）。
+
 デモ: `-DSHADER_MATH_DEMO_SDLGPU=ON` で SDL_GPU + FBX（ufbx）+ CPU スキニングの
 サンプルをビルドできる（[examples/sdl_gpu_skinning/](examples/sdl_gpu_skinning/README.md)）。
 
