@@ -25,8 +25,16 @@ target_compile_features(shader_math INTERFACE cxx_std_20)
 # installed copy; otherwise fetch just the two required header modules.
 # Build-tree only: the installed package looks Boost up again on the
 # consumer's machine (cmake/shader_mathConfig.cmake.in).
+# Predef is located by boost/predef/hardware/simd.h (BOOST_HW_SIMD_*, Boost
+# 1.60+), so an older system Boost is skipped in favor of the fetched copy.
 find_path(SHADER_MATH_BOOST_INCLUDE boost/config.hpp)
-find_path(SHADER_MATH_BOOST_PREDEF_INCLUDE boost/predef.h HINTS ${SHADER_MATH_BOOST_INCLUDE})
+find_path(SHADER_MATH_BOOST_PREDEF_INCLUDE boost/predef/hardware/simd.h
+          HINTS ${SHADER_MATH_BOOST_INCLUDE})
+if(SHADER_MATH_BOOST_PREDEF_INCLUDE AND
+   NOT EXISTS "${SHADER_MATH_BOOST_PREDEF_INCLUDE}/boost/predef/hardware/simd.h")
+    message(FATAL_ERROR "SHADER_MATH_BOOST_PREDEF_INCLUDE=${SHADER_MATH_BOOST_PREDEF_INCLUDE} "
+                        "has no boost/predef/hardware/simd.h (Boost.Predef 1.60+ required)")
+endif()
 if(SHADER_MATH_BOOST_INCLUDE AND SHADER_MATH_BOOST_PREDEF_INCLUDE)
     target_include_directories(shader_math INTERFACE
         $<BUILD_INTERFACE:${SHADER_MATH_BOOST_INCLUDE}>

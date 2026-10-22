@@ -7,6 +7,12 @@
 
 #define SHADER_MATH_INLINE BOOST_FORCEINLINE
 
+// The ISA selection below compares BOOST_HW_SIMD_* values; with an older
+// Predef they are undefined, evaluate to 0 >= 0, and pick NEON on any host.
+#if !defined(BOOST_HW_SIMD_ARM) || !defined(BOOST_HW_SIMD_X86)
+#  error "shader-math: Boost.Predef 1.60+ is required (BOOST_HW_SIMD_* not defined)"
+#endif
+
 // ISA selection (compile-time, one per translation unit set):
 //   SHADER_MATH_FORCE_SCALAR  - user override, scalar 4-wide reference path
 //   NEON                      - AArch64 / ARM with NEON
