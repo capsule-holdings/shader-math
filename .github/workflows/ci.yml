@@ -12,9 +12,20 @@
 # Prerequisite: the Blacksmith app must be installed on the GitHub org.
 name: ci
 
+# push builds main only; other branches are built by their pull_request run.
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a PR cancels its in-flight run; main keeps every run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-test:
@@ -93,6 +104,9 @@ jobs:
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
             slang_version: "2026.16"
+            # sha256 of slang-<version>-linux-x86_64.tar.gz (matches the
+            # release asset digest); update together with slang_version
+            slang_sha256: e572e1a293f21971d8a98124c4576848ad4cd6a19b922ce5bad784fee0950648
             cmake_extra: -DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=/tmp/slang
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
@@ -110,6 +124,7 @@ jobs:
         run: |
           curl -fsSL -o /tmp/slang.tar.gz \
             https://github.com/shader-slang/slang/releases/download/v${{ matrix.slang_version }}/slang-${{ matrix.slang_version }}-linux-x86_64.tar.gz
+          echo "${{ matrix.slang_sha256 }}  /tmp/slang.tar.gz" | sha256sum -c -
           mkdir -p /tmp/slang
           tar -xzf /tmp/slang.tar.gz -C /tmp/slang
           /tmp/slang/bin/slangc -v
