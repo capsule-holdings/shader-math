@@ -125,6 +125,8 @@ ctest --test-dir build --output-on-failure
 cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON  # scalar 強制
 ```
 
+`-DSHADER_MATH_WARNINGS_AS_ERRORS=ON` でテスト・サンプルの警告（`-Wall -Wextra -Wpedantic` / `/W4`）をエラーにする（CI は常に ON）。
+
 デモ: `-DSHADER_MATH_DEMO_SDLGPU=ON` で SDL_GPU + FBX（ufbx）+ CPU スキニングの
 サンプルをビルドできる（[examples/sdl_gpu_skinning/](examples/sdl_gpu_skinning/README.md)）。
 

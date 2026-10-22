@@ -46,7 +46,8 @@ struct ops {
     static SHADER_MATH_INLINE freg sub(freg a, freg b) { return _mm_sub_ps(a, b); }
     static SHADER_MATH_INLINE freg mul(freg a, freg b) { return _mm_mul_ps(a, b); }
     static SHADER_MATH_INLINE freg div(freg a, freg b) { return _mm_div_ps(a, b); }
-    static SHADER_MATH_INLINE freg neg(freg a) { return _mm_sub_ps(_mm_setzero_ps(), a); }
+    // IEEE negate (sign-bit flip): -(+0) = -0
+    static SHADER_MATH_INLINE freg neg(freg a) { return _mm_xor_ps(a, _mm_set1_ps(-0.0f)); }
     // a*b + c: single rounding with FMA3, two roundings on plain SSE2
     static SHADER_MATH_INLINE freg fmadd(freg a, freg b, freg c) {
 #if defined(SHADER_MATH_HAS_FMA)

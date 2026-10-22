@@ -1,6 +1,7 @@
 // Prove the compiled backend is the real SIMD ISA for this host.
 // Numerical tests pass on the scalar fallback too; this file fails if
 // ISA detection silently selected the 4-float struct on an SSE2/NEON target.
+#include <cmath>
 #include <type_traits>
 
 #include <shader_math/shader_math.hpp>
@@ -87,6 +88,7 @@ static_assert(has_scalar_lanes<freg>::value,
 
 void test_fmadd_rounding();
 void test_avx_2row();
+void test_neg_signed_zero();
 
 void test_simd() {
 #if defined(SHADER_MATH_ISA_SSE2)
@@ -128,6 +130,7 @@ void test_simd() {
 
     test_fmadd_rounding();
     test_avx_2row();
+    test_neg_signed_zero();
 }
 
 // Prove ops::fmadd has the rounding behavior the backend promises.
@@ -138,7 +141,7 @@ void test_simd() {
 // comparing against the exactly-representable true result is not.
 void test_fmadd_rounding() {
     const float fused = -0x1.0p-40f;
-    const float twostep = 0.0f;
+    [[maybe_unused]] const float twostep = 0.0f;
 
     const shader_math::detail::freg p = ops::splat(1.0f + 0x1.0p-20f);
     const shader_math::detail::freg q = ops::splat(1.0f - 0x1.0p-20f);
@@ -189,5 +192,27 @@ void test_avx_2row() {
         for (int c = 0; c < 4; ++c)
             for (int r = 0; r < 4; ++r) CHECK_EQF(ymm[c][r], xmm[c][r]);
     }
+#endif
+}
+
+// Negation flips the sign bit on every backend: -(+0) is -0 and -(-0) is +0,
+// so 1/-v gives -inf (IEEE negate, not 0 - x).
+void test_neg_signed_zero() {
+    using shader_math::hlsl::float3;
+    const float3 n = -float3(0.0f);
+    CHECK(std::signbit(float(n.x)));
+    CHECK(std::signbit(float(n.y)));
+    CHECK(std::signbit(float(n.z)));
+    CHECK(!std::signbit(float((-n).x)));
+    CHECK(std::isinf(float((1.0f / n).x)) && float((1.0f / n).x) < 0.0f);
+
+    const freg z = ops::neg(ops::zero());
+    for (int i = 0; i < 4; ++i) CHECK(std::signbit(ops::lane(z, i)));
+
+#if defined(SHADER_MATH_HAS_HALF)
+    using shader_math::hlsl::half3;
+    const half3 hn = -half3(0.0f);
+    CHECK(std::signbit(static_cast<float>(hn.x)));
+    CHECK(!std::signbit(static_cast<float>((-hn).x)));
 #endif
 }
