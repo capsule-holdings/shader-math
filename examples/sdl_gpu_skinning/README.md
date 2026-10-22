@@ -19,7 +19,7 @@ cmake -S . -B build-demo -DCMAKE_BUILD_TYPE=Release -DSHADER_MATH_DEMO_SDLGPU=ON
 cmake --build build-demo -j
 ```
 
-SDL3（release-3.4.14）と ufbx（v0.23.0）は FetchContent で取得する。Linux では X11
+SDL3 と ufbx は FetchContent で取得する（版はルートの `CMakeLists.txt` で固定、Renovate が更新）。Linux では X11
 開発パッケージ（`libx11-dev` 等）が SDL のビルドに必要。
 
 ## 実行
