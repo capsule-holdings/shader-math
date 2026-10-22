@@ -69,8 +69,12 @@ template <class A>
 concept adl_mad = requires(const A& a) { mad(a, a, a); };
 template <class A>
 concept adl_fma = requires(const A& a) { fma(a, a, a); };
+// typed: the MSVC UCRT's unconstrained global isfinite(_Ty) -> bool is
+// visible here too; what must not be reachable is a bool-vector overload
 template <class A>
-concept adl_isfinite = requires(const A& a) { isfinite(a); };
+concept adl_isfinite = requires(const A& a) {
+    { isfinite(a) } -> std::same_as<shader_math::detail::bvec<A::size_v>>;
+};
 template <class A>
 concept adl_atan_yx = requires(const A& a) { atan(a, a); };
 static_assert(!adl_atan2<h::float3>);
