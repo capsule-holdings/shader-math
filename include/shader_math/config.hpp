@@ -44,7 +44,9 @@
 //   SHADER_MATH_HAS_HALF - a usable half scalar type exists, so the half
 //                          vector types are defined at all. GCC/Clang expose
 //                          _Float16 (x86: gcc 12+ / clang 15+, AArch64:
-//                          always) and advertise it via __FLT16_MANT_DIG__.
+//                          gcc 13+ / any clang) and advertise it via
+//                          __FLT16_MANT_DIG__. gcc < 13 on AArch64 defines
+//                          that macro but accepts _Float16 only in C, not C++.
 //                          MSVC has no _Float16; a bit-stored software type
 //                          (detail::binary16) is used instead. On unsupported
 //                          compilers the half surface silently disappears;
@@ -61,7 +63,8 @@
 #  define SHADER_MATH_HAS_HALF 1
 #elif defined(_MSC_VER) && !defined(__clang__)
 #  define SHADER_MATH_HAS_HALF 1
-#elif defined(__FLT16_MANT_DIG__)
+#elif defined(__FLT16_MANT_DIG__) && \
+    (defined(__clang__) || __GNUC__ >= 13 || defined(__x86_64__) || defined(__i386__))
 #  define SHADER_MATH_HAS_HALF 1
 #  define SHADER_MATH_HALF_IS_FLOAT16 1
 #endif
@@ -73,7 +76,7 @@
 
 #if defined(__cpp_concepts)
 #  if __cpp_concepts < 201907L
-#    error "shader-math requires C++20 concepts (gcc 10+ / clang 10+ / MSVC 19.30+)"
+#    error "shader-math requires C++20 concepts (gcc 10+ / clang 14+ / MSVC 19.30+)"
 #  endif
 #else
 #  error "shader-math requires C++20 (compile with -std=c++20 or /std:c++20)"

@@ -140,7 +140,7 @@ void test_simd() {
 // A bit-compare of ops::fmadd against _mm_fmadd_ps would be a tautology;
 // comparing against the exactly-representable true result is not.
 void test_fmadd_rounding() {
-    const float fused = -0x1.0p-40f;
+    [[maybe_unused]] const float fused = -0x1.0p-40f;
     [[maybe_unused]] const float twostep = 0.0f;
 
     const shader_math::detail::freg p = ops::splat(1.0f + 0x1.0p-20f);
@@ -212,7 +212,7 @@ void test_neg_signed_zero() {
 #if defined(SHADER_MATH_HAS_HALF)
     using shader_math::hlsl::half3;
     const half3 hn = -half3(0.0f);
-    CHECK(std::signbit(static_cast<float>(hn.x)));
-    CHECK(!std::signbit(static_cast<float>((-hn).x)));
+    CHECK(std::signbit(static_cast<float>(hn[0])));
+    CHECK(!std::signbit(static_cast<float>((-hn)[0])));
 #endif
 }

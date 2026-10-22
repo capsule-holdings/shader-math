@@ -36,7 +36,7 @@ void glsl_side() {
   `determinant` / `inverse` も half のまま計算する。真の fp16 は underflow / overflow が早いので、条件の悪い行列を渡さないこと
   - `sizeof(half3) == 8`（4×binary16 パック）。`sizeof(float3) == 16` と同様、**言語互換であり GPU ABI ではない**
   - half と float の**暗黙混合演算は不可**（`half3 * float3` / `half3 * 2.0f` はコンパイルエラー、変換は explicit）。コンストラクタ引数は変換する（`half3(1.0f, 2.0f, 3.0f)` は可）
-  - コンパイラ下限: gcc/clang は `_Float16` が必要（x86 では gcc 12+ / clang 15+）。MSVC はビット格納のソフトウェア型で対応。未対応コンパイラでは half 型群は定義されない（float 面は無影響）
+  - コンパイラ下限: gcc/clang は C++ で使える `_Float16` が必要（x86 では gcc 12+ / clang 15+、AArch64 では gcc 13+）。MSVC はビット格納のソフトウェア型で対応。未対応コンパイラでは half 型群は定義されない（float 面は無影響）
   - ARM ターゲットでは `arm_neon.h` がグローバル `float16_t` を定義するため、`using namespace glsl` 下の非修飾 `float16_t` は曖昧になる。`glsl::float16_t` と修飾するか `hlsl::half` を使う
 - 行列: R,C ∈ {2,3,4} の全9形。`hlsl::floatRxC`（行格納・行優先 ctor）と `glsl::matCxR`（列格納・列優先 ctor）は **別型**、相互変換は explicit
 - 対応関係は非正方で入れ替わる: `float3x4`（3行4列）≡ `mat4x3`（4列3行）
@@ -130,7 +130,9 @@ cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON  # scalar 強制
 デモ: `-DSHADER_MATH_DEMO_SDLGPU=ON` で SDL_GPU + FBX（ufbx）+ CPU スキニングの
 サンプルをビルドできる（[examples/sdl_gpu_skinning/](examples/sdl_gpu_skinning/README.md)）。
 
-要件: C++20（concepts）。gcc 10+ / clang 10+ / MSVC 19.30+ / Apple Clang 12+。
+要件: C++20（concepts）。gcc 10+ / clang 14+ / MSVC 19.30+ / Apple Clang。
+gcc 10 と clang 14 は CI で下限として確認している（clang 11〜12 はコンパイラ内部エラー、13 は誤警告が出る）。
+MSVC と Apple Clang は CI ランナーの既定版のみ確認。
 
 ## 既知の逸脱（HLSL/GLSL との差分）
 

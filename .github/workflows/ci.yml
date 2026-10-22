@@ -61,10 +61,14 @@ jobs:
             runner: blacksmith-2vcpu-ubuntu-2204
             cxx: g++-10
             packages: g++-10
-          - name: linux-x64-clang11-min
+          - name: linux-arm-gcc10-min
+            runner: blacksmith-2vcpu-ubuntu-2204-arm
+            cxx: g++-10
+            packages: g++-10
+          - name: linux-x64-clang14-min
             runner: blacksmith-2vcpu-ubuntu-2204
-            cxx: clang++-11
-            packages: clang-11
+            cxx: clang++-14
+            packages: clang-14
           - name: macos-arm-appleclang
             runner: macos-15
             cxx: clang++
