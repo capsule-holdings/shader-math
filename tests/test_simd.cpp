@@ -39,6 +39,14 @@ using shader_math::detail::ops;
 #if defined(_MSC_VER) && defined(__AVX2__) && !defined(SHADER_MATH_HAS_FMA)
 #  error "shader-math: MSVC /arch:AVX2 target did not set SHADER_MATH_HAS_FMA"
 #endif
+#if (defined(__SSE4_1__) || (defined(_MSC_VER) && defined(__AVX__))) && \
+    !defined(SHADER_MATH_HAS_SSE41)
+#  error "shader-math: SSE4.1 target did not set SHADER_MATH_HAS_SSE41"
+#endif
+#if defined(SHADER_MATH_ISA_SSE2) && defined(__AVX__) && defined(SHADER_MATH_HAS_FMA) && \
+    !defined(SHADER_MATH_HAS_AVX_2ROW)
+#  error "shader-math: AVX + FMA target did not enable the 2-row 4x4 kernel"
+#endif
 
 // The interface contract itself must not be vacuous: a type without the ops
 // surface, or the right ops with the wrong register type, must fail it.
