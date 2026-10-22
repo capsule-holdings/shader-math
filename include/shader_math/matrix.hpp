@@ -270,7 +270,7 @@ struct matrix {
         requires(sizeof...(S) == R * C && R * C > 1 && (detail::CvtScalar<S, T> && ...))
     SHADER_MATH_INLINE matrix(S... s) : row_{} {
         const T a[R * C] = {static_cast<T>(s)...};
-        detail::unpack_dense<R, C>(a, row_);  // lanes >= C stay zero from row_{}
+        detail::unpack_dense<R, C>(a, row_);
     }
 
     // R row vectors.
@@ -347,7 +347,7 @@ struct matrix {
         requires(sizeof...(S) == Cn * Rn && Cn * Rn > 1 && (detail::CvtScalar<S, T> && ...))
     SHADER_MATH_INLINE matrix(S... s) {
         const T a[Cn * Rn] = {static_cast<T>(s)...};
-        detail::unpack_dense<Cn, Rn>(a, col_);  // lanes >= Rn stay zero from fvec()
+        detail::unpack_dense<Cn, Rn>(a, col_);
     }
 
     // Cn column vectors.
