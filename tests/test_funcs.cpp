@@ -5,6 +5,8 @@
 // the unqualified concepts below resolve through ADL only, which is exactly
 // what must NOT find the language-specific spellings.
 #include <cmath>
+#include <concepts>
+#include <limits>
 
 #include <shader_math/shader_math.hpp>
 
@@ -55,6 +57,88 @@ static_assert(requires(const g::vec3& v) { shader_math::glsl::mix(v, v, v); });
 static_assert(requires(const g::vec3& v) { shader_math::glsl::fract(v); });
 static_assert(requires(const g::vec3& v) { shader_math::glsl::inversesqrt(v); });
 static_assert(requires(const g::vec3& v) { shader_math::glsl::roundEven(v); });
+
+// geometry / trigonometry additions: HLSL-only and GLSL-only spellings
+template <class A>
+concept adl_atan2 = requires(const A& a) { atan2(a, a); };
+template <class A>
+concept adl_fmod = requires(const A& a) { fmod(a, a); };
+template <class A>
+concept adl_mod = requires(const A& a) { mod(a, a); };
+template <class A>
+concept adl_mad = requires(const A& a) { mad(a, a, a); };
+template <class A>
+concept adl_fma = requires(const A& a) { fma(a, a, a); };
+// typed: the MSVC UCRT's unconstrained global isfinite(_Ty) -> bool is
+// visible here too; what must not be reachable is a bool-vector overload
+template <class A>
+concept adl_isfinite = requires(const A& a) {
+    { isfinite(a) } -> std::same_as<shader_math::detail::bvec<A::size_v>>;
+};
+template <class A>
+concept adl_atan_yx = requires(const A& a) { atan(a, a); };
+static_assert(!adl_atan2<h::float3>);
+static_assert(!adl_fmod<h::float3>);
+static_assert(!adl_mod<g::vec3>);
+static_assert(!adl_mad<h::float3>);
+static_assert(!adl_fma<g::vec3>);
+static_assert(!adl_isfinite<h::float3>);
+static_assert(!adl_atan_yx<g::vec3>);  // the shared detail::atan is unary only
+
+// each language sees only its own spelling
+namespace hlsl_scope {
+using namespace shader_math::hlsl;
+template <class A>
+concept has_atan2 = requires(const A& a) { atan2(a, a); };
+template <class A>
+concept has_atan_yx = requires(const A& a) { atan(a, a); };
+template <class A>
+concept has_fmod = requires(const A& a) { fmod(a, a); };
+template <class A>
+concept has_mod = requires(const A& a) { mod(a, a); };
+template <class A>
+concept has_mad = requires(const A& a) { mad(a, a, a); };
+template <class A>
+concept has_fma = requires(const A& a) { fma(a, a, a); };
+// typed: the MSVC UCRT's global isfinite(_Ty) -> bool is visible in every
+// scope, so "has isfinite" means an overload returning the bool vector
+template <class A>
+concept has_isfinite = requires(const A& a) {
+    { isfinite(a) } -> std::same_as<shader_math::detail::bvec<A::size_v>>;
+};
+template <class A>
+concept has_sincos = requires(const A& a, A& s, A& c) { sincos(a, s, c); };
+static_assert(has_atan2<float3> && !has_atan_yx<float3>);
+static_assert(has_fmod<float3> && !has_mod<float3>);
+static_assert(has_mad<float3> && !has_fma<float3>);
+static_assert(has_isfinite<float3> && has_sincos<float3>);
+}  // namespace hlsl_scope
+
+namespace glsl_scope {
+using namespace shader_math::glsl;
+template <class A>
+concept has_atan2 = requires(const A& a) { atan2(a, a); };
+template <class A>
+concept has_atan_yx = requires(const A& a) { atan(a, a); };
+template <class A>
+concept has_fmod = requires(const A& a) { fmod(a, a); };
+template <class A>
+concept has_mod = requires(const A& a) { mod(a, a); };
+template <class A>
+concept has_mad = requires(const A& a) { mad(a, a, a); };
+template <class A>
+concept has_fma = requires(const A& a) { fma(a, a, a); };
+template <class A>
+concept has_isfinite = requires(const A& a) {
+    { isfinite(a) } -> std::same_as<shader_math::detail::bvec<A::size_v>>;
+};
+template <class A>
+concept has_sincos = requires(const A& a, A& s, A& c) { sincos(a, s, c); };
+static_assert(has_atan_yx<vec3> && !has_atan2<vec3>);
+static_assert(has_mod<vec3> && !has_fmod<vec3>);
+static_assert(has_fma<vec3> && !has_mad<vec3>);
+static_assert(!has_isfinite<vec3> && !has_sincos<vec3>);
+}  // namespace glsl_scope
 
 // ---- ScalarFor operand rules (common-name functions are ADL-visible) --------
 template <class A, class S>
@@ -182,6 +266,107 @@ static void test_funcs_glsl() {
     CHECK_EQF(step(0.0f, v)[2], 1.0f);
 }
 
+static void test_funcs_geometry_hlsl() {
+    using namespace shader_math::hlsl;
+
+    CHECK_EQF(distance(float3(1.0f, 2.0f, 3.0f), float3(4.0f, 6.0f, 3.0f)), 5.0f);
+
+    // reflect about +y
+    const float3 r = reflect(float3(1.0f, -1.0f, 0.0f), float3(0.0f, 1.0f, 0.0f));
+    CHECK_EQF(r[0], 1.0f);
+    CHECK_EQF(r[1], 1.0f);
+    CHECK_EQF(r[2], 0.0f);
+
+    // refract: eta = 1 passes straight through; grazing glass->air is TIR
+    const float3 in = normalize(float3(1.0f, -1.0f, 0.0f));
+    const float3 up(0.0f, 1.0f, 0.0f);
+    const float3 same = refract(in, up, 1.0f);
+    CHECK_NEAR(same[0], in[0]);
+    CHECK_NEAR(same[1], in[1]);
+    const float3 tir = refract(in, up, 1.5f);
+    CHECK_EQF(tir[0], 0.0f);
+    CHECK_EQF(tir[1], 0.0f);
+    // Snell: sin(t) = eta * sin(i) for air->glass
+    const float3 t = refract(in, up, 1.0f / 1.5f);
+    CHECK_NEAR(t[0], in[0] / 1.5f);
+    CHECK_NEAR(length(t), 1.0f);
+
+    const float3 nn(0.0f, 0.0f, 1.0f);
+    CHECK_EQF(faceforward(nn, float3(0.0f, 0.0f, -1.0f), nn)[2], 1.0f);
+    CHECK_EQF(faceforward(nn, float3(0.0f, 0.0f, 1.0f), nn)[2], -1.0f);
+
+    const float3 x(0.5f, -0.25f, 1.0f);
+    CHECK_NEAR(asin(x)[0], std::asin(0.5f));
+    CHECK_NEAR(acos(x)[1], std::acos(-0.25f));
+    CHECK_NEAR(atan(x)[2], std::atan(1.0f));
+    CHECK_NEAR(sinh(x)[0], std::sinh(0.5f));
+    CHECK_NEAR(cosh(x)[1], std::cosh(-0.25f));
+    CHECK_NEAR(tanh(x)[2], std::tanh(1.0f));
+    // atan2(y, x): all four quadrants
+    const float2 a2 = atan2(float2(1.0f, -1.0f), float2(-1.0f, -1.0f));
+    CHECK_NEAR(a2[0], std::atan2(1.0f, -1.0f));
+    CHECK_NEAR(a2[1], std::atan2(-1.0f, -1.0f));
+    CHECK_NEAR(radians(float2(180.0f, 90.0f))[0], 3.14159265f);
+    CHECK_NEAR(degrees(float2(3.14159265f, 0.0f))[0], 180.0f);
+
+    // fmod keeps the sign of x (trunc-based)
+    const float3 fm = fmod(float3(-7.0f, 7.0f, 5.5f), float3(3.0f, -3.0f, 2.0f));
+    CHECK_EQF(fm[0], -1.0f);
+    CHECK_EQF(fm[1], 1.0f);
+    CHECK_EQF(fm[2], 1.5f);
+    CHECK_EQF(fmod(float2(-7.0f, 7.0f), 3.0f)[0], -1.0f);  // scalar divisor
+
+    CHECK_NEAR(mad(float2(2.0f, 3.0f), float2(4.0f, 5.0f), float2(1.0f, -1.0f))[1], 14.0f);
+
+    float3 ip;
+    const float3 fr = modf(float3(2.75f, -2.75f, 0.5f), ip);
+    CHECK_EQF(fr[0], 0.75f);
+    CHECK_EQF(ip[0], 2.0f);
+    CHECK_EQF(fr[1], -0.75f);  // sign of x
+    CHECK_EQF(ip[1], -2.0f);
+    const float inf = std::numeric_limits<float>::infinity();
+    float2 ipi;
+    CHECK_EQF(modf(float2(inf, -inf), ipi)[0], 0.0f);
+    CHECK_EQF(ipi[1], -inf);
+
+    float3 s;
+    float3 c;
+    sincos(x, s, c);
+    CHECK_NEAR(s[0], std::sin(0.5f));
+    CHECK_NEAR(c[2], std::cos(1.0f));
+
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const float4 special(nan, inf, -inf, 1.0f);
+    const bool4 isn = isnan(special);
+    const bool4 isi = isinf(special);
+    const bool4 isf = isfinite(special);
+    CHECK(isn[0] && !isn[1] && !isn[2] && !isn[3]);
+    CHECK(!isi[0] && isi[1] && isi[2] && !isi[3]);
+    CHECK(!isf[0] && !isf[1] && !isf[2] && isf[3]);
+    const bool2 sw = isnan(special.xw);  // swizzle operand
+    CHECK(sw[0] && !sw[1]);
+    CHECK(isinf(special.yz)[1]);
+    CHECK(isfinite(special.zw)[1]);
+}
+
+static void test_funcs_geometry_glsl() {
+    using namespace shader_math::glsl;
+
+    // mod takes the sign of y (floor-based): differs from hlsl::fmod
+    const vec3 md = mod(vec3(-7.0f, 7.0f, 5.5f), vec3(3.0f, -3.0f, 2.0f));
+    CHECK_NEAR(md[0], 2.0f);
+    CHECK_NEAR(md[1], -2.0f);
+    CHECK_NEAR(md[2], 1.5f);
+    CHECK_NEAR(mod(vec2(-7.0f, 7.0f), 3.0f)[0], 2.0f);
+    CHECK_NEAR(atan(vec2(1.0f, -1.0f), vec2(-1.0f, -1.0f))[1], std::atan2(-1.0f, -1.0f));
+    CHECK_NEAR(atan(vec2(1.0f, 0.0f))[0], std::atan(1.0f));
+    CHECK_NEAR(fma(vec2(2.0f, 3.0f), vec2(4.0f, 5.0f), vec2(1.0f, -1.0f))[0], 9.0f);
+    CHECK_EQF(distance(vec2(0.0f, 0.0f), vec2(3.0f, 4.0f)), 5.0f);
+    CHECK_EQF(reflect(vec2(1.0f, -1.0f), vec2(0.0f, 1.0f))[1], 1.0f);
+    const bvec2 nan2 = isnan(vec2(std::numeric_limits<float>::quiet_NaN(), 0.0f));
+    CHECK(nan2[0] && !nan2[1]);
+}
+
 #if defined(SHADER_MATH_HAS_HALF)
 static void test_funcs_half() {
     using namespace shader_math::hlsl;
@@ -203,6 +388,12 @@ static void test_funcs_half() {
     CHECK_NEAR_H(exp(half3(0.0f, 1.0f, 2.0f))[1], 2.71828f);
     CHECK_NEAR_H(pow(half3(2.0f, 3.0f, 4.0f), half(2.0f))[0], 4.0f);
     CHECK_NEAR_H(rsqrt(half3(4.0f, 16.0f, 1.0f))[1], 0.25f);
+
+    CHECK_NEAR_H(distance(half3(1.0f, 2.0f, 3.0f), half3(4.0f, 6.0f, 3.0f)), 5.0f);
+    CHECK_NEAR_H(reflect(half2(1.0f, -1.0f), half2(0.0f, 1.0f))[1], 1.0f);
+    CHECK_NEAR_H(atan2(half2(1.0f, 1.0f), half2(1.0f, -1.0f))[0], 0.785398f);
+    CHECK_NEAR_H(fmod(half2(-7.0f, 7.0f), half(3.0f))[0], -1.0f);
+    CHECK(isinf(half2(half(65504.0f) * half(2.0f), half(1.0f)))[0]);
 }
 #else
 static void test_funcs_half() {}
@@ -212,5 +403,7 @@ void test_funcs() {
     test_funcs_exact();
     test_funcs_near();
     test_funcs_glsl();
+    test_funcs_geometry_hlsl();
+    test_funcs_geometry_glsl();
     test_funcs_half();
 }

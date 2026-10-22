@@ -93,6 +93,7 @@ if(SHADER_MATH_BUILD_TESTS)
         tests/test_simd.cpp
         tests/test_half.cpp
         tests/test_funcs.cpp
+        tests/test_global_shadow.cpp
         tests/test_pad_lanes.cpp
         tests/test_random.cpp)
 

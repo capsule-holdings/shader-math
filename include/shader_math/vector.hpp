@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cmath>
+#include <limits>
 #include <type_traits>
 #include <utility>
 
@@ -708,6 +709,12 @@ SM_VEC_LIBM_FN(log2, std::log2(x))
 SM_VEC_LIBM_FN(sin, std::sin(x))
 SM_VEC_LIBM_FN(cos, std::cos(x))
 SM_VEC_LIBM_FN(tan, std::tan(x))
+SM_VEC_LIBM_FN(asin, std::asin(x))
+SM_VEC_LIBM_FN(acos, std::acos(x))
+SM_VEC_LIBM_FN(atan, std::atan(x))
+SM_VEC_LIBM_FN(sinh, std::sinh(x))
+SM_VEC_LIBM_FN(cosh, std::cosh(x))
+SM_VEC_LIBM_FN(tanh, std::tanh(x))
 #undef SM_VEC_LIBM_FN
 
 // pow(x < 0, non-integer) is NaN per libm (undefined in the shader languages)
@@ -728,6 +735,146 @@ SHADER_MATH_INLINE auto pow(const A& a, const S& s) {
     const fvec<n, T> av = to_vec(a);
     const float y = static_cast<float>(static_cast<T>(s));
     return map_lanes(av, [y](float x) { return std::pow(x, y); });
+}
+
+// hlsl::atan2(y, x) / glsl::atan(y, x): note the y-first argument order
+template <class A, class B>
+    requires SameVec<A, B>
+SHADER_MATH_INLINE auto atan2_impl(const A& y, const B& x) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    const fvec<n, T> yv = to_vec(y);
+    const fvec<n, T> xv = to_vec(x);
+    return map_lanes2(yv, xv, [](float a, float b) { return std::atan2(a, b); });
+}
+
+// hlsl::fmod: x - y * trunc(x / y), sign of x (std::fmod, exact)
+template <class A, class B>
+    requires SameVec<A, B>
+SHADER_MATH_INLINE auto fmod_impl(const A& a, const B& b) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    const fvec<n, T> av = to_vec(a);
+    const fvec<n, T> bv = to_vec(b);
+    return map_lanes2(av, bv, [](float x, float y) { return std::fmod(x, y); });
+}
+template <class A, class S>
+    requires(VecLike<A> && ScalarFor<S, vec_elem_t<A>>)
+SHADER_MATH_INLINE auto fmod_impl(const A& a, const S& s) {
+    using T = vec_elem_t<A>;
+    return fmod_impl(a, fvec<vec_size_v<A>, T>(static_cast<T>(s)));
+}
+
+// glsl::mod: x - y * floor(x / y), sign of y (the GLSL definition, evaluated
+// as written; differs from hlsl::fmod for operands of opposite sign)
+template <class T>
+SHADER_MATH_INLINE vreg<T> mod_core(vreg<T> x, vreg<T> y) {
+    return vops<T>::sub(x, vops<T>::mul(y, vops<T>::rnd_floor(vops<T>::div(x, y))));
+}
+template <class A, class B>
+    requires SameVec<A, B>
+SHADER_MATH_INLINE auto mod_impl(const A& a, const B& b) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    return fvec<n, T>(mod_core<T>(to_vec(a).q_, to_vec(b).q_));
+}
+template <class A, class S>
+    requires(VecLike<A> && ScalarFor<S, vec_elem_t<A>>)
+SHADER_MATH_INLINE auto mod_impl(const A& a, const S& s) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    return fvec<n, T>(mod_core<T>(to_vec(a).q_, vops<T>::splat(static_cast<T>(s))));
+}
+
+// hlsl::mad / glsl::fma: a * b + c through ops::fmadd (fused where the
+// backend has FMA; neither language guarantees a single rounding unless the
+// result is `precise`)
+template <class A, class B, class C>
+    requires(SameVec<A, B> && SameVec<A, C>)
+SHADER_MATH_INLINE auto mad_impl(const A& a, const B& b, const C& c) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    return fvec<n, T>(vops<T>::fmadd(to_vec(a).q_, to_vec(b).q_, to_vec(c).q_));
+}
+
+template <class A>
+    requires VecLike<A>
+SHADER_MATH_INLINE auto radians(const A& a) {
+    using T = vec_elem_t<A>;
+    return to_vec(a) * T(0.017453292519943295f);
+}
+template <class A>
+    requires VecLike<A>
+SHADER_MATH_INLINE auto degrees(const A& a) {
+    using T = vec_elem_t<A>;
+    return to_vec(a) * T(57.29577951308232f);
+}
+
+// modf(x, out ip): fractional part with the sign of x; ip = integer part.
+// std::modf per lane, so +-inf gives a +-0 fraction rather than NaN.
+template <class A, int N, class T>
+    requires(VecLike<A> && vec_size_v<A> == N && std::is_same_v<vec_elem_t<A>, T>)
+SHADER_MATH_INLINE fvec<N, T> modf(const A& a, fvec<N, T>& ip) {
+    T in[4];
+    vops<T>::store4(to_vec(a).q_, in);
+    T fr[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
+    T ir[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
+    for (int i = 0; i < N; ++i) {
+        float whole = 0.0f;
+        fr[i] = static_cast<T>(std::modf(static_cast<float>(in[i]), &whole));
+        ir[i] = static_cast<T>(whole);
+    }
+    ip = fvec<N, T>(vops<T>::load4(ir));
+    return fvec<N, T>(vops<T>::load4(fr));
+}
+
+// hlsl::sincos(x, out s, out c)
+template <class A, int N, class T>
+    requires(VecLike<A> && vec_size_v<A> == N && std::is_same_v<vec_elem_t<A>, T>)
+SHADER_MATH_INLINE void sincos_impl(const A& a, fvec<N, T>& s, fvec<N, T>& c) {
+    s = sin(a);
+    c = cos(a);
+}
+
+// ---- geometric functions (same meaning in both languages) ------------------
+template <class A, class B>
+    requires SameVec<A, B>
+SHADER_MATH_INLINE vec_elem_t<A> distance(const A& a, const B& b) {
+    return length(to_vec(a) - to_vec(b));
+}
+
+// reflect(i, n) = i - 2 * dot(n, i) * n   (n is expected to be normalized)
+template <class A, class B>
+    requires SameVec<A, B>
+SHADER_MATH_INLINE auto reflect(const A& i0, const B& n0) {
+    using T = vec_elem_t<A>;
+    const auto i = to_vec(i0);
+    const auto nv = to_vec(n0);
+    return i - nv * (T(2.0f) * dot(nv, i));
+}
+
+// refract(i, n, eta): zero vector on total internal reflection (k < 0)
+template <class A, class B, class S>
+    requires(SameVec<A, B> && ScalarFor<S, vec_elem_t<A>>)
+SHADER_MATH_INLINE auto refract(const A& i0, const B& n0, const S& eta0) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    const fvec<n, T> i = to_vec(i0);
+    const fvec<n, T> nv = to_vec(n0);
+    const T eta = static_cast<T>(eta0);
+    const T d = dot(nv, i);
+    const T k = T(1.0f) - eta * eta * (T(1.0f) - d * d);
+    if (k < T(0.0f)) return fvec<n, T>();
+    return i * eta - nv * (eta * d + static_cast<T>(std::sqrt(static_cast<float>(k))));
+}
+
+// faceforward(n, i, nref) = dot(nref, i) < 0 ? n : -n
+template <class A, class B, class C>
+    requires(SameVec<A, B> && SameVec<A, C>)
+SHADER_MATH_INLINE auto faceforward(const A& n0, const B& i, const C& nref) {
+    using T = vec_elem_t<A>;
+    const auto nv = to_vec(n0);
+    return dot(nref, i) < T(0.0f) ? nv : -nv;
 }
 
 // ---- bvec: comparison result type ------------------------------------------
@@ -773,6 +920,36 @@ SHADER_MATH_INLINE bool any(const bmat<R, C>& b) {
     for (int r = 0; r < R; ++r)
         if (any(b.row_[r])) return true;
     return false;
+}
+
+// isnan / isinf (both languages), hlsl::isfinite.
+// The parameters name fvec / swz explicitly instead of a generic VecLike: the
+// MSVC UCRT declares unconstrained global templates isnan(_Ty) / isinf(_Ty) /
+// isfinite(_Ty), and only a more specialized parameter wins overload
+// resolution against them (a constrained generic `const A&` is ambiguous).
+template <int N, class T>
+SHADER_MATH_INLINE bvec<N> isnan(const fvec<N, T>& v) {
+    return bvec<N>(vops<T>::cmp_ne(v.q_, v.q_));
+}
+template <int N, class T>
+SHADER_MATH_INLINE bvec<N> isinf(const fvec<N, T>& v) {
+    const auto inf = vops<T>::splat(static_cast<T>(std::numeric_limits<float>::infinity()));
+    return bvec<N>(vops<T>::cmp_eq(vops<T>::abs(v.q_), inf));
+}
+template <int N, class T>
+SHADER_MATH_INLINE bvec<N> isfinite_impl(const fvec<N, T>& v) {
+    const auto inf = vops<T>::splat(static_cast<T>(std::numeric_limits<float>::infinity()));
+    return bvec<N>(vops<T>::cmp_lt(vops<T>::abs(v.q_), inf));
+}
+template <class T, int N, int... Is>
+    requires(sizeof...(Is) >= 2)
+SHADER_MATH_INLINE auto isnan(const swz<T, N, Is...>& s) {
+    return isnan(to_vec(s));
+}
+template <class T, int N, int... Is>
+    requires(sizeof...(Is) >= 2)
+SHADER_MATH_INLINE auto isinf(const swz<T, N, Is...>& s) {
+    return isinf(to_vec(s));
 }
 
 // compile-time loop helper (used by matrix code)

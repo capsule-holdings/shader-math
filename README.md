@@ -105,10 +105,14 @@ void glsl_side() {
 （`std::` を使う）。行列への成分ごと適用は未対応。
 
 - 両言語共通: `abs` `sign` `min` `max` `clamp` `step` `smoothstep` `floor` `ceil` `trunc`
-  `round` `sqrt` `exp` `exp2` `log` `log2` `pow` `sin` `cos` `tan`
-- HLSL のみ: `lerp` `frac` `rcp` `rsqrt` `saturate`
-- GLSL のみ: `mix` `fract` `inversesqrt` `roundEven`（GLSL に `saturate` / `rcp` は無い →
-  定義していない。逆も同様で、言語に無い名前はコンパイルエラー）
+  `round` `sqrt` `exp` `exp2` `log` `log2` `pow` `sin` `cos` `tan` `asin` `acos` `atan`
+  `sinh` `cosh` `tanh` `radians` `degrees` `modf` `isnan` `isinf`
+- 幾何（両言語共通）: `distance` `reflect` `refract` `faceforward`（`dot` `cross` `length`
+  `normalize` と同じくスカラー / ベクトルを返す）
+- HLSL のみ: `lerp` `frac` `rcp` `rsqrt` `saturate` `atan2` `fmod` `mad` `isfinite` `sincos`
+- GLSL のみ: `mix` `fract` `inversesqrt` `roundEven` `atan(y, x)` `mod` `fma`（GLSL に
+  `saturate` / `rcp` は無い → 定義していない。逆も同様で、言語に無い名前はコンパイルエラー）
+- 対象外: `ldexp` / `frexp`（GLSL が int ベクトルを取るため。int 型は範囲外）
 
 意味論の注記:
 
@@ -118,6 +122,14 @@ void glsl_side() {
 - `min` / `max` / `saturate` の NaN 挙動は backend 依存（シェーダ言語仕様も未定義）
 - `rcp` / `rsqrt` / `inversesqrt` は近似命令（`rcpps` / `rsqrtps`）を使わない正確版
 - 超越関数は per-lane で libm を呼ぶ（SIMD 多項式近似はしない）。`pow(負, 非整数)` は NaN
+- `hlsl::fmod` と `glsl::mod` は**意味が違う**: `fmod` は trunc 基準で結果は x の符号
+  （`fmod(-7, 3) = -1`）、`mod` は floor 基準で y の符号（`mod(-7, 3) = 2`）
+- 2 引数の逆正接は HLSL が `atan2(y, x)`、GLSL が `atan(y, x)`。どちらも y が先
+- `mad` / `fma` は backend に FMA があれば融合（単一丸め）、無ければ乗算 + 加算
+  （両言語とも `precise` 指定時以外は融合を保証しない）
+- `refract` は全反射（k < 0）でゼロベクトル。`reflect` / `refract` の法線は正規化済みを前提
+- `modf(x, ip)` の戻り値は x と同符号の小数部、`ip` に整数部。±inf は小数部 ±0
+- `isnan` / `isinf` / `isfinite` は `bool2/3/4` を返す（`-ffast-math` 下では NaN 判定が消えうる）
 - Windows で `<windows.h>` を使う場合は `NOMINMAX` が必要（`min` / `max` マクロと衝突）
 
 ## ビルドとテスト

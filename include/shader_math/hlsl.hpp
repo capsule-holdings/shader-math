@@ -69,9 +69,24 @@ using detail::cross;
 using detail::dot;
 using detail::length;
 using detail::normalize;
+using detail::distance;
+using detail::reflect;
+using detail::refract;
+using detail::faceforward;
 
 // component-wise intrinsics with identical names in both languages
 using detail::abs;
+using detail::acos;
+using detail::asin;
+using detail::atan;
+using detail::cosh;
+using detail::degrees;
+using detail::isinf;
+using detail::isnan;
+using detail::modf;
+using detail::radians;
+using detail::sinh;
+using detail::tanh;
 using detail::ceil;
 using detail::clamp;
 using detail::cos;
@@ -118,6 +133,38 @@ template <class A>
     requires detail::VecLike<A>
 SHADER_MATH_INLINE auto rsqrt(const A& a) {
     return detail::rsqrt_impl(a);
+}
+template <class A, class B>
+    requires requires(const A& y, const B& x) { detail::atan2_impl(y, x); }
+SHADER_MATH_INLINE auto atan2(const A& y, const B& x) {
+    return detail::atan2_impl(y, x);
+}
+template <class A, class B>
+    requires requires(const A& a, const B& b) { detail::fmod_impl(a, b); }
+SHADER_MATH_INLINE auto fmod(const A& a, const B& b) {
+    return detail::fmod_impl(a, b);
+}
+template <class A, class B, class C>
+    requires requires(const A& a, const B& b, const C& c) { detail::mad_impl(a, b, c); }
+SHADER_MATH_INLINE auto mad(const A& a, const B& b, const C& c) {
+    return detail::mad_impl(a, b, c);
+}
+// fvec / swz parameters for the same reason as detail::isnan (MSVC UCRT)
+template <int N, class T>
+SHADER_MATH_INLINE detail::bvec<N> isfinite(const detail::fvec<N, T>& v) {
+    return detail::isfinite_impl(v);
+}
+template <class T, int N, int... Is>
+    requires(sizeof...(Is) >= 2)
+SHADER_MATH_INLINE auto isfinite(const detail::swz<T, N, Is...>& s) {
+    return detail::isfinite_impl(detail::to_vec(s));
+}
+template <class A, int N, class T>
+    requires requires(const A& a, detail::fvec<N, T>& s, detail::fvec<N, T>& c) {
+        detail::sincos_impl(a, s, c);
+    }
+SHADER_MATH_INLINE void sincos(const A& a, detail::fvec<N, T>& s, detail::fvec<N, T>& c) {
+    detail::sincos_impl(a, s, c);
 }
 
 // ---- component-wise matrix operators ----------------------------------------
