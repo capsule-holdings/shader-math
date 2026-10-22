@@ -108,7 +108,11 @@ concepts + オーバーロード不宣言 + `= delete` 相当の3段構え:
 - NEON（AArch64）と SSE2（x86-64）が第一級。不明アーキ（RISC-V 等）は scalar 4-wide に
   フォールバックしてビルド可能。RVV 対応は可能だが CI が薄いので初版見送り
 - PS5 = prospero-clang（Clang 系、x86-64/SSE2）、Switch = GCC 系（AArch64/NEON）。
-  主要コンパイラ（gcc 10+ / clang 10+ / MSVC 19.30+ / Apple Clang 12+）は concepts 対応済み
+  要件は gcc 10+ / clang 14+ / MSVC 19.30+ / Apple Clang。gcc 10 と clang 14 は CI の下限ジョブで
+  確認（clang 11〜12 はコンパイラ内部エラー、13 は誤警告）。MSVC と Apple Clang はランナー既定版のみ
+- x86 のサブ機能（コンパイル時のみ、既定ベースライン SSE2 は上げない）: FMA3、SSE4.1（`roundps`）、
+  AVX1（FMA 併用時のみ 4x4 積の 2 行詰め）。MSVC は GCC 系マクロが無いので `__AVX2__` → FMA、
+  `__AVX__` → SSE4.1 / AVX で検出する。ARM は FEAT_FP16 で half をネイティブ 16-bit レーンで計算
 - 制約は `<concepts>` ライブラリヘッダに依存せず、コア言語の `requires` 句のみで記述
 - Boost はヘッダのみ（Config = FORCEINLINE、Predef = ISA 検出）。concepts のポリフィルではない
 - scalar は間引かない: 同一テスト全件を SIMD と FORCE_SCALAR の両方で実行。
@@ -116,14 +120,21 @@ concepts + オーバーロード不宣言 + `= delete` 相当の3段構え:
 
 ### CI
 
-Blacksmith ランナー（GitHub-hosted ではない）。`fail-fast: false`:
+ジョブ一覧は `.github/workflows/ci.yml` が正（ここには分類だけを書く）。`fail-fast: false`、
+全ジョブで `-DSHADER_MATH_WARNINGS_AS_ERRORS=ON`。push は `main` のみ、ブランチは
+pull_request の 1 本で検証し、同じ PR への追加 push で古い実行を打ち切る。
 
-- `blacksmith-2vcpu-ubuntu-2404` × g++ / clang++（SSE2）
-- `blacksmith-2vcpu-ubuntu-2404-arm` × g++ / clang++（NEON）
-- `blacksmith-2vcpu-windows-2025` × MSVC（SSE2）
-- x64 / ARM の g++ × `-DSHADER_MATH_FORCE_SCALAR=ON`
+- バックエンド: Linux x64（SSE2 / x86-64-v2 = SSE4.1 / x86-64-v3 = FMA+AVX）、Linux ARM
+  （NEON / armv8.2-a+fp16）、FORCE_SCALAR（x64 / ARM）
+- コンパイラ: g++ / clang++、MSVC（SSE2 / `/arch:AVX2` / ARM64）、Apple Clang（macOS arm64）、
+  下限（gcc 10 x64 / ARM、clang 14）
+- 品質: Debug ASan/UBSan、codegen チェック（逆アセンブルで fmadd / roundps / 展開を確認）、
+  CMake パッケージの利用側検証（install + `find_package` / `add_subdirectory`）
+- その他: Slang 相互検証（固定版 + sha256、コミット済み SPIR-V の再生成一致）、SDL_GPU デモの
+  lavapipe ヘッドレス描画、ベンチマーク（参考値をジョブサマリーへ、合否なし）
 
-前提: org に Blacksmith app がインストールされていること。
+ランナーは Blacksmith が基本（前提: org に Blacksmith app がインストールされていること）。
+macOS と Windows ARM64 は Blacksmith に無いので GitHub-hosted（公開リポジトリのため無料）。
 
 ## 既知の逸脱（意図的）
 
