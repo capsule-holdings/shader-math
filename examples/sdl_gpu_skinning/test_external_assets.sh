@@ -13,7 +13,7 @@ set -eu
 
 BIN="${1:?usage: test_external_assets.sh <demo-binary> <out-dir>}"
 OUT="${2:?usage: test_external_assets.sh <demo-binary> <out-dir>}"
-BASE="https://raw.githubusercontent.com/ufbx/ufbx/v0.23.0/data"
+BASE="https://raw.githubusercontent.com/ufbx/ufbx/v0.23.1/data"
 ASSETS="blender_293_barbarian_7400_binary maya_advanced_skinned_pivot_7700_ascii max_transformed_skin_7500_binary"
 
 mkdir -p "$OUT"
