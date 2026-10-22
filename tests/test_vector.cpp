@@ -2,6 +2,43 @@
 
 #include "framework.hpp"
 
+#if defined(_MSC_VER)
+#  define SM_TEST_NOINLINE __declspec(noinline)
+#else
+#  define SM_TEST_NOINLINE __attribute__((noinline))
+#endif
+
+// Union access check: register writes (q_ via operators), component writes
+// (comp_ via operator[]) and swizzle reads / writes (proxy d[]) alternate in
+// a loop the optimizer cannot fold. If alias analysis reordered accesses
+// across union members, the result would diverge from the scalar model.
+static SM_TEST_NOINLINE float union_access_mix(shader_math::hlsl::float4* v, int n, float k) {
+    float acc = 0.0f;
+    for (int i = 0; i < n; ++i) {
+        v[i] = v[i] * k;                 // register write
+        v[i][1] = acc;                   // component write
+        v[i].zw = v[i].xy;               // swizzle read + write
+        acc += float(v[i].w) + v[i][2];  // swizzle read + component read
+        v[i] = v[i] + 1.0f;              // register read after component writes
+        acc += v[i][3];
+    }
+    return acc;
+}
+
+static float union_access_model(float (*v)[4], int n, float k) {
+    float acc = 0.0f;
+    for (int i = 0; i < n; ++i) {
+        for (float& c : v[i]) c *= k;
+        v[i][1] = acc;
+        v[i][2] = v[i][0];
+        v[i][3] = v[i][1];
+        acc += v[i][3] + v[i][2];
+        for (float& c : v[i]) c += 1.0f;
+        acc += v[i][3];
+    }
+    return acc;
+}
+
 void test_vector() {
     using namespace shader_math::hlsl;  // vectors are shared; hlsl surface used here
 
@@ -183,5 +220,22 @@ void test_vector() {
         v[1] = 2.0f;
         v[2] = 3.0f;
         CHECK_EQF(float(v.z), 3.0f);
+    }
+
+    // ---- union access survives optimization ---------------------------------
+    {
+        float4 vs[8];
+        float model[8][4];
+        for (int i = 0; i < 8; ++i) {
+            const float b = static_cast<float>(i);
+            vs[i] = float4(b, b + 0.5f, b - 1.0f, 2.0f * b);
+            model[i][0] = b;
+            model[i][1] = b + 0.5f;
+            model[i][2] = b - 1.0f;
+            model[i][3] = 2.0f * b;
+        }
+        CHECK_EQF(union_access_mix(vs, 8, 1.5f), union_access_model(model, 8, 1.5f));
+        for (int i = 0; i < 8; ++i)
+            for (int c = 0; c < 4; ++c) CHECK_EQF(vs[i][c], model[i][c]);
     }
 }
