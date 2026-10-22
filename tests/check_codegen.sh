@@ -109,6 +109,25 @@ if [ "$BACKEND" = "SSE2+FMA+AVX" ]; then
     done
 fi
 
+# SSE4.1 rounding: floor / round must be packed roundps with no libm call.
+if [ "$("$BIN" --sse41)" = "1" ]; then
+    for rsym in sm_cg_floor4 sm_cg_round4; do
+        rbody="$(disasm_of "$rsym")"
+        if [ -z "$rbody" ]; then
+            echo "FAIL: symbol $rsym not found in disassembly"
+            fail=1
+        elif ! printf '%s\n' "$rbody" | grep -Eq '[[:space:]]v?roundps[[:space:]]'; then
+            echo "FAIL: $rsym: no roundps on SSE4.1"
+            fail=1
+        elif printf '%s\n' "$rbody" | grep -Eq '[[:space:]]call'; then
+            echo "FAIL: $rsym: calls out (per-lane libm?) on SSE4.1"
+            fail=1
+        else
+            echo "OK: $rsym (roundps)"
+        fi
+    done
+fi
+
 # Half kernels: on NEON+FP16 half math must use 16-bit lanes (.4h). The
 # vector mad must additionally be straight-line (the matrix product has a
 # runtime outer for loop, same exemption as the float kernels). On every

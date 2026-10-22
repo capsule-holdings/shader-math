@@ -37,6 +37,14 @@
 #  define SHADER_MATH_HAS_FMA 1
 #endif
 
+//   SHADER_MATH_HAS_SSE41 - SSE4.1 packed rounding (roundps) for floor / ceil /
+//                           trunc / roundEven / round. GCC/Clang define
+//                           __SSE4_1__ (e.g. -march=x86-64-v2); MSVC has no
+//                           such macro, but /arch:AVX (__AVX__) implies it.
+#if defined(__SSE4_1__) || (defined(_MSC_VER) && defined(__AVX__))
+#  define SHADER_MATH_HAS_SSE41 1
+#endif
+
 //   SHADER_MATH_HAS_AVX - AVX1 (256-bit float ops). Used only to pack two
 //                         rows/columns of a 4x4 float matrix product into one
 //                         YMM register, and only together with FMA (AVX1-only
