@@ -922,27 +922,34 @@ SHADER_MATH_INLINE bool any(const bmat<R, C>& b) {
     return false;
 }
 
-// isnan / isinf (both languages), hlsl::isfinite
-template <class A>
-    requires VecLike<A>
-SHADER_MATH_INLINE bvec<vec_size_v<A>> isnan(const A& a) {
-    using T = vec_elem_t<A>;
-    const auto v = to_vec(a).q_;
-    return bvec<vec_size_v<A>>(vops<T>::cmp_ne(v, v));
+// isnan / isinf (both languages), hlsl::isfinite.
+// The parameters name fvec / swz explicitly instead of a generic VecLike: the
+// MSVC UCRT declares unconstrained global templates isnan(_Ty) / isinf(_Ty) /
+// isfinite(_Ty), and only a more specialized parameter wins overload
+// resolution against them (a constrained generic `const A&` is ambiguous).
+template <int N, class T>
+SHADER_MATH_INLINE bvec<N> isnan(const fvec<N, T>& v) {
+    return bvec<N>(vops<T>::cmp_ne(v.q_, v.q_));
 }
-template <class A>
-    requires VecLike<A>
-SHADER_MATH_INLINE bvec<vec_size_v<A>> isinf(const A& a) {
-    using T = vec_elem_t<A>;
+template <int N, class T>
+SHADER_MATH_INLINE bvec<N> isinf(const fvec<N, T>& v) {
     const auto inf = vops<T>::splat(static_cast<T>(std::numeric_limits<float>::infinity()));
-    return bvec<vec_size_v<A>>(vops<T>::cmp_eq(vops<T>::abs(to_vec(a).q_), inf));
+    return bvec<N>(vops<T>::cmp_eq(vops<T>::abs(v.q_), inf));
 }
-template <class A>
-    requires VecLike<A>
-SHADER_MATH_INLINE bvec<vec_size_v<A>> isfinite_impl(const A& a) {
-    using T = vec_elem_t<A>;
+template <int N, class T>
+SHADER_MATH_INLINE bvec<N> isfinite_impl(const fvec<N, T>& v) {
     const auto inf = vops<T>::splat(static_cast<T>(std::numeric_limits<float>::infinity()));
-    return bvec<vec_size_v<A>>(vops<T>::cmp_lt(vops<T>::abs(to_vec(a).q_), inf));
+    return bvec<N>(vops<T>::cmp_lt(vops<T>::abs(v.q_), inf));
+}
+template <class T, int N, int... Is>
+    requires(sizeof...(Is) >= 2)
+SHADER_MATH_INLINE auto isnan(const swz<T, N, Is...>& s) {
+    return isnan(to_vec(s));
+}
+template <class T, int N, int... Is>
+    requires(sizeof...(Is) >= 2)
+SHADER_MATH_INLINE auto isinf(const swz<T, N, Is...>& s) {
+    return isinf(to_vec(s));
 }
 
 // compile-time loop helper (used by matrix code)

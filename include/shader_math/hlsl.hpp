@@ -149,10 +149,15 @@ template <class A, class B, class C>
 SHADER_MATH_INLINE auto mad(const A& a, const B& b, const C& c) {
     return detail::mad_impl(a, b, c);
 }
-template <class A>
-    requires detail::VecLike<A>
-SHADER_MATH_INLINE auto isfinite(const A& a) {
-    return detail::isfinite_impl(a);
+// fvec / swz parameters for the same reason as detail::isnan (MSVC UCRT)
+template <int N, class T>
+SHADER_MATH_INLINE detail::bvec<N> isfinite(const detail::fvec<N, T>& v) {
+    return detail::isfinite_impl(v);
+}
+template <class T, int N, int... Is>
+    requires(sizeof...(Is) >= 2)
+SHADER_MATH_INLINE auto isfinite(const detail::swz<T, N, Is...>& s) {
+    return detail::isfinite_impl(detail::to_vec(s));
 }
 template <class A, int N, class T>
     requires requires(const A& a, detail::fvec<N, T>& s, detail::fvec<N, T>& c) {

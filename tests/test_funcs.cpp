@@ -5,6 +5,7 @@
 // the unqualified concepts below resolve through ADL only, which is exactly
 // what must NOT find the language-specific spellings.
 #include <cmath>
+#include <concepts>
 #include <limits>
 
 #include <shader_math/shader_math.hpp>
@@ -95,8 +96,12 @@ template <class A>
 concept has_mad = requires(const A& a) { mad(a, a, a); };
 template <class A>
 concept has_fma = requires(const A& a) { fma(a, a, a); };
+// typed: the MSVC UCRT's global isfinite(_Ty) -> bool is visible in every
+// scope, so "has isfinite" means an overload returning the bool vector
 template <class A>
-concept has_isfinite = requires(const A& a) { isfinite(a); };
+concept has_isfinite = requires(const A& a) {
+    { isfinite(a) } -> std::same_as<shader_math::detail::bvec<A::size_v>>;
+};
 template <class A>
 concept has_sincos = requires(const A& a, A& s, A& c) { sincos(a, s, c); };
 static_assert(has_atan2<float3> && !has_atan_yx<float3>);
@@ -120,7 +125,9 @@ concept has_mad = requires(const A& a) { mad(a, a, a); };
 template <class A>
 concept has_fma = requires(const A& a) { fma(a, a, a); };
 template <class A>
-concept has_isfinite = requires(const A& a) { isfinite(a); };
+concept has_isfinite = requires(const A& a) {
+    { isfinite(a) } -> std::same_as<shader_math::detail::bvec<A::size_v>>;
+};
 template <class A>
 concept has_sincos = requires(const A& a, A& s, A& c) { sincos(a, s, c); };
 static_assert(has_atan_yx<vec3> && !has_atan2<vec3>);
@@ -332,6 +339,10 @@ static void test_funcs_geometry_hlsl() {
     CHECK(isn[0] && !isn[1] && !isn[2] && !isn[3]);
     CHECK(!isi[0] && isi[1] && isi[2] && !isi[3]);
     CHECK(!isf[0] && !isf[1] && !isf[2] && isf[3]);
+    const bool2 sw = isnan(special.xw);  // swizzle operand
+    CHECK(sw[0] && !sw[1]);
+    CHECK(isinf(special.yz)[1]);
+    CHECK(isfinite(special.zw)[1]);
 }
 
 static void test_funcs_geometry_glsl() {
