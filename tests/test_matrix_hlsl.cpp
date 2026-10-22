@@ -22,6 +22,9 @@ void test_matrix_hlsl() {
         CHECK_EQF(float(m._m00), 1.0f);
         CHECK_EQF(float(m._m11), 2.1f);
         CHECK_EQF(float(m._11), 1.0f);
+        const float2 diag(m._11, m._22);  // scalar ctor args take proxies by value
+        CHECK_EQF(diag[0], float(m._11));
+        CHECK_EQF(diag[1], float(m._22));
         CHECK_EQF(float(m._22), 2.1f);
         CHECK_EQF(m[0][0], 1.0f);
         CHECK_EQF(m[0][1], 1.1f);

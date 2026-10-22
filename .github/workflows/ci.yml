@@ -38,18 +38,21 @@ jobs:
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
             package: true
+            bench: true
           - name: linux-x64-clang
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: clang++
           - name: linux-arm-gcc
             runner: blacksmith-2vcpu-ubuntu-2404-arm
             cxx: g++
+            bench: true
           - name: linux-arm-clang
             runner: blacksmith-2vcpu-ubuntu-2404-arm
             cxx: clang++
           - name: linux-x64-gcc-v3
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
+            bench: true
             cmake_extra: -DCMAKE_CXX_FLAGS=-march=x86-64-v3
           - name: linux-x64-clang-v2
             runner: blacksmith-2vcpu-ubuntu-2404
@@ -160,6 +163,21 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure -C ${{ matrix.build_type || 'Release' }}
+
+      # Informational only: shared runners are noisy, so nothing is gated on
+      # the numbers. SIMD and the scalar reference go to the job summary.
+      - name: Benchmark (informational)
+        if: matrix.bench
+        continue-on-error: true
+        run: |
+          ./build/shader_math_bench
+          ./build/shader_math_bench_scalar
+          {
+            echo "### ${{ matrix.name }}"
+            ./build/shader_math_bench --markdown
+            echo
+            ./build/shader_math_bench_scalar --markdown
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # The clip animates, so identical first / last frames mean the
       # skinned positions never reached the GPU. External assets cover

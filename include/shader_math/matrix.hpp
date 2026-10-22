@@ -25,6 +25,11 @@ struct mswz {
     static constexpr bool valid = (RI >= 0 && RI < R && CI >= 0 && CI < C);
     T d[R * 4];
 
+    // Trivial copy (a proxy passed by value, e.g. float2(m._11, m._22)) is
+    // declared explicitly because the copy assignment below is user-defined.
+    mswz() = default;
+    mswz(const mswz&) = default;
+
     SHADER_MATH_INLINE operator T() const {
         static_assert(valid, "shader-math: matrix element accessor out of range for this matrix size");
         return d[RI * 4 + CI];
