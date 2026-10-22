@@ -1,19 +1,36 @@
 cmake_minimum_required(VERSION 3.16)
-project(shader_math LANGUAGES CXX)
+project(shader_math VERSION 0.1.0 LANGUAGES CXX)
+
+# PROJECT_IS_TOP_LEVEL needs CMake 3.21
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(SHADER_MATH_IS_TOP_LEVEL ON)
+else()
+    set(SHADER_MATH_IS_TOP_LEVEL OFF)
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(GNUInstallDirs)
+
 add_library(shader_math INTERFACE)
-target_include_directories(shader_math INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+add_library(shader_math::shader_math ALIAS shader_math)
+target_include_directories(shader_math INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_features(shader_math INTERFACE cxx_std_20)
 
 # Boost is used header-only (Config / Predef for ISA detection). Prefer an
 # installed copy; otherwise fetch just the two required header modules.
+# Build-tree only: the installed package looks Boost up again on the
+# consumer's machine (cmake/shader_mathConfig.cmake.in).
 find_path(SHADER_MATH_BOOST_INCLUDE boost/config.hpp)
-if(SHADER_MATH_BOOST_INCLUDE)
-    target_include_directories(shader_math INTERFACE ${SHADER_MATH_BOOST_INCLUDE})
+find_path(SHADER_MATH_BOOST_PREDEF_INCLUDE boost/predef.h HINTS ${SHADER_MATH_BOOST_INCLUDE})
+if(SHADER_MATH_BOOST_INCLUDE AND SHADER_MATH_BOOST_PREDEF_INCLUDE)
+    target_include_directories(shader_math INTERFACE
+        $<BUILD_INTERFACE:${SHADER_MATH_BOOST_INCLUDE}>
+        $<BUILD_INTERFACE:${SHADER_MATH_BOOST_PREDEF_INCLUDE}>)
 else()
     include(FetchContent)
     FetchContent_Declare(boost_config
@@ -26,12 +43,13 @@ else()
         GIT_SHALLOW TRUE)
     FetchContent_MakeAvailable(boost_config boost_predef)
     target_include_directories(shader_math INTERFACE
-        ${boost_config_SOURCE_DIR}/include
-        ${boost_predef_SOURCE_DIR}/include)
+        $<BUILD_INTERFACE:${boost_config_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${boost_predef_SOURCE_DIR}/include>)
 endif()
 
 option(SHADER_MATH_FORCE_SCALAR "Force the scalar (non-SIMD) backend" OFF)
-option(SHADER_MATH_BUILD_TESTS "Build shader-math tests and examples" ON)
+option(SHADER_MATH_BUILD_TESTS "Build shader-math tests and examples" ${SHADER_MATH_IS_TOP_LEVEL})
+option(SHADER_MATH_INSTALL "Generate the install / find_package rules" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INTEROP_SLANG
        "Build the Slang cross-compilation check (needs slangc + python3)" OFF)
 option(SHADER_MATH_WARNINGS_AS_ERRORS
@@ -160,6 +178,31 @@ if(SHADER_MATH_BUILD_TESTS)
                             "the interop check")
         endif()
     endif()
+endif()
+
+if(SHADER_MATH_INSTALL)
+    include(CMakePackageConfigHelpers)
+    set(SHADER_MATH_CMAKE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/shader_math)
+
+    install(TARGETS shader_math EXPORT shader_mathTargets)
+    install(DIRECTORY include/shader_math DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(EXPORT shader_mathTargets
+            NAMESPACE shader_math::
+            DESTINATION ${SHADER_MATH_CMAKE_DIR})
+
+    configure_package_config_file(cmake/shader_mathConfig.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/shader_mathConfig.cmake
+        INSTALL_DESTINATION ${SHADER_MATH_CMAKE_DIR})
+    # 0.x: a minor bump may break the API, so only the same minor matches.
+    # ARCH_INDEPENDENT: header-only, the package is valid for any target.
+    write_basic_package_version_file(
+        ${CMAKE_CURRENT_BINARY_DIR}/shader_mathConfigVersion.cmake
+        COMPATIBILITY SameMinorVersion
+        ARCH_INDEPENDENT)
+    install(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/shader_mathConfig.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/shader_mathConfigVersion.cmake
+        DESTINATION ${SHADER_MATH_CMAKE_DIR})
 endif()
 
 # SDL_GPU skinned-mesh demo (FBX via ufbx, CPU skinning via shader-math).

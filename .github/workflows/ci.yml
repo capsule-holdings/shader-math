@@ -23,6 +23,7 @@ jobs:
           - name: linux-x64-gcc
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
+            package: true
           - name: linux-x64-clang
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: clang++
@@ -51,6 +52,7 @@ jobs:
           - name: windows-x64-msvc
             runner: blacksmith-2vcpu-windows-2025
             cxx: cl
+            package: true
           - name: linux-x64-clang-asan-ubsan
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: clang++
@@ -72,6 +74,7 @@ jobs:
           - name: macos-arm-appleclang
             runner: macos-15
             cxx: clang++
+            package: true
           - name: linux-x64-slang-interop
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
@@ -115,3 +118,30 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure -C ${{ matrix.build_type || 'Release' }}
+
+      # Downstream use: install + find_package, and add_subdirectory (which
+      # must not build shader-math's own tests). Where CMake fetched Boost,
+      # the consumer is pointed at those headers explicitly.
+      - name: Package consumers
+        if: matrix.package
+        shell: bash
+        run: |
+          root="$(cygpath -m "$PWD" 2>/dev/null || pwd)"
+          cfg=${{ matrix.build_type || 'Release' }}
+          extra=()
+          if [ "$RUNNER_OS" != "Windows" ]; then
+            extra+=(-DCMAKE_BUILD_TYPE=$cfg -DCMAKE_CXX_COMPILER=${{ matrix.cxx }})
+          fi
+          if [ -d build/_deps/boost_config-src ]; then
+            extra+=(-DSHADER_MATH_BOOST_INCLUDE="$root/build/_deps/boost_config-src/include"
+                    -DSHADER_MATH_BOOST_PREDEF_INCLUDE="$root/build/_deps/boost_predef-src/include")
+          fi
+          cmake --install build --prefix "$root/pkg" --config $cfg
+          cmake -S tests/package -B build-pkg-find -DSHADER_MATH_CONSUME=find_package \
+            -DCMAKE_PREFIX_PATH="$root/pkg" "${extra[@]}"
+          cmake --build build-pkg-find --config $cfg
+          ctest --test-dir build-pkg-find --output-on-failure -C $cfg
+          cmake -S tests/package -B build-pkg-sub -DSHADER_MATH_CONSUME=subdirectory \
+            -DSHADER_MATH_SOURCE_DIR="$root" "${extra[@]}"
+          cmake --build build-pkg-sub --config $cfg
+          ctest --test-dir build-pkg-sub --output-on-failure -C $cfg

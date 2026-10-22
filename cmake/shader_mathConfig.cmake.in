@@ -1,0 +1,22 @@
+@PACKAGE_INIT@
+
+# Boost is used header-only (Config / Predef) and is not installed with this
+# package: find the consumer's copy. Set SHADER_MATH_BOOST_INCLUDE (and
+# SHADER_MATH_BOOST_PREDEF_INCLUDE if Predef lives elsewhere) or
+# CMAKE_PREFIX_PATH when they are not on the default include path.
+find_path(SHADER_MATH_BOOST_INCLUDE boost/config.hpp)
+find_path(SHADER_MATH_BOOST_PREDEF_INCLUDE boost/predef.h HINTS ${SHADER_MATH_BOOST_INCLUDE})
+if(NOT SHADER_MATH_BOOST_INCLUDE OR NOT SHADER_MATH_BOOST_PREDEF_INCLUDE)
+    set(shader_math_FOUND FALSE)
+    set(shader_math_NOT_FOUND_MESSAGE
+        "shader_math needs the Boost.Config and Boost.Predef headers "
+        "(boost/config.hpp, boost/predef.h); set SHADER_MATH_BOOST_INCLUDE")
+    return()
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/shader_mathTargets.cmake")
+set_property(TARGET shader_math::shader_math APPEND PROPERTY
+    INTERFACE_INCLUDE_DIRECTORIES
+    "${SHADER_MATH_BOOST_INCLUDE}" "${SHADER_MATH_BOOST_PREDEF_INCLUDE}")
+
+check_required_components(shader_math)
