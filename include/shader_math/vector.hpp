@@ -73,6 +73,11 @@ struct swz {
 
     T d[4];
 
+    // Trivial copy (a proxy passed by value, e.g. float3(v.x, v.y, v.z)) is
+    // declared explicitly because the copy assignment below is user-defined.
+    swz() = default;
+    swz(const swz&) = default;
+
     // ---- reads --------------------------------------------------------
     SHADER_MATH_INLINE operator T() const
         requires(M == 1)

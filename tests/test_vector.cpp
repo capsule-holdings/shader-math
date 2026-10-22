@@ -98,6 +98,9 @@ void test_vector() {
         CHECK_EQF(float(v.x), 1.0f);
         CHECK_EQF(float(v.w), 4.0f);
         CHECK_EQF(float(v.r), 1.0f);
+        const float4 c(v.w, v.z, v.y, v.x);  // scalar ctor args take proxies by value
+        CHECK_EQF(c[0], 4.0f);
+        CHECK_EQF(c[3], 1.0f);
         CHECK_EQF(float(v.a), 4.0f);
 
         float2 xy = v.xy;

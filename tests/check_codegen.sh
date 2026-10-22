@@ -32,8 +32,10 @@ esac
 DIS="$(objdump -d --no-show-raw-insn "$BIN")" || exit 1
 
 # Print the disassembly body of one symbol (empty if the symbol is missing).
+# Mach-O prefixes C symbols with an underscore (<_sym>:), ELF does not.
 disasm_of() {
-    printf '%s\n' "$DIS" | awk -v s="<${1}>:" 'index($0, s) {f=1; next} f && /^$/ {exit} f'
+    printf '%s\n' "$DIS" |
+        awk -v s="<${1}>:" -v u="<_${1}>:" '!f && (index($0, s) || index($0, u)) {f=1; next} f && /^$/ {exit} f'
 }
 
 KERNELS="sm_cg_hlsl_mul_m4m4 sm_cg_hlsl_mul_v4m4 sm_cg_glsl_mul_m4m4 sm_cg_glsl_mul_m4v4"

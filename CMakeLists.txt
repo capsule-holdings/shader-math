@@ -34,6 +34,24 @@ option(SHADER_MATH_FORCE_SCALAR "Force the scalar (non-SIMD) backend" OFF)
 option(SHADER_MATH_BUILD_TESTS "Build shader-math tests and examples" ON)
 option(SHADER_MATH_INTEROP_SLANG
        "Build the Slang cross-compilation check (needs slangc + python3)" OFF)
+option(SHADER_MATH_WARNINGS_AS_ERRORS
+       "Treat warnings as errors in this repo's own test and example targets" OFF)
+
+# Warning set for targets built from this repo's sources (not the INTERFACE
+# library, so consumers' flags are left alone).
+function(shader_math_warnings target)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4)
+        if(SHADER_MATH_WARNINGS_AS_ERRORS)
+            target_compile_options(${target} PRIVATE /WX)
+        endif()
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+        if(SHADER_MATH_WARNINGS_AS_ERRORS)
+            target_compile_options(${target} PRIVATE -Werror)
+        endif()
+    endif()
+endfunction()
 
 if(SHADER_MATH_BUILD_TESTS)
     enable_testing()
@@ -52,6 +70,7 @@ if(SHADER_MATH_BUILD_TESTS)
 
     add_executable(shader_math_tests ${SHADER_MATH_TEST_SOURCES})
     target_link_libraries(shader_math_tests PRIVATE shader_math)
+    shader_math_warnings(shader_math_tests)
     if(SHADER_MATH_FORCE_SCALAR)
         target_compile_definitions(shader_math_tests PRIVATE SHADER_MATH_FORCE_SCALAR)
     endif()
@@ -62,6 +81,7 @@ if(SHADER_MATH_BUILD_TESTS)
     if(NOT SHADER_MATH_FORCE_SCALAR)
         add_executable(shader_math_tests_scalar ${SHADER_MATH_TEST_SOURCES})
         target_link_libraries(shader_math_tests_scalar PRIVATE shader_math)
+        shader_math_warnings(shader_math_tests_scalar)
         target_compile_definitions(shader_math_tests_scalar PRIVATE SHADER_MATH_FORCE_SCALAR)
         add_test(NAME shader_math_tests_scalar COMMAND shader_math_tests_scalar)
     endif()
@@ -72,6 +92,7 @@ if(SHADER_MATH_BUILD_TESTS)
     if(NOT MSVC AND NOT SHADER_MATH_FORCE_SCALAR AND CMAKE_BUILD_TYPE MATCHES "Rel")
         add_executable(shader_math_codegen tests/codegen.cpp)
         target_link_libraries(shader_math_codegen PRIVATE shader_math)
+        shader_math_warnings(shader_math_codegen)
         add_test(NAME shader_math_codegen_check
                  COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_codegen.sh
                          $<TARGET_FILE:shader_math_codegen>)
@@ -80,11 +101,13 @@ if(SHADER_MATH_BUILD_TESTS)
 
     add_executable(sandbox examples/sandbox.cpp)
     target_link_libraries(sandbox PRIVATE shader_math)
+    shader_math_warnings(sandbox)
 
     # Approximate-equivalence proof for the batch skinning backends (pure CPU,
     # no SDL): oracle bound + pairwise agreement + invariance properties.
     add_executable(skin_batch_check tests/test_skin_batch.cpp)
     target_link_libraries(skin_batch_check PRIVATE shader_math)
+    shader_math_warnings(skin_batch_check)
     add_test(NAME skin_batch_check COMMAND skin_batch_check)
 
     # Slang cross-compilation check: the same math_cases.hlsli is built with
@@ -125,6 +148,7 @@ if(SHADER_MATH_BUILD_TESTS)
             add_executable(shader_math_interop_cpp
                 ${SHADER_MATH_INTEROP_DIR}/cpp_harness.cpp)
             target_link_libraries(shader_math_interop_cpp PRIVATE shader_math)
+            shader_math_warnings(shader_math_interop_cpp)
 
             add_test(NAME slang_interop_check
                      COMMAND ${Python3_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/compare.py
