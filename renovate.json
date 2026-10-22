@@ -14,6 +14,24 @@
       ],
       "datasourceTemplate": "github-tags",
       "versioningTemplate": "regex:^boost-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "CMake FetchContent GIT_TAG (SDL_GPU demo: SDL3, ufbx)",
+      "managerFilePatterns": ["/(^|/)CMakeLists\\.txt$/"],
+      "matchStrings": [
+        "GIT_REPOSITORY https://github\\.com/(?<depName>libsdl-org/SDL|ufbx/ufbx)\\.git\\s+GIT_TAG (?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "github-tags"
+    },
+    {
+      "customType": "regex",
+      "description": "ufbx test-asset URL (must match the FetchContent ufbx tag)",
+      "managerFilePatterns": ["/(^|/)examples/sdl_gpu_skinning/test_external_assets\\.sh$/"],
+      "matchStrings": [
+        "raw\\.githubusercontent\\.com/(?<depName>ufbx/ufbx)/(?<currentValue>v[^/\\s]+)/"
+      ],
+      "datasourceTemplate": "github-tags"
     }
   ],
   "packageRules": [
@@ -22,6 +40,18 @@
       "matchManagers": ["custom.regex"],
       "matchPackageNames": ["boostorg/config", "boostorg/predef"],
       "groupName": "boost headers"
+    },
+    {
+      "description": "SDL tags are release-X.Y.Z",
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["libsdl-org/SDL"],
+      "versioning": "regex:^release-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    },
+    {
+      "description": "Bump the ufbx FetchContent tag and its test-asset URL together",
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["ufbx/ufbx"],
+      "groupName": "ufbx"
     }
   ]
 }
