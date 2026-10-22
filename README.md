@@ -74,7 +74,8 @@ void glsl_side() {
 
 - NEON（AArch64）と SSE2（x86-64）が第一級。その他アーキ（RISC-V 等）は同一 API の scalar 4-wide にフォールバックしてビルド可能
 - `-DSHADER_MATH_FORCE_SCALAR=ON` で scalar を強制。CI では SIMD と scalar の両方で全テストを実行する
-- Boost はヘッダのみ利用（Config / Predef による ISA 検出）。未インストール時は CMake が自動取得する
+- Boost はヘッダのみ利用（Config / Predef による ISA 検出、Predef は 1.60+）。未インストール時、
+  またはシステムの Predef が古い場合は CMake が自動取得する
 
 ### サブ機能（コンパイル時のみ、実行時切替なし）
 
