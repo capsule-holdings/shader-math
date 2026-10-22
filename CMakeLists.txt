@@ -129,6 +129,7 @@ if(SHADER_MATH_BUILD_TESTS)
     add_executable(sandbox examples/sandbox.cpp)
     target_link_libraries(sandbox PRIVATE shader_math)
     shader_math_warnings(sandbox)
+    add_test(NAME sandbox COMMAND sandbox)
 
     # Approximate-equivalence proof for the batch skinning backends (pure CPU,
     # no SDL): oracle bound + pairwise agreement + invariance properties.

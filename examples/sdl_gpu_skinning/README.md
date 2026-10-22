@@ -70,6 +70,11 @@ SDL_VIDEO_DRIVER=offscreen ./examples/sdl_gpu_skinning/test_external_assets.sh \
 
 （ファイルはスクラッチディレクトリへダウンロードするのみで、リポジトリには含めない）
 
+CI（`linux-x64-sdl-demo` ジョブ）は SDL をウィンドウ系なし（`-DSDL_UNIX_CONSOLE_BUILD=ON`）で
+ビルドし、lavapipe 上で `scalar` / `simd4` のヘッドレス描画とこのスモークテストを実行する。
+コミット済み `.spv` が `shader.slang` と一致することは `linux-x64-slang-interop` ジョブが
+固定版 Slang で再生成して確認する。
+
 ## 制約（意図的）
 
 - シェーダは SPIR-V のみコミット（Vulkan バックエンド前提）。D3D12 / Metal で動かす場合は
