@@ -3,7 +3,8 @@
 # (SSE2 via MSVC), plus FORCE_SCALAR builds on both Linux architectures, and
 # one Slang cross-compilation job (pinned Slang release, see docs/slang_compat.md),
 # macOS arm64 (Apple Clang), the README's minimum compiler versions, and one
-# Debug ASan/UBSan job. Warnings are errors in this repo's own targets.
+# Debug ASan/UBSan job, and the SDL_GPU demo rendered headless on lavapipe.
+# Warnings are errors in this repo's own targets.
 # NOTE: the fp16 job compiles FEAT_FP16 instructions unconditionally; the ARM
 # runners must support them (check fphp/asimdhp in /proc/cpuinfo) or the
 # tests SIGILL.
@@ -75,6 +76,14 @@ jobs:
             runner: macos-15
             cxx: clang++
             package: true
+          - name: linux-x64-sdl-demo
+            runner: blacksmith-2vcpu-ubuntu-2404
+            cxx: g++
+            demo: true
+            # lavapipe (software Vulkan) for the headless SDL_GPU run
+            packages: mesa-vulkan-drivers libvulkan1
+            # headless only: SDL without X11 / Wayland
+            cmake_extra: -DSHADER_MATH_DEMO_SDLGPU=ON -DSDL_UNIX_CONSOLE_BUILD=ON
           - name: linux-x64-slang-interop
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
@@ -100,6 +109,12 @@ jobs:
           tar -xzf /tmp/slang.tar.gz -C /tmp/slang
           /tmp/slang/bin/slangc -v
 
+      - name: Committed SPIR-V matches shader.slang (interop job only)
+        if: matrix.slang_version != ''
+        run: |
+          bash examples/sdl_gpu_skinning/build_shaders.sh /tmp/slang/bin/slangc
+          git diff --exit-code -- examples/sdl_gpu_skinning/
+
       - name: Configure (Linux / macOS)
         if: runner.os != 'Windows'
         # macOS: Boost headers are fetched by CMake (FetchContent).
@@ -118,6 +133,27 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure -C ${{ matrix.build_type || 'Release' }}
+
+      # The clip animates, so identical first / last frames mean the
+      # skinned positions never reached the GPU. External assets cover
+      # other FBX exporters (downloaded from the pinned ufbx tag).
+      - name: SDL_GPU demo (headless, lavapipe)
+        if: matrix.demo
+        env:
+          SDL_VIDEO_DRIVER: offscreen
+        run: |
+          demo=build/sdl_gpu_skinning
+          for backend in scalar simd4; do
+            out=/tmp/frames-$backend
+            mkdir -p $out
+            $demo --headless 3 --backend $backend --out $out
+            test -s $out/frame_02.bmp
+            if cmp -s $out/frame_00.bmp $out/frame_02.bmp; then
+              echo "::error::$backend: frames 0 and 2 are identical"
+              exit 1
+            fi
+          done
+          examples/sdl_gpu_skinning/test_external_assets.sh $demo /tmp/ext_assets
 
       # Downstream use: install + find_package, and add_subdirectory (which
       # must not build shader-math's own tests). Where CMake fetched Boost,
