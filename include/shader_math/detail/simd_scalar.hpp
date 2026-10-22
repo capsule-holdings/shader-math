@@ -47,9 +47,18 @@ struct ops {
     static SHADER_MATH_INLINE freg mul(freg a, freg b) {
         return {{a.f[0] * b.f[0], a.f[1] * b.f[1], a.f[2] * b.f[2], a.f[3] * b.f[3]}};
     }
+    // Unused lanes of an N < 4 vector divide 0 / 0 by design (their value is
+    // unspecified); MSVC's optimizer reports the folded constant as C4723.
+#if defined(_MSC_VER)
+#  pragma warning(push)
+#  pragma warning(disable : 4723)
+#endif
     static SHADER_MATH_INLINE freg div(freg a, freg b) {
         return {{a.f[0] / b.f[0], a.f[1] / b.f[1], a.f[2] / b.f[2], a.f[3] / b.f[3]}};
     }
+#if defined(_MSC_VER)
+#  pragma warning(pop)
+#endif
     static SHADER_MATH_INLINE freg neg(freg a) { return {{-a.f[0], -a.f[1], -a.f[2], -a.f[3]}}; }
     static SHADER_MATH_INLINE freg fmadd(freg a, freg b, freg c) {
         return {{a.f[0] * b.f[0] + c.f[0], a.f[1] * b.f[1] + c.f[1], a.f[2] * b.f[2] + c.f[2],

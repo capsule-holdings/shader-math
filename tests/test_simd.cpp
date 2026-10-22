@@ -16,7 +16,7 @@ using shader_math::detail::ops;
 // Compiler target flags, independent of Boost Predef / library macros.
 #if defined(__SSE2__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
 #  define SM_TEST_HOST_SSE2 1
-#elif defined(__ARM_NEON) || defined(__ARM_NEON__) || defined(__aarch64__)
+#elif defined(__ARM_NEON) || defined(__ARM_NEON__) || defined(__aarch64__) || defined(_M_ARM64)
 #  define SM_TEST_HOST_NEON 1
 #endif
 
@@ -112,8 +112,12 @@ void test_simd() {
     CHECK(_mm_movemask_ps(ops::cmp_eq(a, a)) == 0xF);
     CHECK(_mm_movemask_ps(ops::cmp_eq(a, b)) == 0);
 #elif defined(SHADER_MATH_ISA_NEON)
-    const float32x4_t a = {1.0f, 2.0f, 3.0f, 4.0f};
-    const float32x4_t b = {10.0f, 20.0f, 30.0f, 40.0f};
+    // vld1q, not a braced initializer: on MSVC float32x4_t is the __n128
+    // union whose first member is uint64[2]
+    const float av[4] = {1.0f, 2.0f, 3.0f, 4.0f};
+    const float bv[4] = {10.0f, 20.0f, 30.0f, 40.0f};
+    const float32x4_t a = vld1q_f32(av);
+    const float32x4_t b = vld1q_f32(bv);
     float native[4];
     float via_ops[4];
     vst1q_f32(native, vaddq_f32(a, b));
