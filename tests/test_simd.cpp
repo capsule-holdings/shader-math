@@ -2,6 +2,8 @@
 // Numerical tests pass on the scalar fallback too; this file fails if
 // ISA detection silently selected the 4-float struct on an SSE2/NEON target.
 #include <cmath>
+#include <cstring>
+#include <limits>
 #include <type_traits>
 
 #include <shader_math/shader_math.hpp>
@@ -89,6 +91,7 @@ static_assert(has_scalar_lanes<freg>::value,
 void test_fmadd_rounding();
 void test_avx_2row();
 void test_neg_signed_zero();
+void test_rounding_bits();
 
 void test_simd() {
 #if defined(SHADER_MATH_ISA_SSE2)
@@ -131,6 +134,7 @@ void test_simd() {
     test_fmadd_rounding();
     test_avx_2row();
     test_neg_signed_zero();
+    test_rounding_bits();
 }
 
 // Prove ops::fmadd has the rounding behavior the backend promises.
@@ -215,4 +219,36 @@ void test_neg_signed_zero() {
     CHECK(std::signbit(static_cast<float>(hn[0])));
     CHECK(!std::signbit(static_cast<float>((-hn)[0])));
 #endif
+}
+
+// Every backend's rounding ops agree bit for bit with libm (signed zeros
+// and NaN included) on the values where packed implementations go wrong:
+// just below 0.5, exact halves, -0 results, 2^23 + 1 and non-finite input.
+void test_rounding_bits() {
+    const float inf = std::numeric_limits<float>::infinity();
+    const float in[] = {0.49999997f, 0.5f, -0.5f, 1.5f, 2.5f, -2.5f, -0.4f, -0.0f,
+                        0.0f, 8388609.0f, -8388609.0f, 1e30f, inf, -inf, 7.75f, -7.25f};
+    const auto same = [](float a, float b) {
+        if (std::isnan(a) || std::isnan(b)) return std::isnan(a) && std::isnan(b);
+        unsigned ua;
+        unsigned ub;
+        std::memcpy(&ua, &a, sizeof(ua));
+        std::memcpy(&ub, &b, sizeof(ub));
+        return ua == ub;
+    };
+    for (int i = 0; i < 16; i += 4) {
+        const freg v = ops::set(in[i], in[i + 1], in[i + 2], in[i + 3]);
+        for (int k = 0; k < 4; ++k) {
+            const float x = in[i + k];
+            CHECK(same(ops::lane(ops::rnd_floor(v), k), std::floor(x)));
+            CHECK(same(ops::lane(ops::rnd_ceil(v), k), std::ceil(x)));
+            CHECK(same(ops::lane(ops::rnd_trunc(v), k), std::trunc(x)));
+            CHECK(same(ops::lane(ops::rnd_even(v), k), std::nearbyint(x)));
+            CHECK(same(ops::lane(ops::rnd_away(v), k), std::round(x)));
+        }
+    }
+    const float qnan = std::numeric_limits<float>::quiet_NaN();
+    const freg n = ops::splat(qnan);
+    CHECK(std::isnan(ops::lane(ops::rnd_floor(n), 0)));
+    CHECK(std::isnan(ops::lane(ops::rnd_away(n), 0)));
 }

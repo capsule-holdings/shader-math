@@ -81,6 +81,10 @@ void glsl_side() {
 
 - `SHADER_MATH_HAS_FMA` — FMA3 検出時に `ops::fmadd` が `_mm_fmadd_ps`（単一丸め）になる。
   gcc/clang は `__FMA__`（例: `-march=x86-64-v3`）、MSVC は `/arch:AVX2` で有効
+- `SHADER_MATH_HAS_SSE41` — SSE4.1 検出時、`floor` / `ceil` / `trunc` / `roundEven` / `round` が
+  `roundps`（1 命令、`round` は trunc + 補正）になる。それ以外の x86 はレーンごとの libm 呼び出し。
+  gcc/clang は `__SSE4_1__`（例: `-march=x86-64-v2`）、MSVC は `/arch:AVX` 以上で有効。結果は libm と
+  ビット一致（符号付きゼロ・NaN 含む）
 - `SHADER_MATH_HAS_AVX` — AVX1 検出時、**FMA と併用の場合のみ** float 4x4 の行列積の内部で
   2 行（GLSL は 2 列）を 1 本の YMM に詰めて計算する（fmadd 16 回 → YMM 8 回）。
   公開型の幅は変わらず（`float4x4` は 4 本の 128-bit のまま）、結果は 128-bit 経路とビット一致。
@@ -89,7 +93,7 @@ void glsl_side() {
   16-bit ベクトル ALU（`float16x4_t`、`fmla v.4h`）で実行される。
   **それ以外のホスト（x86 / scalar / 古い ARM）では half はレーンを f32 に拡げて計算して戻す**。
   この経路の丸めは GPU の half ALU とも ARM ネイティブとも一致しない（1 演算ごとに f32 丸めが 1 回入る）
-- 既定ベースライン（SSE2 / ARMv8.0）は上げない。**推奨**: x86 は `-march=x86-64-v3`（FMA）、
+- 既定ベースライン（SSE2 / ARMv8.0）は上げない。**推奨**: x86 は `-march=x86-64-v3`（FMA + SSE4.1）、
   ARM で half を速くしたい場合は `-march=armv8.2-a+fp16`
 - AVX-512 / ZMM / AVX512-FP16 は非対応（対応予定なし）
 - FMA の有無で fmadd 系演算の丸めが変わる（fused = 単一丸め）。テストは許容比較でこれを吸収している

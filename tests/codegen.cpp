@@ -6,8 +6,10 @@
 // them by name (no mangling) and inspect the instructions.
 //
 // Running the binary prints the backend tag the script keys its expectations
-// on; it performs no numerical checks (test_simd.cpp does that).
+// on (`--sse41` prints 1 / 0 for the SSE4.1 rounding sub-feature); it
+// performs no numerical checks (test_simd.cpp does that).
 #include <cstdio>
+#include <cstring>
 
 #include <shader_math/shader_math.hpp>
 
@@ -41,6 +43,10 @@ SM_CG_NOINLINE void sm_cg_glsl_mul_m4v4(const glsl::mat4& m, const glsl::vec4& v
     o = m * v;
 }
 
+// rounding: roundps on SSE4.1, no per-lane libm call
+SM_CG_NOINLINE void sm_cg_floor4(const hlsl::float4& v, hlsl::float4& o) { o = hlsl::floor(v); }
+SM_CG_NOINLINE void sm_cg_round4(const hlsl::float4& v, hlsl::float4& o) { o = hlsl::round(v); }
+
 #if defined(SHADER_MATH_HAS_HALF)
 // half multiply-add: on ARM FEAT_FP16 this must run on 16-bit lanes (.4h).
 SM_CG_NOINLINE void sm_cg_half4_mad(const hlsl::half4& a, const hlsl::half4& b,
@@ -57,16 +63,29 @@ SM_CG_NOINLINE void sm_cg_hlsl_mul_h4h4(const hlsl::half4x4& a, const hlsl::half
 
 }  // extern "C"
 
-int main() {
+int main(int argc, char** argv) {
     // Keep the kernels reachable even under aggressive IPO / section GC.
     volatile auto k0 = &sm_cg_hlsl_mul_m4m4;
     volatile auto k1 = &sm_cg_hlsl_mul_v4m4;
     volatile auto k2 = &sm_cg_glsl_mul_m4m4;
     volatile auto k3 = &sm_cg_glsl_mul_m4v4;
+    volatile auto k4 = &sm_cg_floor4;
+    volatile auto k5 = &sm_cg_round4;
     (void)k0;
     (void)k1;
     (void)k2;
     (void)k3;
+    (void)k4;
+    (void)k5;
+
+    if (argc > 1 && std::strcmp(argv[1], "--sse41") == 0) {
+#if defined(SHADER_MATH_ISA_SSE2) && defined(SHADER_MATH_HAS_SSE41)
+        std::printf("1\n");
+#else
+        std::printf("0\n");
+#endif
+        return 0;
+    }
 
 #if defined(SHADER_MATH_ISA_NEON)
 #  if defined(SHADER_MATH_HAS_FP16)
