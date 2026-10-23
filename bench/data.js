@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792797662232,
+  "lastUpdate": 1792797664994,
   "repoUrl": "https://github.com/capsule-holdings/shader-math",
   "entries": {
     "linux-x64-gcc": [
@@ -1175,6 +1175,160 @@ window.BENCHMARK_DATA = {
           {
             "name": "half4 a * b + c [scalar]",
             "value": 6.539,
+            "unit": "ns/elem"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "emuesuenu@hotmail.com",
+            "name": "Hidenori Kondo",
+            "username": "emuesuenu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e37f9cddd1b8578abc2f4b011bf60dd32ff7b805",
+          "message": "test: cross-check HLSL through DXC's DXIL backend on D3D12 WARP (#73)\n\nThe DXC cross-check ran only through SPIR-V on lavapipe. The same HLSL now\nalso goes through DXC's DXIL backend (v1.9.2609, Windows release) and runs on\nWARP: tests/interop/d3d12_runner.cpp, SHADER_MATH_INTEROP_DXIL (Windows),\ndxil_interop_check / dxil_interop_half_check, and the windows-x64-dxil-interop\nCI job (DXC zip pinned by sha256). Every interop job now checks with\nctest --no-tests=error that its cross-check was registered, since CMake only\nwarns when a prerequisite is missing.\n\nFindings, recorded in docs/slang_compat.md:\n- lit: the DXIL backend computes (n.h)^m and matches shader-math on WARP, so\n  the SPIR-V-only defect stays excluded from the SPIR-V check alone\n- frexp: DXIL lowering builds the mantissa as (bits & 0x007fffff) | 0x3f000000\n  and drops the sign of a negative input; case_exact_frexp_dst is split into\n  case_exact_frexp (left out of DXIL) and case_exact_dst\n- frac: DXC's DXIL constant folding turns frac(-0.75) into 0.75; the DXIL\n  kernel xors its inputs with bits of the zero-initialized output buffer\n  (SM_INTEROP_OPAQUE_INPUTS) so the device evaluates every case, and WARP's\n  Frc gives 0.25\n- WARP's asin / acos / atan are about 1e-3 off libm; compare.py gains\n  --tol=<case>:<relative>, used for the two cases that call them\n\nAlso spells a half swizzle-to-float conversion as float(half(v.x)) in the\nshared cases for MSVC's software half.",
+          "timestamp": "2026-10-24T08:03:56+09:00",
+          "tree_id": "fd6968d65c526d8f65bf18f7e6daf1c88f49be94",
+          "url": "https://github.com/capsule-holdings/shader-math/commit/e37f9cddd1b8578abc2f4b011bf60dd32ff7b805"
+        },
+        "date": 1792797664193,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "hlsl mul(float4x4, float4x4) [NEON]",
+            "value": 3.444,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [NEON]",
+            "value": 3.45,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [NEON]",
+            "value": 1.555,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [NEON]",
+            "value": 5.152,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [NEON]",
+            "value": 16.512,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [NEON]",
+            "value": 25.561,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [NEON]",
+            "value": 1.541,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [NEON]",
+            "value": 5.261,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [NEON]",
+            "value": 23.409,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [NEON]",
+            "value": 0.556,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [NEON]",
+            "value": 0.418,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [NEON]",
+            "value": 0.696,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [NEON]",
+            "value": 2.662,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4x4) [scalar]",
+            "value": 9.643,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [scalar]",
+            "value": 9.533,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [scalar]",
+            "value": 1.788,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [scalar]",
+            "value": 5.639,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [scalar]",
+            "value": 10.027,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [scalar]",
+            "value": 20.768,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [scalar]",
+            "value": 2.007,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [scalar]",
+            "value": 3.61,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [scalar]",
+            "value": 21.737,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [scalar]",
+            "value": 0.418,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [scalar]",
+            "value": 0.557,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [scalar]",
+            "value": 2.493,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [scalar]",
+            "value": 6.547,
             "unit": "ns/elem"
           }
         ]
