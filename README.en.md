@@ -36,7 +36,7 @@ Never import both namespaces into the same scope (`mul`, `transpose` and others 
 - Half vectors: `hlsl::half2/3/4` = `glsl::f16vec2/3/4` (also one type); scalars `hlsl::half` / `glsl::float16_t`
 - Matrices: every shape with R, C in {2, 3, 4}. `hlsl::floatRxC` (stored by rows, row-major constructor) and `glsl::matCxR` (stored by columns, column-major constructor) are **distinct types** with explicit conversion only. Non-square names swap: `float3x4` (3 rows x 4 columns) is `mat4x3` (4 columns x 3 rows)
 - Half matrices: `hlsl::halfRxC` / `glsl::f16matCxR`, same rules as float
-- Comparison results: `bool2/3/4` (= `bvec2/3/4`) and `boolRxC`; no arithmetic, no implicit conversion to `bool`
+- Comparison results: `bool2/3/4` (= `bvec2/3/4`) and `boolRxC`; no arithmetic, no implicit conversion to `bool`. Build them from bools (`bool3(true, false, true)`, `bool3(true)`; int / float arguments do not compile) and read components with `b[i]` or the single-component `.x` ... `.w` / `.r` ... `.a` (read-only)
 - Half and float never mix implicitly (`half3 * float3` and `half3 * 2.0f` do not compile); constructor arguments convert (`half3(1.0f, 2.0f, 3.0f)` is fine)
 - Half needs a compiler whose `_Float16` works in C++ (x86: gcc 12+ / clang 15+, AArch64: gcc 13+); MSVC uses a software binary16. Without it, the half types are simply absent
 - On ARM, `arm_neon.h` declares a global `float16_t`, so an unqualified `float16_t` under `using namespace glsl` is ambiguous; write `glsl::float16_t` or `hlsl::half`
@@ -54,7 +54,7 @@ Never import both namespaces into the same scope (`mul`, `transpose` and others 
 | `==` | component-wise bool vector / matrix | scalar bool (all components equal) |
 | `<` `>` `<=` `>=` | component-wise bool | not on vectors (`lessThan()` and friends) |
 | element access | `m[row][col]`, `_m00`, `_11` | `m[col][row]` |
-| swizzles | every `.xyzw` / `.rgba` combination, read and write | same |
+| swizzles | every `.xyzw` / `.rgba` combination, read and write | same; `.stpq` is opt-in (below) |
 
 `transpose`, `determinant`, `inverse`, `dot`, `cross`, `length`, `normalize`, `all` and `any` exist in both (`inverse` is official GLSL and an extension on the HLSL side).
 
@@ -74,8 +74,8 @@ Vector (float / half) arguments; scalar second / third arguments follow the oper
 
 - Both languages: `abs` `sign` `min` `max` `clamp` `step` `smoothstep` `floor` `ceil` `trunc` `round` `sqrt` `exp` `exp2` `log` `log2` `pow` `sin` `cos` `tan` `asin` `acos` `atan` `sinh` `cosh` `tanh` `radians` `degrees` `modf` `isnan` `isinf`
 - Geometry (both): `dot` `cross` `length` `normalize` `distance` `reflect` `refract` `faceforward`
-- HLSL only: `lerp` `frac` `rcp` `rsqrt` `saturate` `atan2` `fmod` `mad` `isfinite` `sincos`
-- GLSL only: `mix` `fract` `inversesqrt` `roundEven` `atan(y, x)` `mod` `fma`
+- HLSL only: `lerp` `frac` `rcp` `rsqrt` `saturate` `atan2` `fmod` `mad` `isfinite` `sincos` `log10` `ldexp` (float exponent) `frexp` (float exponent out) `select` (HLSL 2021) `dst` `lit` (scalar inputs, returns `float4`), and `%` on float vectors / matrices (same as `fmod`)
+- GLSL only: `mix` `fract` `inversesqrt` `roundEven` `atan(y, x)` `mod` `fma` `asinh` `acosh` `atanh`, `mix(x, y, bvec)` (y where the selector is true)
 - HLSL also applies the component-wise functions to matrices (`abs(m)`, `lerp(a, b, t)`, `isnan(m)` -> `boolRxC`, ...); GLSL's generic functions take scalars / vectors only, so `abs(mat3)` does not compile under `glsl`
 
 Semantic notes:
@@ -86,6 +86,7 @@ Semantic notes:
 - `rcp` / `rsqrt` / `inversesqrt` are exact (no `rcpps` / `rsqrtps` approximations); transcendentals call libm per lane
 - `mad` / `fma` fuse when the backend has FMA (neither language guarantees fusion unless `precise`)
 - `refract` returns the zero vector on total internal reflection
+- `select(c, a, b)` picks a where c is true; `mix(x, y, bvec)` picks y where true (opposite operand order)
 - With `<windows.h>`, define `NOMINMAX` (its `min` / `max` macros collide)
 
 ## SIMD
@@ -134,16 +135,20 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 - As a subproject it builds no tests, examples or install rules (override with `SHADER_MATH_BUILD_TESTS` / `SHADER_MATH_INSTALL`)
 - Boost is not bundled: `find_package` looks for it on the consumer side; set `SHADER_MATH_BOOST_INCLUDE` (and `SHADER_MATH_BOOST_PREDEF_INCLUDE` if Predef lives elsewhere) when it is not found
 - 0.x versions are compatible within the same minor version only
+- Force the scalar backend with `-DSHADER_MATH_FORCE_SCALAR=ON` (subproject) or `set(SHADER_MATH_FORCE_SCALAR ON)` before `find_package`; enable the GLSL `.stpq` swizzles the same way with `SHADER_MATH_GLSL_STPQ`. Both land on `shader_math::shader_math`, so every translation unit agrees (mixing them would break the ODR)
+- pkg-config: `<prefix>/share/pkgconfig/shader_math.pc` (`pkg-config --cflags shader_math`); Boost is listed only when a system Boost was used at install time
 
 ## Cross-checked against real compilers
 
 - HLSL side: the same source is built by Slang (`slangc -target cpp`, run on the CPU) and by shader-math, and the outputs are compared ([docs/slang_compat.md](docs/slang_compat.md))
 - GLSL side: the same source is compiled to SPIR-V by glslang and run on Vulkan (lavapipe), and compared with shader-math's `glsl` surface ([docs/glsl_interop.md](docs/glsl_interop.md))
+- Half: Slang's CPU target cannot compile half vector math, so the HLSL half cases are compiled to SPIR-V by Slang and run on lavapipe; GLSL `f16vec` cases likewise (both need the device's `shaderFloat16`)
 
 ## Known deviations
 
 - Multi-component matrix swizzles (`_m00_m11`) are not implemented; every single-component accessor is
-- GLSL's `not()` is `not_()` (`not` is a C++ alternative token); HLSL 2021's `and()` / `or()` cannot exist for the same reason
+- GLSL `.stpq` swizzles are opt-in (`SHADER_MATH_GLSL_STPQ`): the vector type is shared with `hlsl`, which has no stpq, so enabling them lets HLSL code accept `.stp` too (same lanes as `.xyz`). Measured compile-time cost: +5 to 11% with gcc, within noise with clang
+- GLSL's `not()` is `not_()` (`not` is a C++ alternative token); HLSL 2021's `and()` / `or()` cannot exist for the same reason, and bool-vector `&&` / `||` are unavailable as in HLSL 2021
 - `v.x` is a proxy type: pass `float(v.x)` to varargs
 - float and half only: no `int` / `double`, no `1xN` matrices, no GPU-only features (textures, derivatives, atomics)
 - Language-compatible, not ABI-compatible: `sizeof(float3) == 16`, unrelated to constant-buffer packing
