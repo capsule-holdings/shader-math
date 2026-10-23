@@ -7,6 +7,16 @@
 
 #define SHADER_MATH_INLINE BOOST_FORCEINLINE
 
+// Swizzle / element proxies read and write the bytes of the fvec / matrix that
+// holds them through their own type. GCC's type-based alias analysis treats
+// those accesses as unrelated to accesses through the holder unless the proxy
+// type aliases everything. MSVC has no type-based alias analysis.
+#if defined(__GNUC__)
+#  define SHADER_MATH_MAY_ALIAS __attribute__((__may_alias__))
+#else
+#  define SHADER_MATH_MAY_ALIAS
+#endif
+
 // The ISA selection below compares BOOST_HW_SIMD_* values; with an older
 // Predef they are undefined, evaluate to 0 >= 0, and pick NEON on any host.
 #if !defined(BOOST_HW_SIMD_ARM) || !defined(BOOST_HW_SIMD_X86)

@@ -70,7 +70,7 @@ constexpr bool swz_unique() {
 // Swizzle proxy. Lives inside fvec's union; d overlays the register storage.
 // T = element type, N = parent vector width, Is... = selected component indices.
 template <class T, int N, int... Is>
-struct swz {
+struct SHADER_MATH_MAY_ALIAS swz {
     static constexpr int M = static_cast<int>(sizeof...(Is));
     static constexpr int idx[M] = {Is...};
     static constexpr bool in_range = ((Is >= 0 && Is < N) && ...);
@@ -978,7 +978,7 @@ SHADER_MATH_INLINE auto faceforward(const A& n0, const B& i, const C& nref) {
 // Read-only single-component accessor (b.x, b.a) overlaying the mask
 // register, like the float swizzle proxies; out-of-range lanes fail at use.
 template <int N, int I>
-struct bswz {
+struct SHADER_MATH_MAY_ALIAS bswz {
     mreg d;
     SHADER_MATH_INLINE operator bool() const {
         static_assert(I < N, "shader-math: bool vector component out of range");
