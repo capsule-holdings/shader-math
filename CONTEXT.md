@@ -148,7 +148,7 @@ pull_request の 1 本で検証し、同じ PR への追加 push で古い実行
 - 品質: Debug ASan/UBSan、codegen チェック（逆アセンブルで fmadd / roundps / 展開を確認）、
   CMake パッケージの利用側検証（install + `find_package` / `add_subdirectory`）
 - その他: Slang 相互検証（固定版 + sha256、コミット済み SPIR-V の再生成一致）、GLSL 相互検証
-  （glslang → SPIR-V → lavapipe）、SDL_GPU デモの
+  （glslang → SPIR-V → lavapipe）、DXC 相互検証（SPIR-V → lavapipe と、Windows の DXIL → D3D12 WARP）、SDL_GPU デモの
   lavapipe ヘッドレス描画、ベンチマーク（参考値をジョブサマリーへ、合否なし）
 - `release.yml` は別ワークフロー（`vX.Y.Z` タグ push 時のみ。「バージョンとリリース」参照）
 

@@ -473,10 +473,13 @@ if(SHADER_MATH_BUILD_TESTS)
             target_link_libraries(shader_math_dxil_cpp_half PRIVATE shader_math)
             shader_math_warnings(shader_math_dxil_cpp_half)
 
+            # WARP's asin / acos / atan are about 1e-3 off libm in the cases
+            # using them (its other transcendentals stay within near_)
             add_test(NAME dxil_interop_check
                      COMMAND ${Python3_EXECUTABLE} ${SM_INTEROP_DIR}/compare.py
                              $<TARGET_FILE:dxil_d3d12_runner> $<TARGET_FILE:shader_math_dxil_cpp>
-                             dxil ${SM_DXIL_OUT})
+                             dxil ${SM_DXIL_OUT}
+                             --tol=near_inverse_trig:2e-3 --tol=near_matrix_intrinsics:2e-3)
             add_test(NAME dxil_interop_half_check
                      COMMAND ${Python3_EXECUTABLE} ${SM_INTEROP_DIR}/compare.py
                              $<TARGET_FILE:dxil_d3d12_runner_half> $<TARGET_FILE:shader_math_dxil_cpp_half>

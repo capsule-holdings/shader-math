@@ -36,6 +36,9 @@
 - GLSL 相互検証（任意、glslang-tools / libvulkan-dev / mesa-vulkan-drivers が必要）:
   `-DSHADER_MATH_INTEROP_GLSL=ON` → `ctest -R glsl_interop`。ケースは `tests/interop/glsl/math_cases.glsl`、
   詳細は `docs/glsl_interop.md`。
+- DXC 相互検証（任意）: SPIR-V 版は Linux で `-DSHADER_MATH_INTEROP_DXC=ON`（`ctest -R dxc_interop`）、
+  DXIL 版は Windows で `-DSHADER_MATH_INTEROP_DXIL=ON`（`ctest -R dxil_interop`、D3D12 WARP で実行）。
+  どちらも `-DSHADER_MATH_DXC_DIR=<DXC リリースの展開先>`。詳細は `docs/slang_compat.md` の DXC 節。
 - テストバイナリを直接実行するとバックエンド名（例: `SSE2+FMA`、`NEON+FP16`）と
   `N checks, 0 failures` を出力する。件数はテスト追加で増えるので固定値で比べないこと。
 - 既定ビルドの `ctest` は 5 件: SIMD 版と scalar twin（`shader_math_tests_scalar`）、

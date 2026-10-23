@@ -67,16 +67,28 @@
 
 ## DXC（公式 HLSL コンパイラ）との照合
 
-同じ共有ケースを DXC（v1.9.2609、Linux 版）で SPIR-V にし、Vulkan（lavapipe）で実行して照合する
-（`dxc_interop_check`、half は `-enable-16bit-types` 付きで `dxc_interop_half_check`）。
+同じ共有ケースを DXC（v1.9.2609）で 2 通りに照合する。
+
+- **SPIR-V**（Linux 版）: Vulkan（lavapipe）で実行する（`dxc_interop_check`、half は
+  `-enable-16bit-types` 付きで `dxc_interop_half_check`）
+- **DXIL**（Windows 版）: D3D12 の WARP（Windows 標準のソフトウェア実装）で実行する
+  （`dxil_interop_check` / `dxil_interop_half_check`、`tests/interop/d3d12_runner.cpp`）。
+  DXC は DXIL の生成時に定数入力の組み込み関数を畳み込むので、入力を出力バッファ（0 初期化）の
+  ビットと XOR してコンパイル時には分からない値にしている（`SM_INTEROP_OPAQUE_INPUTS`）
+
 Slang では照合できない `frexp` / `dst` は `tests/interop/dxc/dxc_cases.hlsli` で照合する。
 
 ```bash
-# DXC の Linux リリースを展開して（x86_64 のみ）
+# SPIR-V: DXC の Linux リリースを展開して（x86_64 のみ）
 cmake -S . -B build-dxc -DCMAKE_BUILD_TYPE=Release \
   -DSHADER_MATH_INTEROP_DXC=ON -DSHADER_MATH_DXC_DIR=<dxc 展開先>
 cmake --build build-dxc
 ctest --test-dir build-dxc -R dxc_interop --output-on-failure
+
+# DXIL（Windows）: DXC の Windows リリース（zip）を展開して。bin/x64 か bin/arm64 の dxc を使う
+cmake -S . -B build-dxil -DSHADER_MATH_INTEROP_DXIL=ON -DSHADER_MATH_DXC_DIR=<dxc 展開先>
+cmake --build build-dxil --config Release
+ctest --test-dir build-dxil -C Release -R dxil_interop --output-on-failure
 ```
 
 DXC で分かった差:
@@ -85,8 +97,19 @@ DXC で分かった差:
   全成分に広げる綴りはキャスト `(float3x3)0.25f` か代入 `float3x3 m = 0.25f;`。Slang と shader-math は
   ctor の綴りも受け付ける（共有ケースはキャストで書く）
 - **`lit` の鏡面項**: Microsoft の `lit` のドキュメントは `(n·h)^m`、Slang と shader-math も累乗だが、
-  DXC v1.9.2609 の SPIR-V 出力（`SpirvEmitter::processIntrinsicLit`）は `(n·h) * m`。DXC の照合からは
+  DXC v1.9.2609 の SPIR-V 出力（`SpirvEmitter::processIntrinsicLit`）は `(n·h) * m`。DXIL 出力は
+  `Exp(Log(n·h) * m)` で累乗になっており、WARP での実行も shader-math と一致する。SPIR-V の照合からだけ
   `lit` のケース（`case_near_lit`）を外している
+- **`frexp` の仮数の符号（DXIL）**: DXC の DXIL への変換は仮数を `(bits & 0x007fffff) | 0x3f000000` で
+  作るので、負の入力でも仮数が正になる（`frexp(-7.5)` の仮数が 0.9375）。SPIR-V 出力（GLSL の `Frexp`）・
+  Slang・shader-math は C の `frexp` と同じく符号付き（-0.9375）。DXIL の照合からだけ `case_exact_frexp` を
+  外している
+- **`frac` の定数畳み込み（DXIL）**: DXC が DXIL を生成するときの定数畳み込みは `frac(-0.75)` を 0.75 にする
+  （`x - floor(x)` なら 0.25）。実行時の入力なら DXIL の `Frc` 命令になり、WARP の結果は 0.25 で shader-math と
+  一致する。照合が畳み込みでなく実行を見るよう、DXIL 版は入力を不透明にしている（上記）
+- **WARP の逆三角関数の精度**: WARP の `asin` / `acos` / `atan`（`atan2` も）は libm と最大 1e-3 程度ずれる
+  （sin / cos / exp2 / log2 / pow などは `near_` の 1e-5 に収まる）。DXIL の照合だけ、これらを使う
+  `near_inverse_trig` と `near_matrix_intrinsics` の許容誤差を相対 2e-3 にしている（`compare.py --tol=`）
 - half: `-enable-16bit-types` を付けないと DXC の `half` は 32 ビット float（min precision）になる
 - DXC は手動更新（`ci.yml` の `dxc_version` / `dxc_asset` / `dxc_sha256` を一緒に変える）
 
