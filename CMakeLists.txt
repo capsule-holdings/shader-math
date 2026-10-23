@@ -92,6 +92,15 @@ option(SHADER_MATH_NESTED_SWIZZLE
 if(SHADER_MATH_NESTED_SWIZZLE)
     target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_NESTED_SWIZZLE>)
 endif()
+option(SHADER_MATH_MATRIX_SWIZZLE
+       "Enable HLSL 2-element matrix accessors (m._m00_m11) on shader_math and everything linking it" OFF)
+option(SHADER_MATH_MATRIX_SWIZZLE3
+       "Also enable the 3-element ones (m._m30_m31_m32); much slower to compile" OFF)
+if(SHADER_MATH_MATRIX_SWIZZLE3)
+    target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_MATRIX_SWIZZLE3>)
+elseif(SHADER_MATH_MATRIX_SWIZZLE)
+    target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_MATRIX_SWIZZLE>)
+endif()
 option(SHADER_MATH_BUILD_TESTS "Build shader-math tests and examples" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INSTALL "Generate the install / find_package rules" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INTEROP_SLANG
@@ -204,6 +213,18 @@ if(SHADER_MATH_BUILD_TESTS)
     shader_math_warnings(shader_math_tests_nested_stpq)
     add_test(NAME shader_math_tests_nested_stpq COMMAND shader_math_tests_nested_stpq)
 
+    # Opt-in multi-element matrix accessors: 2-element, then also 3-element.
+    add_executable(shader_math_tests_matrix_swizzle tests/test_matrix_swizzle.cpp)
+    target_link_libraries(shader_math_tests_matrix_swizzle PRIVATE shader_math)
+    target_compile_definitions(shader_math_tests_matrix_swizzle PRIVATE SHADER_MATH_MATRIX_SWIZZLE)
+    shader_math_warnings(shader_math_tests_matrix_swizzle)
+    add_test(NAME shader_math_tests_matrix_swizzle COMMAND shader_math_tests_matrix_swizzle)
+    add_executable(shader_math_tests_matrix_swizzle3 tests/test_matrix_swizzle.cpp)
+    target_link_libraries(shader_math_tests_matrix_swizzle3 PRIVATE shader_math)
+    target_compile_definitions(shader_math_tests_matrix_swizzle3 PRIVATE SHADER_MATH_MATRIX_SWIZZLE3)
+    shader_math_warnings(shader_math_tests_matrix_swizzle3)
+    add_test(NAME shader_math_tests_matrix_swizzle3 COMMAND shader_math_tests_matrix_swizzle3)
+
     # Approximate-equivalence proof for the batch skinning backends (pure CPU,
     # no SDL): oracle bound + pairwise agreement + invariance properties.
     add_executable(skin_batch_check tests/test_skin_batch.cpp)
@@ -293,6 +314,43 @@ if(SHADER_MATH_BUILD_TESTS)
                              $<TARGET_FILE:slang_interop_runner_nested>
                              $<TARGET_FILE:shader_math_interop_cpp_nested>)
 
+            # opt-in multi-element matrix accessors: kernels_matrix_swizzle.slang
+            # on the CPU target against a twin built with SHADER_MATH_MATRIX_SWIZZLE3
+            set(SHADER_MATH_INTEROP_MATRIX_SWIZZLE_GEN ${CMAKE_CURRENT_BINARY_DIR}/kernels_matrix_swizzle.gen.cpp)
+            add_custom_command(
+                OUTPUT ${SHADER_MATH_INTEROP_MATRIX_SWIZZLE_GEN}
+                COMMAND ${SLANGC_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/kernels_matrix_swizzle.slang
+                        -target cpp -entry runCases -o ${SHADER_MATH_INTEROP_MATRIX_SWIZZLE_GEN}
+                DEPENDS ${SHADER_MATH_INTEROP_DIR}/kernels_matrix_swizzle.slang
+                        ${SHADER_MATH_INTEROP_DIR}/shared/math_cases.hlsli
+                        ${SHADER_MATH_INTEROP_DIR}/shared/matrix_swizzle_cases.hlsli
+                        ${SHADER_MATH_INTEROP_DIR}/shared/case_list.h
+                COMMENT "slangc: generating kernels_matrix_swizzle.gen.cpp (CPU target)"
+                VERBATIM)
+
+            add_executable(slang_interop_runner_matrix_swizzle
+                ${SHADER_MATH_INTEROP_MATRIX_SWIZZLE_GEN}
+                ${SHADER_MATH_INTEROP_DIR}/slang_driver.cpp)
+            target_include_directories(slang_interop_runner_matrix_swizzle PRIVATE
+                ${SHADER_MATH_SLANG_ROOT}/include ${SHADER_MATH_INTEROP_DIR})
+            target_compile_definitions(slang_interop_runner_matrix_swizzle PRIVATE
+                SM_DRIVER_CASES=SM_INTEROP_MATRIX_SWIZZLE_CASES)
+            if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+                target_compile_options(slang_interop_runner_matrix_swizzle PRIVATE -ffp-contract=off -w)
+            endif()
+
+            add_executable(shader_math_interop_cpp_matrix_swizzle
+                ${SHADER_MATH_INTEROP_DIR}/cpp_harness.cpp)
+            target_compile_definitions(shader_math_interop_cpp_matrix_swizzle PRIVATE
+                SM_INTEROP_MATRIX_SWIZZLE SHADER_MATH_MATRIX_SWIZZLE3)
+            target_link_libraries(shader_math_interop_cpp_matrix_swizzle PRIVATE shader_math)
+            shader_math_warnings(shader_math_interop_cpp_matrix_swizzle)
+
+            add_test(NAME slang_interop_matrix_swizzle_check
+                     COMMAND ${Python3_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/compare.py
+                             $<TARGET_FILE:slang_interop_runner_matrix_swizzle>
+                             $<TARGET_FILE:shader_math_interop_cpp_matrix_swizzle>)
+
             # half cases: the CPU target cannot compile half vector math, so
             # they go through SPIR-V on Vulkan (lavapipe) when it is available
             find_package(Vulkan)
@@ -352,7 +410,8 @@ if(SHADER_MATH_BUILD_TESTS)
             set(SM_INTEROP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop)
             set(SM_DXC_DEPS ${SM_INTEROP_DIR}/dxc/kernels.hlsl ${SM_INTEROP_DIR}/dxc/dxc_cases.hlsli
                             ${SM_INTEROP_DIR}/dxc/dxc_case_list.h
-                            ${SM_INTEROP_DIR}/shared/math_cases.hlsli ${SM_INTEROP_DIR}/shared/case_list.h)
+                            ${SM_INTEROP_DIR}/shared/math_cases.hlsli ${SM_INTEROP_DIR}/shared/case_list.h
+                            ${SM_INTEROP_DIR}/shared/matrix_swizzle_cases.hlsli)
             set(SM_DXC_RUN ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=${SM_DXC_ROOT}/lib ${DXC_EXECUTABLE}
                            -spirv -T cs_6_2 -E main -HV 2021 -fspv-target-env=vulkan1.1
                            -I ${SM_INTEROP_DIR})
@@ -371,7 +430,16 @@ if(SHADER_MATH_BUILD_TESTS)
                 DEPENDS ${SM_DXC_DEPS}
                 COMMENT "dxc: compiling the half cases to SPIR-V (-enable-16bit-types)"
                 VERBATIM)
-            add_custom_target(dxc_interop_spv ALL DEPENDS ${SM_DXC_SPV} ${SM_DXC_HALF_SPV})
+            set(SM_DXC_MATRIX_SWIZZLE_SPV ${CMAKE_CURRENT_BINARY_DIR}/dxc_kernels_matrix_swizzle.spv)
+            add_custom_command(
+                OUTPUT ${SM_DXC_MATRIX_SWIZZLE_SPV}
+                COMMAND ${SM_DXC_RUN} -D SM_INTEROP_MATRIX_SWIZZLE=1
+                        -Fo ${SM_DXC_MATRIX_SWIZZLE_SPV} ${SM_INTEROP_DIR}/dxc/kernels.hlsl
+                DEPENDS ${SM_DXC_DEPS}
+                COMMENT "dxc: compiling the matrix accessor cases to SPIR-V"
+                VERBATIM)
+            add_custom_target(dxc_interop_spv ALL
+                DEPENDS ${SM_DXC_SPV} ${SM_DXC_HALF_SPV} ${SM_DXC_MATRIX_SWIZZLE_SPV})
 
             add_executable(dxc_vk_runner ${SM_INTEROP_DIR}/vk_runner.cpp)
             target_include_directories(dxc_vk_runner PRIVATE ${SM_INTEROP_DIR})
@@ -385,6 +453,12 @@ if(SHADER_MATH_BUILD_TESTS)
                 "SM_VK_CASES_HEADER=\"shared/case_list.h\"" SM_VK_CASES=SM_INTEROP_HALF_CASES)
             target_link_libraries(dxc_vk_runner_half PRIVATE Vulkan::Vulkan)
             shader_math_warnings(dxc_vk_runner_half)
+            add_executable(dxc_vk_runner_matrix_swizzle ${SM_INTEROP_DIR}/vk_runner.cpp)
+            target_include_directories(dxc_vk_runner_matrix_swizzle PRIVATE ${SM_INTEROP_DIR})
+            target_compile_definitions(dxc_vk_runner_matrix_swizzle PRIVATE
+                "SM_VK_CASES_HEADER=\"shared/case_list.h\"" SM_VK_CASES=SM_INTEROP_MATRIX_SWIZZLE_CASES)
+            target_link_libraries(dxc_vk_runner_matrix_swizzle PRIVATE Vulkan::Vulkan)
+            shader_math_warnings(dxc_vk_runner_matrix_swizzle)
 
             add_executable(shader_math_dxc_cpp ${SM_INTEROP_DIR}/cpp_harness.cpp)
             target_compile_definitions(shader_math_dxc_cpp PRIVATE SM_INTEROP_DXC)
@@ -395,6 +469,11 @@ if(SHADER_MATH_BUILD_TESTS)
             target_compile_definitions(shader_math_dxc_cpp_half PRIVATE SM_INTEROP_ENABLE_HALF)
             target_link_libraries(shader_math_dxc_cpp_half PRIVATE shader_math)
             shader_math_warnings(shader_math_dxc_cpp_half)
+            add_executable(shader_math_dxc_cpp_matrix_swizzle ${SM_INTEROP_DIR}/cpp_harness.cpp)
+            target_compile_definitions(shader_math_dxc_cpp_matrix_swizzle PRIVATE
+                SM_INTEROP_MATRIX_SWIZZLE SHADER_MATH_MATRIX_SWIZZLE3)
+            target_link_libraries(shader_math_dxc_cpp_matrix_swizzle PRIVATE shader_math)
+            shader_math_warnings(shader_math_dxc_cpp_matrix_swizzle)
 
             add_test(NAME dxc_interop_check
                      COMMAND ${Python3_EXECUTABLE} ${SM_INTEROP_DIR}/compare.py
@@ -404,7 +483,13 @@ if(SHADER_MATH_BUILD_TESTS)
                      COMMAND ${Python3_EXECUTABLE} ${SM_INTEROP_DIR}/compare.py
                              $<TARGET_FILE:dxc_vk_runner_half> $<TARGET_FILE:shader_math_dxc_cpp_half>
                              dxc ${SM_DXC_HALF_SPV} --f16)
-            set_tests_properties(dxc_interop_check dxc_interop_half_check PROPERTIES
+            add_test(NAME dxc_interop_matrix_swizzle_check
+                     COMMAND ${Python3_EXECUTABLE} ${SM_INTEROP_DIR}/compare.py
+                             $<TARGET_FILE:dxc_vk_runner_matrix_swizzle>
+                             $<TARGET_FILE:shader_math_dxc_cpp_matrix_swizzle>
+                             dxc ${SM_DXC_MATRIX_SWIZZLE_SPV})
+            set_tests_properties(dxc_interop_check dxc_interop_half_check
+                                 dxc_interop_matrix_swizzle_check PROPERTIES
                                  SKIP_RETURN_CODE 77)
         else()
             message(WARNING "SHADER_MATH_INTEROP_DXC=ON but dxc (set SHADER_MATH_DXC_DIR), "

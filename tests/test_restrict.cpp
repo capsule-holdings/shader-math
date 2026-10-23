@@ -54,6 +54,11 @@ template <class V>
 concept can_nest = requires(V v) { v.xy.yx; };
 static_assert(!can_nest<h::float4>);
 
+// ---- multi-element matrix accessors are opt-in (SHADER_MATH_MATRIX_SWIZZLE) -----
+template <class M>
+concept has_matrix_swizzle = requires(M m) { m._m00_m11; };
+static_assert(!has_matrix_swizzle<h::float4x4>);
+
 // ---- comparison operator return types differ per language -----------------------
 static_assert(std::is_same_v<decltype(h::operator==(std::declval<h::float3>(),
                                                     std::declval<h::float3>())),
