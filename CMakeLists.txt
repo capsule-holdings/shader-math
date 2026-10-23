@@ -252,6 +252,43 @@ if(SHADER_MATH_BUILD_TESTS)
                              $<TARGET_FILE:slang_interop_runner>
                              $<TARGET_FILE:shader_math_interop_cpp>)
 
+            # opt-in swizzles of swizzles: kernels_nested.slang on the CPU
+            # target against a twin built with SHADER_MATH_NESTED_SWIZZLE
+            set(SHADER_MATH_INTEROP_NESTED_GEN ${CMAKE_CURRENT_BINARY_DIR}/kernels_nested.gen.cpp)
+            add_custom_command(
+                OUTPUT ${SHADER_MATH_INTEROP_NESTED_GEN}
+                COMMAND ${SLANGC_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/kernels_nested.slang
+                        -target cpp -entry runCases -o ${SHADER_MATH_INTEROP_NESTED_GEN}
+                DEPENDS ${SHADER_MATH_INTEROP_DIR}/kernels_nested.slang
+                        ${SHADER_MATH_INTEROP_DIR}/shared/math_cases.hlsli
+                        ${SHADER_MATH_INTEROP_DIR}/shared/nested_cases.hlsli
+                        ${SHADER_MATH_INTEROP_DIR}/shared/case_list.h
+                COMMENT "slangc: generating kernels_nested.gen.cpp (CPU target)"
+                VERBATIM)
+
+            add_executable(slang_interop_runner_nested
+                ${SHADER_MATH_INTEROP_NESTED_GEN}
+                ${SHADER_MATH_INTEROP_DIR}/slang_driver.cpp)
+            target_include_directories(slang_interop_runner_nested PRIVATE
+                ${SHADER_MATH_SLANG_ROOT}/include ${SHADER_MATH_INTEROP_DIR})
+            target_compile_definitions(slang_interop_runner_nested PRIVATE
+                SM_DRIVER_CASES=SM_INTEROP_NESTED_CASES)
+            if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+                target_compile_options(slang_interop_runner_nested PRIVATE -ffp-contract=off -w)
+            endif()
+
+            add_executable(shader_math_interop_cpp_nested
+                ${SHADER_MATH_INTEROP_DIR}/cpp_harness.cpp)
+            target_compile_definitions(shader_math_interop_cpp_nested PRIVATE
+                SM_INTEROP_NESTED SHADER_MATH_NESTED_SWIZZLE)
+            target_link_libraries(shader_math_interop_cpp_nested PRIVATE shader_math)
+            shader_math_warnings(shader_math_interop_cpp_nested)
+
+            add_test(NAME slang_interop_nested_check
+                     COMMAND ${Python3_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/compare.py
+                             $<TARGET_FILE:slang_interop_runner_nested>
+                             $<TARGET_FILE:shader_math_interop_cpp_nested>)
+
             # half cases: the CPU target cannot compile half vector math, so
             # they go through SPIR-V on Vulkan (lavapipe) when it is available
             find_package(Vulkan)
@@ -399,6 +436,39 @@ if(SHADER_MATH_BUILD_TESTS)
                              $<TARGET_FILE:glsl_vk_runner_stpq>
                              $<TARGET_FILE:shader_math_glsl_interop_cpp_stpq>
                              vulkan ${SM_GLSL_STPQ_SPV})
+
+            # opt-in swizzles of swizzles: a twin built with
+            # SHADER_MATH_NESTED_SWIZZLE (and .stpq for those letters)
+            set(SM_GLSL_NESTED_SPV ${CMAKE_CURRENT_BINARY_DIR}/glsl_kernels_nested.spv)
+            add_custom_command(
+                OUTPUT ${SM_GLSL_NESTED_SPV}
+                COMMAND ${GLSLANG_VALIDATOR} -V --target-env vulkan1.1
+                        -o ${SM_GLSL_NESTED_SPV} ${SM_GLSL_DIR}/kernels_nested.comp
+                DEPENDS ${SM_GLSL_DIR}/kernels_nested.comp ${SM_GLSL_DIR}/nested_cases.glsl
+                        ${SM_GLSL_DIR}/nested_case_list.h ${SM_GLSL_DIR}/math_cases.glsl
+                COMMENT "glslang: compiling kernels_nested.comp to SPIR-V"
+                VERBATIM)
+            add_custom_target(glsl_interop_nested_spv ALL DEPENDS ${SM_GLSL_NESTED_SPV})
+
+            add_executable(glsl_vk_runner_nested ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop/vk_runner.cpp)
+            target_include_directories(glsl_vk_runner_nested PRIVATE ${SM_GLSL_DIR})
+            target_compile_definitions(glsl_vk_runner_nested PRIVATE
+                "SM_VK_CASES_HEADER=\"nested_case_list.h\"" SM_VK_CASES=SM_GLSL_NESTED_CASES)
+            target_link_libraries(glsl_vk_runner_nested PRIVATE Vulkan::Vulkan)
+            shader_math_warnings(glsl_vk_runner_nested)
+
+            add_executable(shader_math_glsl_interop_cpp_nested ${SM_GLSL_DIR}/cpp_harness.cpp)
+            target_compile_definitions(shader_math_glsl_interop_cpp_nested PRIVATE
+                SM_GLSL_NESTED SHADER_MATH_NESTED_SWIZZLE SHADER_MATH_GLSL_STPQ)
+            target_link_libraries(shader_math_glsl_interop_cpp_nested PRIVATE shader_math)
+            shader_math_warnings(shader_math_glsl_interop_cpp_nested)
+
+            add_test(NAME glsl_interop_nested_check
+                     COMMAND ${Python3_EXECUTABLE}
+                             ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop/compare.py
+                             $<TARGET_FILE:glsl_vk_runner_nested>
+                             $<TARGET_FILE:shader_math_glsl_interop_cpp_nested>
+                             vulkan ${SM_GLSL_NESTED_SPV})
         else()
             message(WARNING "SHADER_MATH_INTEROP_GLSL=ON but glslangValidator, Vulkan "
                             "or python3 was not found; skipping the GLSL cross-check")

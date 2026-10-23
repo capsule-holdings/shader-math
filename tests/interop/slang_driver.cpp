@@ -9,6 +9,11 @@
 
 #include "shared/case_list.h"
 
+// SM_DRIVER_CASES: the list the linked kernel was generated from
+#if !defined(SM_DRIVER_CASES)
+#  define SM_DRIVER_CASES SM_INTEROP_CASES
+#endif
+
 extern "C" void runCases(ComputeVaryingInput*, void*, void*);
 
 // Mirrors the generated GlobalParams struct (one RWStructuredBuffer global).
@@ -18,7 +23,7 @@ struct GlobalParams {
 
 static const char* kCaseNames[] = {
 #define X(name, expr) #name,
-    SM_INTEROP_CASES(X)
+    SM_DRIVER_CASES(X)
 #undef X
 };
 

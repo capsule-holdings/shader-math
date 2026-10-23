@@ -20,9 +20,14 @@ using namespace shader_math::hlsl;
 #include "shared/case_list.h"
 
 // SM_INTEROP_ENABLE_HALF (set by CMake for the half twin) selects the half
-// list, which is checked against the SPIR-V kernel instead of Slang-CPU
+// list, which is checked against the SPIR-V kernel instead of Slang-CPU;
+// SM_INTEROP_NESTED (the twin also built with SHADER_MATH_NESTED_SWIZZLE)
+// selects the nested-swizzle list
 #if defined(SM_INTEROP_ENABLE_HALF)
 #  define SM_HARNESS_CASES SM_INTEROP_HALF_CASES
+#elif defined(SM_INTEROP_NESTED)
+#  include "shared/nested_cases.hlsli"
+#  define SM_HARNESS_CASES SM_INTEROP_NESTED_CASES
 #else
 #  define SM_HARNESS_CASES SM_INTEROP_CASES
 #endif
