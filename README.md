@@ -242,6 +242,11 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
 （列優先 ctor、`mat3(1.0)` = 単位行列、`*` = 行列積、`mod` の floor 基準など）。
 実行方法と照合範囲は [docs/glsl_interop.md](docs/glsl_interop.md)。
 
+## DXC との相互検証
+
+HLSL 面は Slang に加えて、公式の HLSL コンパイラ DXC でも照合している（DXC で SPIR-V にして lavapipe で
+実行）。Slang では照合できない `frexp` / `dst` もここで照合する。詳細は [docs/slang_compat.md](docs/slang_compat.md) の DXC 節。
+
 ## Slang との相互検証
 
 同一の数式ソースを Slang（`slangc -target cpp`、CPU 実行）と shader-math の両方で

@@ -171,7 +171,7 @@ float4 case_exact_ctor_access(float4 a, float4 b)
 {
     float3x3 rows = float3x3(a.xyz, b.xyz, float3(1.0f, 2.0f, 3.0f));  // row vectors
     float3x3 splat = float3x3(0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f);
-    float3x3 s1 = float3x3(0.25f);                                       // scalar ctor: every element
+    float3x3 s1 = (float3x3)0.25f;  // scalar -> every element (DXC rejects the float3x3(s) spelling)
     float4x4 big = float4x4(a, b, a * 2.0f, b * 0.5f);
     float2x2 small = (float2x2)big;                                      // truncating cast
     float4 r = float4(rows._m01 + rows._12, rows._m20 * 10.0f, small._m11 + small._21, s1._33);
@@ -207,8 +207,17 @@ float4 case_exact_select_bool(float4 a, float4 b)
 
 float4 case_near_log10_ldexp(float4 a, float4 b)
 {
-    float4 r = log10(abs(a) + 1.0f) + ldexp(b, float4(1.0f, -2.0f, 3.0f, 0.0f));
-    return r + lit(0.5f, abs(b.y) * 0.1f, 4.0f) + lit(-0.25f, 0.5f, 2.0f);
+    return log10(abs(a) + 1.0f) + ldexp(b, float4(1.0f, -2.0f, 3.0f, 0.0f));
+}
+
+// lit's specular term is (n.h)^m (Microsoft's lit documentation, Slang,
+// shader-math); DXC's SPIR-V backend emits (n.h) * m, so the DXC check
+// leaves this case out (dxc/dxc_case_list.h)
+float4 case_near_lit()
+{
+    // scalar arguments are literals: no intrinsics on scalars in the shared
+    // subset (an unqualified C++ abs(float) can resolve to the C int abs)
+    return lit(0.5f, 0.4f, 4.0f) + lit(-0.25f, 0.5f, 2.0f) + lit(0.75f, 0.5f, 3.0f);
 }
 
 // ---- half tier --------------------------------------------------------------

@@ -141,7 +141,7 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 
 ## Cross-checked against real compilers
 
-- HLSL side: the same source is built by Slang (`slangc -target cpp`, run on the CPU) and by shader-math, and the outputs are compared ([docs/slang_compat.md](docs/slang_compat.md))
+- HLSL side: the same source is built by Slang (`slangc -target cpp`, run on the CPU) and by shader-math, and the outputs are compared ([docs/slang_compat.md](docs/slang_compat.md)); it is also compiled by DXC, the official HLSL compiler, to SPIR-V and run on lavapipe, which covers `frexp` / `dst` as well
 - GLSL side: the same source is compiled to SPIR-V by glslang and run on Vulkan (lavapipe), and compared with shader-math's `glsl` surface ([docs/glsl_interop.md](docs/glsl_interop.md))
 - Half: Slang's CPU target cannot compile half vector math, so the HLSL half cases are compiled to SPIR-V by Slang and run on lavapipe; GLSL `f16vec` cases likewise (both need the device's `shaderFloat16`)
 
