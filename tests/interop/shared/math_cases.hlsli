@@ -193,6 +193,24 @@ float4 case_near_misc(float4 a, float4 b)
     return r + float4(l, l * 0.5f, length(a.xy), 0.0f);
 }
 
+// ---- additions: log10 ldexp select lit %, bool literals --------------------
+// Left out: frexp (Slang returns the exponent as an int vector, HLSL and
+// shader-math as float) and dst (the Slang CPU prelude does not implement it).
+// ldexp gets integral exponents, which both read alike.
+float4 case_exact_select_bool(float4 a, float4 b)
+{
+    bool4 lit4 = bool4(true, false, true, false);
+    float4 s = select(lit4, a, b) + select(a > b, a, 0.5f);
+    float flags = (lit4.x ? 1.0f : 0.0f) + (lit4.y ? 2.0f : 0.0f) + ((a > b).z ? 4.0f : 0.0f);
+    return s + float4(flags, 0.0f, 0.0f, 0.0f) + (a * 3.0f) % b;
+}
+
+float4 case_near_log10_ldexp(float4 a, float4 b)
+{
+    float4 r = log10(abs(a) + 1.0f) + ldexp(b, float4(1.0f, -2.0f, 3.0f, 0.0f));
+    return r + lit(0.5f, abs(b.y) * 0.1f, 4.0f) + lit(-0.25f, 0.5f, 2.0f);
+}
+
 // ---- half tier --------------------------------------------------------------
 // The Slang CPU target's C++ prelude (v2026.16) does not implement half vector
 // arithmetic, so these cases run through kernels_half.slang compiled to SPIR-V
