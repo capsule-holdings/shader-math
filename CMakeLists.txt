@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(shader_math VERSION 0.1.0 LANGUAGES CXX)
+project(shader_math VERSION 0.2.0 LANGUAGES CXX)
 
 # include/shader_math/version.hpp carries the same version for non-CMake
 # users; keep the two in step.
