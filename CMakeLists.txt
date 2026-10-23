@@ -81,6 +81,12 @@ option(SHADER_MATH_FORCE_SCALAR
 if(SHADER_MATH_FORCE_SCALAR)
     target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_FORCE_SCALAR>)
 endif()
+option(SHADER_MATH_GLSL_STPQ
+       "Enable GLSL .stpq swizzles on shader_math and everything linking it" OFF)
+# Same scheme as FORCE_SCALAR (the macro changes the vector class definition)
+if(SHADER_MATH_GLSL_STPQ)
+    target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_GLSL_STPQ>)
+endif()
 option(SHADER_MATH_BUILD_TESTS "Build shader-math tests and examples" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INSTALL "Generate the install / find_package rules" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INTEROP_SLANG
@@ -166,6 +172,14 @@ if(SHADER_MATH_BUILD_TESTS)
     target_link_libraries(shader_math_bench_scalar PRIVATE shader_math)
     target_compile_definitions(shader_math_bench_scalar PRIVATE SHADER_MATH_FORCE_SCALAR)
     shader_math_warnings(shader_math_bench_scalar)
+
+    # Opt-in .stpq swizzles: its own executable (the macro changes the class
+    # definition, so it cannot share a binary with the other tests)
+    add_executable(shader_math_tests_stpq tests/test_stpq.cpp)
+    target_link_libraries(shader_math_tests_stpq PRIVATE shader_math)
+    target_compile_definitions(shader_math_tests_stpq PRIVATE SHADER_MATH_GLSL_STPQ)
+    shader_math_warnings(shader_math_tests_stpq)
+    add_test(NAME shader_math_tests_stpq COMMAND shader_math_tests_stpq)
 
     # Approximate-equivalence proof for the batch skinning backends (pure CPU,
     # no SDL): oracle bound + pairwise agreement + invariance properties.

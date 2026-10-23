@@ -61,7 +61,7 @@ void glsl_side() {
 | `==` | 成分ごと bool 行列/ベクトル | 全成分一致のスカラー bool |
 | `<` `>` `<=` `>=` | 成分ごと bool | ベクトルには無し（`lessThan()` 等） |
 | 成分アクセス | `m[row][col]`, `_m00`, `_11` | `m[col][row]` |
-| swizzle | `.xyzw` `.rgba` 全組み合わせ（読み書き） | 同左 |
+| swizzle | `.xyzw` `.rgba` 全組み合わせ（読み書き） | 同左。`.stpq` はオプトイン（下記） |
 
 `transpose` / `determinant` / `inverse` / `dot` / `cross` / `length` / `normalize` / `all` / `any` は両方にある（`inverse` は GLSL 公式・HLSL 側は拡張）。
 
@@ -211,6 +211,11 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
 ## 既知の逸脱（HLSL/GLSL との差分）
 
 - **行列の複数成分 swizzle**（`_m00_m11` 等）は未実装。単成分 `_m00`〜`_m33` / `_11`〜`_44` は全対応（範囲外は使用時にコンパイルエラー）。複数成分はメンバ宣言の組み合わせが最大 16⁴ 通りで現実的でないため
+- GLSL の `.stpq` swizzle は**オプトイン**: `SHADER_MATH_GLSL_STPQ` を定義すると有効
+  （CMake では `-DSHADER_MATH_GLSL_STPQ=ON`、インストール済みパッケージは `find_package` の前に
+  `set(SHADER_MATH_GLSL_STPQ ON)`。どちらも `shader_math::shader_math` に付くので全翻訳単位で揃う）。
+  ベクトル型は `hlsl` と共有なので、有効にすると HLSL 側でも `.stp` が通る（HLSL には無い綴り。意味は
+  `.xyz` と同じ）。既定で無効なのはこのため。コンパイル時間は gcc で +5〜11%、clang では誤差程度（実測）
 - GLSL の `not()` は C++ キーワードのため `not_()`
 - `v.x` はプロキシ型（可変長引数に直接渡すときは `float(v.x)` にする）
 - 対象は float と half（ベクトル）。`int` / `double`、`1xN` 行列、GPU 専用機能（テクスチャ・微分・atomic）は対象外

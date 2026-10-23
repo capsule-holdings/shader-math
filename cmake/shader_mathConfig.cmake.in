@@ -23,6 +23,12 @@ if(SHADER_MATH_FORCE_SCALAR)
     set_property(TARGET shader_math::shader_math APPEND PROPERTY
         INTERFACE_COMPILE_DEFINITIONS SHADER_MATH_FORCE_SCALAR)
 endif()
+# set(SHADER_MATH_GLSL_STPQ ON) before find_package enables the GLSL .stpq
+# swizzles for every target linking shader_math::shader_math
+if(SHADER_MATH_GLSL_STPQ)
+    set_property(TARGET shader_math::shader_math APPEND PROPERTY
+        INTERFACE_COMPILE_DEFINITIONS SHADER_MATH_GLSL_STPQ)
+endif()
 set_property(TARGET shader_math::shader_math APPEND PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES
     "${SHADER_MATH_BOOST_INCLUDE}" "${SHADER_MATH_BOOST_PREDEF_INCLUDE}")

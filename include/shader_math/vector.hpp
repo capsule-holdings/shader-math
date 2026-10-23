@@ -213,6 +213,38 @@ struct swz {
     SM_RPL3(r, 0) SM_RPL3(g, 1) SM_RPL3(b, 2) SM_RPL3(a, 3)             \
     SM_RCU4(r, 0) SM_RCU4(g, 1) SM_RCU4(b, 2) SM_RCU4(a, 3)
 
+// GLSL's third swizzle set (texture coordinates), opt-in: the vector type is
+// shared with hlsl, which has no stpq, so enabling it lets hlsl code accept
+// .stp too. SHADER_MATH_GLSL_STPQ must be defined identically in every
+// translation unit (it changes the class definition). The prefix parameter
+// is `pre`, not `p`, so it never collides with the pasted letter p.
+#if defined(SHADER_MATH_GLSL_STPQ)
+#  define SM_SROW2(pre, i0) \
+    SM_SW2(pre##s, i0, 0) SM_SW2(pre##t, i0, 1) SM_SW2(pre##p, i0, 2) SM_SW2(pre##q, i0, 3)
+#  define SM_SROW3(pre, i0, i1)                                                  \
+    SM_SW3(pre##s, i0, i1, 0) SM_SW3(pre##t, i0, i1, 1) SM_SW3(pre##p, i0, i1, 2) \
+    SM_SW3(pre##q, i0, i1, 3)
+#  define SM_SPL3(pre, i0)                                                       \
+    SM_SROW3(pre##s, i0, 0) SM_SROW3(pre##t, i0, 1) SM_SROW3(pre##p, i0, 2)      \
+    SM_SROW3(pre##q, i0, 3)
+#  define SM_SROW4(pre, i0, i1, i2)                                                       \
+    SM_SW4(pre##s, i0, i1, i2, 0) SM_SW4(pre##t, i0, i1, i2, 1) SM_SW4(pre##p, i0, i1, i2, 2) \
+    SM_SW4(pre##q, i0, i1, i2, 3)
+#  define SM_SPL4(pre, i0, i1)                                                   \
+    SM_SROW4(pre##s, i0, i1, 0) SM_SROW4(pre##t, i0, i1, 1) SM_SROW4(pre##p, i0, i1, 2) \
+    SM_SROW4(pre##q, i0, i1, 3)
+#  define SM_SCU4(pre, i0)                                                       \
+    SM_SPL4(pre##s, i0, 0) SM_SPL4(pre##t, i0, 1) SM_SPL4(pre##p, i0, 2)         \
+    SM_SPL4(pre##q, i0, 3)
+#  define SM_GEN_STPQ                                                   \
+    SM_SW1(s, 0) SM_SW1(t, 1) SM_SW1(p, 2) SM_SW1(q, 3)                 \
+    SM_SROW2(s, 0) SM_SROW2(t, 1) SM_SROW2(p, 2) SM_SROW2(q, 3)         \
+    SM_SPL3(s, 0) SM_SPL3(t, 1) SM_SPL3(p, 2) SM_SPL3(q, 3)             \
+    SM_SCU4(s, 0) SM_SCU4(t, 1) SM_SCU4(p, 2) SM_SCU4(q, 3)
+#else
+#  define SM_GEN_STPQ
+#endif
+
 // ---- fvec -----------------------------------------------------------------
 template <int N, class T>
 struct fvec {
@@ -227,6 +259,7 @@ struct fvec {
         T comp_[4];
         SM_GEN_XYZW
         SM_GEN_RGBA
+        SM_GEN_STPQ
     };
 
     SHADER_MATH_INLINE fvec() : q_(ops_t::zero()) {}
@@ -335,6 +368,15 @@ struct fvec {
 #undef SM_RPL4
 #undef SM_RCU4
 #undef SM_GEN_RGBA
+#if defined(SHADER_MATH_GLSL_STPQ)
+#  undef SM_SROW2
+#  undef SM_SROW3
+#  undef SM_SPL3
+#  undef SM_SROW4
+#  undef SM_SPL4
+#  undef SM_SCU4
+#endif
+#undef SM_GEN_STPQ
 
 // ---- vec_traits / concepts -------------------------------------------------
 template <class V>
@@ -954,6 +996,12 @@ struct bvec {
         bswz<N, 1> y, g;
         bswz<N, 2> z, b;
         bswz<N, 3> w, a;
+#if defined(SHADER_MATH_GLSL_STPQ)
+        bswz<N, 0> s;
+        bswz<N, 1> t;
+        bswz<N, 2> p;
+        bswz<N, 3> q;
+#endif
     };
 
     SHADER_MATH_INLINE bvec() : m_() {}
