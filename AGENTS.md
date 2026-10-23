@@ -31,6 +31,9 @@
   `cmake -S . -B build-interop -DCMAKE_BUILD_TYPE=Release -DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=<展開先>`
   → build 後 `ctest --test-dir build-interop -R slang_interop --output-on-failure`。
   サブセット定義は `docs/slang_compat.md`、ケース本体は `tests/interop/shared/math_cases.hlsli`。
+- GLSL 相互検証（任意、glslang-tools / libvulkan-dev / mesa-vulkan-drivers が必要）:
+  `-DSHADER_MATH_INTEROP_GLSL=ON` → `ctest -R glsl_interop`。ケースは `tests/interop/glsl/math_cases.glsl`、
+  詳細は `docs/glsl_interop.md`。
 - テストバイナリを直接実行するとバックエンド名（例: `SSE2+FMA`、`NEON+FP16`）と
   `N checks, 0 failures` を出力する。件数はテスト追加で増えるので固定値で比べないこと。
 - 既定ビルドの `ctest` は 5 件: SIMD 版と scalar twin（`shader_math_tests_scalar`）、

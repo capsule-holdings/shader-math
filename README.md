@@ -210,6 +210,12 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
   シェーダ言語でも 4 番目の成分は存在しないので意味の差はないが、浮動小数点例外をトラップする
   （`feenableexcept` 等）環境では、この不定レーンで例外が上がりうる
 
+## GLSL との相互検証
+
+`glsl` 面は、同じ数式を glslang で SPIR-V にして Vulkan（lavapipe）で実行した結果と照合している
+（列優先 ctor、`mat3(1.0)` = 単位行列、`*` = 行列積、`mod` の floor 基準など）。
+実行方法と照合範囲は [docs/glsl_interop.md](docs/glsl_interop.md)。
+
 ## Slang との相互検証
 
 同一の数式ソースを Slang（`slangc -target cpp`、CPU 実行）と shader-math の両方で

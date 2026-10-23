@@ -78,6 +78,8 @@ option(SHADER_MATH_BUILD_TESTS "Build shader-math tests and examples" ${SHADER_M
 option(SHADER_MATH_INSTALL "Generate the install / find_package rules" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INTEROP_SLANG
        "Build the Slang cross-compilation check (needs slangc + python3)" OFF)
+option(SHADER_MATH_INTEROP_GLSL
+       "Build the GLSL cross-check (needs glslangValidator, Vulkan, python3)" OFF)
 option(SHADER_MATH_WARNINGS_AS_ERRORS
        "Treat warnings as errors in this repo's own test and example targets" OFF)
 
@@ -216,6 +218,46 @@ if(SHADER_MATH_BUILD_TESTS)
             message(WARNING "SHADER_MATH_INTEROP_SLANG=ON but slangc or python3 "
                             "was not found (set SHADER_MATH_SLANG_DIR); skipping "
                             "the interop check")
+        endif()
+    endif()
+
+    # GLSL cross-check: tests/interop/glsl/math_cases.glsl is compiled to
+    # SPIR-V with glslang and run on Vulkan (lavapipe in CI), and through
+    # shader-math's glsl surface; compare.py checks the outputs slot by slot.
+    if(SHADER_MATH_INTEROP_GLSL)
+        find_program(GLSLANG_VALIDATOR glslangValidator)
+        find_package(Vulkan)
+        find_package(Python3 COMPONENTS Interpreter)
+        if(GLSLANG_VALIDATOR AND Vulkan_FOUND AND Python3_FOUND)
+            set(SM_GLSL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop/glsl)
+            set(SM_GLSL_SPV ${CMAKE_CURRENT_BINARY_DIR}/glsl_kernels.spv)
+            add_custom_command(
+                OUTPUT ${SM_GLSL_SPV}
+                COMMAND ${GLSLANG_VALIDATOR} -V --target-env vulkan1.1
+                        -o ${SM_GLSL_SPV} ${SM_GLSL_DIR}/kernels.comp
+                DEPENDS ${SM_GLSL_DIR}/kernels.comp ${SM_GLSL_DIR}/math_cases.glsl
+                        ${SM_GLSL_DIR}/case_list.h
+                COMMENT "glslang: compiling kernels.comp to SPIR-V"
+                VERBATIM)
+            add_custom_target(glsl_interop_spv ALL DEPENDS ${SM_GLSL_SPV})
+
+            add_executable(glsl_vk_runner ${SM_GLSL_DIR}/vk_runner.cpp)
+            target_link_libraries(glsl_vk_runner PRIVATE Vulkan::Vulkan)
+            shader_math_warnings(glsl_vk_runner)
+
+            add_executable(shader_math_glsl_interop_cpp ${SM_GLSL_DIR}/cpp_harness.cpp)
+            target_link_libraries(shader_math_glsl_interop_cpp PRIVATE shader_math)
+            shader_math_warnings(shader_math_glsl_interop_cpp)
+
+            add_test(NAME glsl_interop_check
+                     COMMAND ${Python3_EXECUTABLE}
+                             ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop/compare.py
+                             $<TARGET_FILE:glsl_vk_runner>
+                             $<TARGET_FILE:shader_math_glsl_interop_cpp>
+                             vulkan ${SM_GLSL_SPV})
+        else()
+            message(WARNING "SHADER_MATH_INTEROP_GLSL=ON but glslangValidator, Vulkan "
+                            "or python3 was not found; skipping the GLSL cross-check")
         endif()
     endif()
 endif()
