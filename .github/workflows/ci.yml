@@ -158,12 +158,12 @@ jobs:
           - name: linux-x64-slang-interop
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
-            slang_version: "2026.16"
+            slang_version: "2026.20"
             # lavapipe runs the half cases compiled to SPIR-V
             packages: libvulkan-dev mesa-vulkan-drivers
             # sha256 of slang-<version>-linux-x86_64.tar.gz (matches the
             # release asset digest); update together with slang_version
-            slang_sha256: e572e1a293f21971d8a98124c4576848ad4cd6a19b922ce5bad784fee0950648
+            slang_sha256: e863e568c204810d6e8bc31852f056aef6763c55ea9925db2db7affa060347c9
             cmake_extra: -DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=/tmp/slang
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
@@ -253,6 +253,20 @@ jobs:
             echo
             ./build/shader_math_bench_scalar --markdown
           } >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p bench-out
+          python3 -c 'import json, subprocess, sys; print(json.dumps([e for b in sys.argv[1:] for e in json.loads(subprocess.check_output([b, "--json"]))], indent=1))' \
+            ./build/shader_math_bench ./build/shader_math_bench_scalar > bench-out/${{ matrix.name }}.json
+
+      # main only: the publish-bench job appends it to the gh-pages history
+      - name: Upload benchmark result
+        if: matrix.bench && github.event_name == 'push'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bench-${{ matrix.name }}
+          path: bench-out/${{ matrix.name }}.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       # Informational only, like the benchmark: front-end time of a TU that
       # includes the library, per opt-in macro set, to catch header cost.
@@ -332,3 +346,66 @@ jobs:
             ${{ matrix.cxx }} -std=c++20 $flags "${boost[@]}" tests/package/main.cpp -o build-pkg-config-consumer
             ./build-pkg-config-consumer
           fi
+
+  # Benchmark history on gh-pages (bench/index.html, served by GitHub Pages):
+  # each main push appends the numbers of the bench jobs that produced them.
+  # Informational like the step summary; nothing is gated on it.
+  publish-bench:
+    needs: build-test
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-bench
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: bench-*
+          path: bench-out
+          merge-multiple: true
+
+      - name: Append linux-x64-gcc
+        if: hashFiles('bench-out/linux-x64-gcc.json') != ''
+        uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
+        with:
+          name: linux-x64-gcc
+          tool: customSmallerIsBetter
+          output-file-path: bench-out/linux-x64-gcc.json
+          gh-pages-branch: gh-pages
+          benchmark-data-dir-path: bench
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          comment-on-alert: false
+          fail-on-alert: false
+
+      - name: Append linux-x64-gcc-v3
+        if: hashFiles('bench-out/linux-x64-gcc-v3.json') != ''
+        uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
+        with:
+          name: linux-x64-gcc-v3
+          tool: customSmallerIsBetter
+          output-file-path: bench-out/linux-x64-gcc-v3.json
+          gh-pages-branch: gh-pages
+          benchmark-data-dir-path: bench
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          comment-on-alert: false
+          fail-on-alert: false
+
+      - name: Append linux-arm-gcc
+        if: hashFiles('bench-out/linux-arm-gcc.json') != ''
+        uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
+        with:
+          name: linux-arm-gcc
+          tool: customSmallerIsBetter
+          output-file-path: bench-out/linux-arm-gcc.json
+          gh-pages-branch: gh-pages
+          benchmark-data-dir-path: bench
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          comment-on-alert: false
+          fail-on-alert: false

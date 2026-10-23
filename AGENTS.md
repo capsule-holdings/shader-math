@@ -29,7 +29,7 @@
 - 通常ビルド + テスト: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest --test-dir build --output-on-failure`
 - アプリ実行: `./build/sandbox`
 - scalar 強制ビルド: `cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON`
-- Slang 相互検証（任意、slangc が必要）: Slang リリース（v2026.16 で検証済み）を展開して
+- Slang 相互検証（任意、slangc が必要）: Slang リリース（v2026.20 で検証済み）を展開して
   `cmake -S . -B build-interop -DCMAKE_BUILD_TYPE=Release -DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=<展開先>`
   → build 後 `ctest --test-dir build-interop -R slang_interop --output-on-failure`。
   サブセット定義は `docs/slang_compat.md`、ケース本体は `tests/interop/shared/math_cases.hlsli`。
