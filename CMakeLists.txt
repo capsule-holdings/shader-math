@@ -295,8 +295,16 @@ if(SHADER_MATH_INSTALL)
     # `cmake --install --prefix <dir>` working. Boost is listed only when a
     # system copy was used (a fetched copy is not installed).
     set(SHADER_MATH_PC_DIR ${CMAKE_INSTALL_DATADIR}/pkgconfig)
-    file(RELATIVE_PATH SHADER_MATH_PC_TO_PREFIX /${SHADER_MATH_PC_DIR} /)
-    string(REGEX REPLACE "/$" "" SHADER_MATH_PC_TO_PREFIX "${SHADER_MATH_PC_TO_PREFIX}")
+    # one ".." per component of the (relative) pkgconfig dir: share/pkgconfig
+    # -> ../.. (file(RELATIVE_PATH) needs absolute paths, which differ by OS)
+    string(REPLACE "/" ";" _pc_parts "${SHADER_MATH_PC_DIR}")
+    set(SHADER_MATH_PC_TO_PREFIX "")
+    foreach(_part ${_pc_parts})
+        if(SHADER_MATH_PC_TO_PREFIX)
+            string(APPEND SHADER_MATH_PC_TO_PREFIX "/")
+        endif()
+        string(APPEND SHADER_MATH_PC_TO_PREFIX "..")
+    endforeach()
     set(SHADER_MATH_PC_BOOST_CFLAGS "")
     foreach(_dir ${SHADER_MATH_BOOST_INCLUDE} ${SHADER_MATH_BOOST_PREDEF_INCLUDE})
         if(_dir AND NOT _dir STREQUAL "/usr/include"
