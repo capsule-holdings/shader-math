@@ -19,6 +19,10 @@ endif()
 
 add_executable(consumer main.cpp)
 target_link_libraries(consumer PRIVATE shader_math::shader_math)
+# -DSHADER_MATH_FORCE_SCALAR=ON must reach the consumer through the target
+if(SHADER_MATH_FORCE_SCALAR)
+    target_compile_definitions(consumer PRIVATE SM_EXPECT_SCALAR)
+endif()
 
 enable_testing()
 add_test(NAME consumer COMMAND consumer)

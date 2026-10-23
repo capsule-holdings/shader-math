@@ -73,7 +73,14 @@ else()
         $<BUILD_INTERFACE:${boost_predef_SOURCE_DIR}/include>)
 endif()
 
-option(SHADER_MATH_FORCE_SCALAR "Force the scalar (non-SIMD) backend" OFF)
+option(SHADER_MATH_FORCE_SCALAR
+       "Force the scalar (non-SIMD) backend for shader_math and everything linking it" OFF)
+# On the library target, so every translation unit of a consumer agrees (a mix
+# of SIMD and scalar TUs would break the ODR). Build tree only: an installed
+# package lets the consumer choose (cmake/shader_mathConfig.cmake.in).
+if(SHADER_MATH_FORCE_SCALAR)
+    target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_FORCE_SCALAR>)
+endif()
 option(SHADER_MATH_BUILD_TESTS "Build shader-math tests and examples" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INSTALL "Generate the install / find_package rules" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INTEROP_SLANG
@@ -120,9 +127,6 @@ if(SHADER_MATH_BUILD_TESTS)
     add_executable(shader_math_tests ${SHADER_MATH_TEST_SOURCES})
     target_link_libraries(shader_math_tests PRIVATE shader_math)
     shader_math_warnings(shader_math_tests)
-    if(SHADER_MATH_FORCE_SCALAR)
-        target_compile_definitions(shader_math_tests PRIVATE SHADER_MATH_FORCE_SCALAR)
-    endif()
     add_test(NAME shader_math_tests COMMAND shader_math_tests)
 
     # The scalar backend is never skipped: the same full suite runs against it
@@ -285,6 +289,23 @@ if(SHADER_MATH_INSTALL)
         ${CMAKE_CURRENT_BINARY_DIR}/shader_mathConfig.cmake
         ${CMAKE_CURRENT_BINARY_DIR}/shader_mathConfigVersion.cmake
         DESTINATION ${SHADER_MATH_CMAKE_DIR})
+
+    # pkg-config for non-CMake builds. Header-only, so it goes to
+    # share/pkgconfig; the prefix is relative to the .pc file, which keeps
+    # `cmake --install --prefix <dir>` working. Boost is listed only when a
+    # system copy was used (a fetched copy is not installed).
+    set(SHADER_MATH_PC_DIR ${CMAKE_INSTALL_DATADIR}/pkgconfig)
+    file(RELATIVE_PATH SHADER_MATH_PC_TO_PREFIX /${SHADER_MATH_PC_DIR} /)
+    string(REGEX REPLACE "/$" "" SHADER_MATH_PC_TO_PREFIX "${SHADER_MATH_PC_TO_PREFIX}")
+    set(SHADER_MATH_PC_BOOST_CFLAGS "")
+    foreach(_dir ${SHADER_MATH_BOOST_INCLUDE} ${SHADER_MATH_BOOST_PREDEF_INCLUDE})
+        if(_dir AND NOT _dir STREQUAL "/usr/include"
+           AND NOT SHADER_MATH_PC_BOOST_CFLAGS MATCHES "-I${_dir}( |$)")
+            string(APPEND SHADER_MATH_PC_BOOST_CFLAGS " -I${_dir}")
+        endif()
+    endforeach()
+    configure_file(cmake/shader_math.pc.in ${CMAKE_CURRENT_BINARY_DIR}/shader_math.pc @ONLY)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/shader_math.pc DESTINATION ${SHADER_MATH_PC_DIR})
 endif()
 
 # SDL_GPU skinned-mesh demo (FBX via ufbx, CPU skinning via shader-math).
