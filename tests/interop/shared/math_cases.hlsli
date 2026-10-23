@@ -221,7 +221,7 @@ float4 case_near_lit()
 }
 
 // ---- half tier --------------------------------------------------------------
-// The Slang CPU target's C++ prelude (v2026.16) does not implement half vector
+// The Slang CPU target's C++ prelude (v2026.20) does not implement half vector
 // arithmetic, so these cases run through kernels_half.slang compiled to SPIR-V
 // on Vulkan (lavapipe) instead (SM_INTEROP_HALF_CASES); guarded so the CPU
 // build never sees them.
