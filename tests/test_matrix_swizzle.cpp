@@ -108,7 +108,7 @@ int main() {
     const half2 hd = hm._m00_m22;
     CHECK_EQF(float(hd[1]), 9.0f);
     hm._m02_m20 = hm._m20_m02;
-    CHECK_EQF(float(hm._m02), 7.0f);
+    CHECK_EQF(float(half(hm._m02)), 7.0f);
 #endif
 
     std::printf("[shader-math matrix swizzle] %d checks, %d failures\n", g_checks, g_failures);
