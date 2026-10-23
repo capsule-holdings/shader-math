@@ -12,6 +12,22 @@ RWStructuredBuffer<float> outputBuf : register(u0);
 [numthreads(1, 1, 1)]
 void main()
 {
+#if defined(SM_INTEROP_OPAQUE_INPUTS)
+    // DXC's DXIL path folds intrinsics on constant inputs at compile time
+    // (and folds frac(-0.75) to 0.75), so the inputs are xor-ed with bits of
+    // the zero-initialized output buffer: the device evaluates every case.
+    const uint zero = asuint(outputBuf[0]);
+    const float4 opaque_a = asfloat(asuint(IN_A) ^ zero);
+    const float4 opaque_b = asfloat(asuint(IN_B) ^ zero);
+    const float3 opaque_n = asfloat(asuint(IN_N) ^ zero);
+    const float3 opaque_l = asfloat(asuint(IN_L) ^ zero);
+    const float3 opaque_c = asfloat(asuint(IN_C) ^ zero);
+#  define IN_A opaque_a
+#  define IN_B opaque_b
+#  define IN_N opaque_n
+#  define IN_L opaque_l
+#  define IN_C opaque_c
+#endif
     int slot = 0;
 #define X(name, expr)          \
     {                          \

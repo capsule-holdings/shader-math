@@ -430,7 +430,8 @@ if(SHADER_MATH_BUILD_TESTS)
             set(SM_DXIL_DEPS ${SM_INTEROP_DIR}/dxc/kernels.hlsl ${SM_INTEROP_DIR}/dxc/dxc_cases.hlsli
                              ${SM_INTEROP_DIR}/dxc/dxc_case_list.h
                              ${SM_INTEROP_DIR}/shared/math_cases.hlsli ${SM_INTEROP_DIR}/shared/case_list.h)
-            set(SM_DXIL_RUN ${DXIL_DXC_EXECUTABLE} -T cs_6_2 -E main -HV 2021 -I ${SM_INTEROP_DIR})
+            set(SM_DXIL_RUN ${DXIL_DXC_EXECUTABLE} -T cs_6_2 -E main -HV 2021 -I ${SM_INTEROP_DIR}
+                            -D SM_INTEROP_OPAQUE_INPUTS=1)
             set(SM_DXIL_OUT ${CMAKE_CURRENT_BINARY_DIR}/dxil_kernels.dxil)
             set(SM_DXIL_HALF_OUT ${CMAKE_CURRENT_BINARY_DIR}/dxil_kernels_half.dxil)
             add_custom_command(

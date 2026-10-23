@@ -3,13 +3,18 @@
 // d3d12_runner can use it as their only case header.
 #include "shared/case_list.h"
 
-// SPIR-V (SM_DXC_CASES) leaves lit out: DXC's SPIR-V backend computes its
-// specular term as (n.h) * m instead of the documented (n.h)^m. The DXIL
-// backend emits the power, so SM_DXIL_CASES checks it.
-#define SM_DXC_CASES(X)                                        \
+#define SM_DXC_CASES_COMMON(X)                                 \
     SM_INTEROP_CASES_BASE(X)                                   \
-    X(exact_frexp_dst, case_exact_frexp_dst(IN_A, IN_B))
+    X(exact_dst, case_exact_dst(IN_A, IN_B))
 
+// SPIR-V leaves lit out: DXC's SPIR-V backend computes its specular term as
+// (n.h) * m instead of the documented (n.h)^m.
+#define SM_DXC_CASES(X)                                        \
+    SM_DXC_CASES_COMMON(X)                                     \
+    X(exact_frexp, case_exact_frexp(IN_A))
+
+// DXIL leaves frexp out: DXC's DXIL lowering builds the mantissa as
+// (bits & 0x007fffff) | 0x3f000000, which drops the sign of a negative input.
 #define SM_DXIL_CASES(X)                                       \
-    SM_DXC_CASES(X)                                            \
+    SM_DXC_CASES_COMMON(X)                                     \
     X(near_lit, case_near_lit())
