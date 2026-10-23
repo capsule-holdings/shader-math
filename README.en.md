@@ -98,7 +98,7 @@ Semantic notes:
   - SSE4.1 (`__SSE4_1__`, `-march=x86-64-v2`; MSVC `/arch:AVX`): `roundps` for the rounding functions
   - F16C (`__F16C__`, `-march=x86-64-v3`; MSVC `/arch:AVX2`): one-instruction half <-> float conversion
   - AVX1 together with FMA: the 4x4 float product packs two rows per YMM register (results unchanged)
-  - ARM FEAT_FP16 (`-march=armv8.2-a+fp16`): half math on real 16-bit lanes; elsewhere half widens to f32 per operation
+  - ARM FEAT_FP16 (`-march=armv8.2-a+fp16`): half math on real 16-bit lanes; elsewhere half widens to f32 per operation, converting four lanes at once (ARMv8.0 base `vcvt_f32_f16` / `vcvt_f16_f32`, x86 F16C or SSE2 integer ops)
 - Boost is used header-only (Config / Predef 1.60+ for ISA detection); CMake fetches it when it is not installed
 
 ## Build and test
