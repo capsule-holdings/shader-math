@@ -121,9 +121,14 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
 - 幾何（両言語共通）: `distance` `reflect` `refract` `faceforward`（`dot` `cross` `length`
   `normalize` と同じくスカラー / ベクトルを返す）
 - HLSL のみ: `lerp` `frac` `rcp` `rsqrt` `saturate` `atan2` `fmod` `mad` `isfinite` `sincos`
-- GLSL のみ: `mix` `fract` `inversesqrt` `roundEven` `atan(y, x)` `mod` `fma`（GLSL に
+  `log10` `ldexp`（指数は float）`frexp`（指数を float で返す）`select`（HLSL 2021）`dst` `lit`
+  （`lit` は HLSL と同じくスカラー引数で `float4` を返す）、float ベクトル / 行列の `%`（`fmod` と同じ）
+- GLSL のみ: `mix` `fract` `inversesqrt` `roundEven` `atan(y, x)` `mod` `fma` `asinh` `acosh` `atanh`、
+  `mix(x, y, bvec)`（選択子が真の成分は y）（GLSL に
   `saturate` / `rcp` は無い → 定義していない。逆も同様で、言語に無い名前はコンパイルエラー）
-- 対象外: `ldexp` / `frexp`（GLSL が int ベクトルを取るため。int 型は範囲外）
+- 対象外: GLSL の `ldexp` / `frexp`（int ベクトルを取るため。int 型は範囲外）。HLSL 2021 の
+  `and()` / `or()`（C++ の代替トークン `and` / `or` と同名で定義できない。bool ベクトルの
+  `&&` / `||` も HLSL 2021 と同じく使えない）
 
 意味論の注記:
 
@@ -133,6 +138,7 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
 - `min` / `max` / `saturate` の NaN 挙動は backend 依存（シェーダ言語仕様も未定義）
 - `rcp` / `rsqrt` / `inversesqrt` は近似命令（`rcpps` / `rsqrtps`）を使わない正確版
 - 超越関数は per-lane で libm を呼ぶ（SIMD 多項式近似はしない）。`pow(負, 非整数)` は NaN
+- `select(c, a, b)` は c が真の成分で a、`mix(x, y, bvec)` は真の成分で y（引数の順が逆）
 - `hlsl::fmod` と `glsl::mod` は**意味が違う**: `fmod` は trunc 基準で結果は x の符号
   （`fmod(-7, 3) = -1`）、`mod` は floor 基準で y の符号（`mod(-7, 3) = 2`）
 - 2 引数の逆正接は HLSL が `atan2(y, x)`、GLSL が `atan(y, x)`。どちらも y が先

@@ -737,6 +737,52 @@ SHADER_MATH_INLINE auto pow(const A& a, const S& s) {
     return map_lanes(av, [y](float x) { return std::pow(x, y); });
 }
 
+// language-specific unary libm cores (exposed under their names by hlsl.hpp /
+// glsl.hpp only)
+#define SM_VEC_LIBM_IMPL(name, call)                                 \
+    template <class A>                                               \
+        requires VecLike<A>                                          \
+    SHADER_MATH_INLINE auto name(const A& a) {                       \
+        constexpr int n = vec_size_v<A>;                             \
+        using T = vec_elem_t<A>;                                     \
+        const fvec<n, T> v = to_vec(a);                              \
+        return map_lanes(v, [](float x) { return call; });           \
+    }
+SM_VEC_LIBM_IMPL(log10_impl, std::log10(x))  // hlsl::log10
+SM_VEC_LIBM_IMPL(asinh_impl, std::asinh(x))  // glsl::asinh
+SM_VEC_LIBM_IMPL(acosh_impl, std::acosh(x))  // glsl::acosh
+SM_VEC_LIBM_IMPL(atanh_impl, std::atanh(x))  // glsl::atanh
+#undef SM_VEC_LIBM_IMPL
+
+// hlsl::ldexp(x, e) = x * 2^e with a float exponent (HLSL takes floats; GLSL's
+// int-exponent ldexp is out of scope with the int types)
+template <class A, class B>
+    requires SameVec<A, B>
+SHADER_MATH_INLINE auto ldexp_impl(const A& a, const B& b) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    const fvec<n, T> av = to_vec(a);
+    const fvec<n, T> bv = to_vec(b);
+    return map_lanes2(av, bv, [](float x, float e) { return x * std::exp2(e); });
+}
+
+// hlsl::frexp(x, out e): mantissa in [0.5, 1) with the sign of x, e as float
+template <class A, int N, class T>
+    requires(VecLike<A> && vec_size_v<A> == N && std::is_same_v<vec_elem_t<A>, T>)
+SHADER_MATH_INLINE fvec<N, T> frexp_impl(const A& a, fvec<N, T>& e) {
+    T in[4];
+    vops<T>::store4(to_vec(a).q_, in);
+    T m[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
+    T ex[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
+    for (int i = 0; i < N; ++i) {
+        int k = 0;
+        m[i] = static_cast<T>(std::frexp(static_cast<float>(in[i]), &k));
+        ex[i] = static_cast<T>(static_cast<float>(k));
+    }
+    e = fvec<N, T>(vops<T>::load4(ex));
+    return fvec<N, T>(vops<T>::load4(m));
+}
+
 // hlsl::atan2(y, x) / glsl::atan(y, x): note the y-first argument order
 template <class A, class B>
     requires SameVec<A, B>
@@ -950,6 +996,28 @@ template <class T, int N, int... Is>
     requires(sizeof...(Is) >= 2)
 SHADER_MATH_INLINE auto isinf(const swz<T, N, Is...>& s) {
     return isinf(to_vec(s));
+}
+
+// hlsl::select(cond, a, b) / glsl::mix(x, y, bvec): per-lane choice by a
+// comparison mask (note the opposite operand order: select picks a where
+// true, mix picks y where true)
+template <int N, class A, class B>
+    requires(SameVec<A, B> && vec_size_v<A> == N)
+SHADER_MATH_INLINE auto select_impl(const bvec<N>& c, const A& a, const B& b) {
+    using T = vec_elem_t<A>;
+    return fvec<N, T>(vops<T>::sel(c.m_, to_vec(a).q_, to_vec(b).q_));
+}
+template <int N, class A, class S>
+    requires(VecLike<A> && vec_size_v<A> == N && ScalarFor<S, vec_elem_t<A>>)
+SHADER_MATH_INLINE auto select_impl(const bvec<N>& c, const A& a, const S& s) {
+    using T = vec_elem_t<A>;
+    return fvec<N, T>(vops<T>::sel(c.m_, to_vec(a).q_, vops<T>::splat(static_cast<T>(s))));
+}
+template <int N, class S, class B>
+    requires(VecLike<B> && vec_size_v<B> == N && ScalarFor<S, vec_elem_t<B>>)
+SHADER_MATH_INLINE auto select_impl(const bvec<N>& c, const S& s, const B& b) {
+    using T = vec_elem_t<B>;
+    return fvec<N, T>(vops<T>::sel(c.m_, vops<T>::splat(static_cast<T>(s)), to_vec(b).q_));
 }
 
 // compile-time loop helper (used by matrix code)
