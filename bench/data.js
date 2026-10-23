@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792797664994,
+  "lastUpdate": 1792799267978,
   "repoUrl": "https://github.com/capsule-holdings/shader-math",
   "entries": {
     "linux-x64-gcc": [
@@ -441,6 +441,160 @@ window.BENCHMARK_DATA = {
           {
             "name": "half4 a * b + c [scalar]",
             "value": 82.583,
+            "unit": "ns/elem"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "emuesuenu@hotmail.com",
+            "name": "Hidenori Kondo",
+            "username": "emuesuenu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d268b9af19dccd1e5ecab4e92bddb113ffccd28b",
+          "message": "Add opt-in multi-element matrix accessors (SHADER_MATH_MATRIX_SWIZZLE) (#70)\n\nHLSL's multi-element matrix accessor lists, opt-in like the other swizzle\nextensions. SHADER_MATH_MATRIX_SWIZZLE declares the 2-element lists in both\nspellings (m._m00_m11, m._41_42); SHADER_MATH_MATRIX_SWIZZLE3 adds the\n3-element ones (m._m30_m31_m32, m._11_22_33). Only lists inside the matrix's\nown shape exist; they convert to vectors, work with dot etc. through\nvec_traits, and are writable when free of repeats (gathered first, so\nm._m01_m10 = m._m10_m01 swaps). There are no 4-element lists. Under either\nmacro the hlsl::matrix union moves into a per-shape storage base\n(detail::hmat_store<R, C, T>); with neither, the class is unchanged.\n\nCMake options and find_package variables follow the other opt-ins, and\nbench/compile_time.py gains both configs: a TU using every matrix type takes\nabout 1.2x with 2-element lists and, with 3-element lists, about 12x on gcc\nand 4x on clang (README known deviations).\n\nTests: shader_math_tests_matrix_swizzle / _matrix_swizzle3 (reads, repeats,\nnon-square shapes, writes, swaps, compound ops, half, and static_asserts for\nthe shape limits, 4-element lists and duplicate writes), test_restrict.cpp\nfor the default build, and shared/matrix_swizzle_cases.hlsli cross-checked\nagainst Slang (CPU target) and DXC (SPIR-V on lavapipe), each against a C++\ntwin built with SHADER_MATH_MATRIX_SWIZZLE3.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-10-24T08:41:51+09:00",
+          "tree_id": "f06a061a2cc669527ff97791e2b5bd07089278c8",
+          "url": "https://github.com/capsule-holdings/shader-math/commit/d268b9af19dccd1e5ecab4e92bddb113ffccd28b"
+        },
+        "date": 1792799266997,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "hlsl mul(float4x4, float4x4) [SSE2]",
+            "value": 2.808,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [SSE2]",
+            "value": 2.796,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [SSE2]",
+            "value": 0.778,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [SSE2]",
+            "value": 1.769,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [SSE2]",
+            "value": 7.901,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [SSE2]",
+            "value": 12.199,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [SSE2]",
+            "value": 0.582,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [SSE2]",
+            "value": 1.442,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [SSE2]",
+            "value": 7.69,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [SSE2]",
+            "value": 3.008,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [SSE2]",
+            "value": 5.219,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [SSE2]",
+            "value": 0.356,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [SSE2]",
+            "value": 7.879,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4x4) [scalar]",
+            "value": 3.775,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [scalar]",
+            "value": 3.879,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [scalar]",
+            "value": 0.809,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [scalar]",
+            "value": 6.624,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [scalar]",
+            "value": 5.073,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [scalar]",
+            "value": 11.978,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [scalar]",
+            "value": 1.925,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [scalar]",
+            "value": 1.145,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [scalar]",
+            "value": 7.567,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [scalar]",
+            "value": 2.968,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [scalar]",
+            "value": 4.955,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [scalar]",
+            "value": 1.208,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [scalar]",
+            "value": 88.833,
             "unit": "ns/elem"
           }
         ]
