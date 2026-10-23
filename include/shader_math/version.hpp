@@ -4,7 +4,7 @@
 #pragma once
 
 #define SHADER_MATH_VERSION_MAJOR 0
-#define SHADER_MATH_VERSION_MINOR 2
+#define SHADER_MATH_VERSION_MINOR 3
 #define SHADER_MATH_VERSION_PATCH 0
 
 // MAJOR * 10000 + MINOR * 100 + PATCH, for #if comparisons
