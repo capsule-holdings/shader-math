@@ -71,6 +71,17 @@ static_assert(std::is_constructible_v<h::float3, h::float4>);
 // ---- assignment across mismatched widths does not compile -------------------------
 static_assert(!can_assign<h::float3, h::float4>);
 
+// ---- bool vectors: built from bools only, components are read-only ----------
+template <class B, class... As>
+concept can_build = requires(As... as) { B(as...); };
+static_assert(can_build<h::bool3, bool, bool, bool>);
+static_assert(can_build<h::bool3, bool>);                // splat
+static_assert(!can_build<h::bool3, int, int, int>);      // no int -> mask
+static_assert(!can_build<h::bool3, float, float, float>);
+static_assert(!can_build<h::bool3, bool, bool>);         // arity
+static_assert(!can_assign<decltype(h::bool3().x)&, bool>);  // read-only
+static_assert(std::is_convertible_v<decltype(h::bool3().x), bool>);
+
 void test_restrict() {
     // Runtime side of the same guarantees: mul with correct dims still works.
     h::float3x4 a = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
