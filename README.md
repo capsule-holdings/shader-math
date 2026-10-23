@@ -1,5 +1,7 @@
 # shader-math
 
+日本語 | [English](README.en.md)
+
 HLSL / GLSL 互換の float ベクトル・行列ライブラリ（C++20、ヘッダオンリー、SIMD）。
 
 シェーダに書いた式を、そのままの意味で `.cpp` に書けることを目的とする。`operator*` の意味が HLSL（成分ごと）と GLSL（行列積）で逆であるため、公開 API を二重名前空間に分離している。
