@@ -100,6 +100,8 @@ void glsl_side() {
 - `SHADER_MATH_HAS_FP16` — ARM FEAT_FP16（`-march=armv8.2-a+fp16`）検出時、half 演算が本物の
   16-bit ベクトル ALU（`float16x4_t`、`fmla v.4h`）で実行される。
   **それ以外のホスト（x86 / scalar / 古い ARM）では half はレーンを f32 に拡げて計算して戻す**。
+  拡げる / 戻す変換は、ARMv8.0 では基本命令（`vcvt_f32_f16` / `vcvt_f16_f32`）、x86 では F16C か
+  SSE2 の整数演算で 4 レーンまとめて行う（MSVC の ARM64 と scalar はレーンごと）。
   この経路の丸めは GPU の half ALU とも ARM ネイティブとも一致しない（1 演算ごとに f32 丸めが 1 回入る）
 - 既定ベースライン（SSE2 / ARMv8.0）は上げない。**推奨**: x86 は `-march=x86-64-v3`（FMA + SSE4.1）、
   ARM で half を速くしたい場合は `-march=armv8.2-a+fp16`
