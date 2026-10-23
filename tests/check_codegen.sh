@@ -128,6 +128,21 @@ if [ "$("$BIN" --sse41)" = "1" ]; then
     done
 fi
 
+# F16C: the widened half path converts with one instruction each way.
+if [ "$("$BIN" --f16c)" = "1" ]; then
+    hbody="$(disasm_of sm_cg_half4_mad)"
+    if [ -z "$hbody" ]; then
+        echo "FAIL: symbol sm_cg_half4_mad not found in disassembly"
+        fail=1
+    elif ! printf '%s\n' "$hbody" | grep -q 'vcvtph2ps' ||
+        ! printf '%s\n' "$hbody" | grep -q 'vcvtps2ph'; then
+        echo "FAIL: sm_cg_half4_mad: no vcvtph2ps / vcvtps2ph on F16C"
+        fail=1
+    else
+        echo "OK: sm_cg_half4_mad (F16C)"
+    fi
+fi
+
 # Half kernels: on NEON+FP16 half math must use 16-bit lanes (.4h). The
 # vector mad must additionally be straight-line (the matrix product has a
 # runtime outer for loop, same exemption as the float kernels). On every

@@ -7,6 +7,13 @@
 //   approx - anything with an inner product or a divide (CHECK_NEAR_H;
 //            rounding differs between the ARM native path and the promoted
 //            f32 fallback, and neither matches a GPU half ALU exactly)
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <limits>
+#include <vector>
+
 #include <shader_math/shader_math.hpp>
 
 #include "framework.hpp"
@@ -284,11 +291,82 @@ static void test_half_matrix_glsl() {
     CHECK(id != scale);
 }
 
+#if !defined(SHADER_MATH_HAS_FP16)
+// The widened path's hops::widen / narrow (F16C on x86 when available) must
+// give the same bits as the scalar half_t <-> float conversions: every half
+// bit pattern one way, and rounding-sensitive floats the other. NaNs only
+// have to stay NaN (payload handling differs between hardware and the MSVC
+// software binary16).
+static std::uint16_t half_bits(d::half_t h) {
+    std::uint16_t b;
+    std::memcpy(&b, &h, sizeof(b));
+    return b;
+}
+static d::half_t half_from_bits(std::uint16_t b) {
+    d::half_t h;
+    std::memcpy(&h, &b, sizeof(h));
+    return h;
+}
+static bool same_float(float a, float b) {
+    if (std::isnan(a) || std::isnan(b)) return std::isnan(a) && std::isnan(b);
+    std::uint32_t ua;
+    std::uint32_t ub;
+    std::memcpy(&ua, &a, sizeof(ua));
+    std::memcpy(&ub, &b, sizeof(ub));
+    return ua == ub;
+}
+
+static void test_half_conversions() {
+    bool widen_ok = true;
+    for (std::uint32_t b = 0; b < 0x10000u && widen_ok; b += 4) {
+        d::half_t in[4];
+        for (std::uint32_t k = 0; k < 4; ++k) in[k] = half_from_bits(static_cast<std::uint16_t>(b + k));
+        const d::freg f = d::hops::widen(d::hops::load4(in));
+        for (int k = 0; k < 4 && widen_ok; ++k) {
+            widen_ok = same_float(d::ops::lane(f, k), static_cast<float>(in[k]));
+            if (!widen_ok) std::printf("FAIL widen half bits 0x%04x\n", static_cast<unsigned>(b) + k);
+        }
+    }
+    CHECK(widen_ok);
+
+    // halfway points between neighbouring halves (ties to even), the
+    // overflow edge, the subnormal range, and a sweep of ordinary values
+    std::vector<float> in;
+    for (std::uint32_t b = 0; b < 0x7C00u; b += 7) {
+        const float lo = static_cast<float>(half_from_bits(static_cast<std::uint16_t>(b)));
+        const float hi = static_cast<float>(half_from_bits(static_cast<std::uint16_t>(b + 1)));
+        in.push_back(lo);
+        in.push_back(0.5f * (lo + hi));
+        in.push_back(-0.5f * (lo + hi));
+    }
+    for (float x : {65504.0f, 65519.0f, 65520.0f, 70000.0f, 1e-8f, 3e-8f, 5.96e-8f, 6.1e-5f,
+                    -0.0f, std::numeric_limits<float>::infinity()})
+        in.push_back(x);
+    while (in.size() % 4) in.push_back(0.0f);
+    bool narrow_ok = true;
+    for (std::size_t i = 0; i < in.size() && narrow_ok; i += 4) {
+        const d::hreg h = d::hops::narrow(d::ops::load4(&in[i]));
+        for (int k = 0; k < 4 && narrow_ok; ++k) {
+            const d::half_t want = static_cast<d::half_t>(in[i + k]);
+            const d::half_t got = d::hops::lane(h, k);
+            narrow_ok = half_bits(got) == half_bits(want);
+            if (!narrow_ok)
+                std::printf("FAIL narrow %a: 0x%04x vs 0x%04x\n", static_cast<double>(in[i + k]),
+                            half_bits(got), half_bits(want));
+        }
+    }
+    CHECK(narrow_ok);
+}
+#else
+static void test_half_conversions() {}
+#endif
+
 void test_half() {
     test_half_hlsl();
     test_half_glsl();
     test_half_matrix_hlsl();
     test_half_matrix_glsl();
+    test_half_conversions();
 }
 
 #else  // no half scalar type on this compiler: the half surface is absent

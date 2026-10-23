@@ -85,6 +85,9 @@ void glsl_side() {
   `roundps`（1 命令、`round` は trunc + 補正）になる。それ以外の x86 はレーンごとの libm 呼び出し。
   gcc/clang は `__SSE4_1__`（例: `-march=x86-64-v2`）、MSVC は `/arch:AVX` 以上で有効。結果は libm と
   ビット一致（符号付きゼロ・NaN 含む）
+- `SHADER_MATH_HAS_F16C` — F16C 検出時（x86 の SSE2 バックエンドのみ）、half を f32 に広げる / 戻す変換が
+  それぞれ 1 命令（`vcvtph2ps` / `vcvtps2ph`）になる。gcc/clang は `__F16C__`（例: `-march=x86-64-v3`）、
+  MSVC は `/arch:AVX2` で有効。結果は従来のスカラー変換とビット一致（丸めは最近接偶数）
 - `SHADER_MATH_HAS_AVX` — AVX1 検出時、**FMA と併用の場合のみ** float 4x4 の行列積の内部で
   2 行（GLSL は 2 列）を 1 本の YMM に詰めて計算する（fmadd 16 回 → YMM 8 回）。
   公開型の幅は変わらず（`float4x4` は 4 本の 128-bit のまま）、結果は 128-bit 経路とビット一致。

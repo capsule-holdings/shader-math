@@ -6,7 +6,7 @@
 // them by name (no mangling) and inspect the instructions.
 //
 // Running the binary prints the backend tag the script keys its expectations
-// on (`--sse41` prints 1 / 0 for the SSE4.1 rounding sub-feature); it
+// on (`--sse41` / `--f16c` print 1 / 0 for those x86 sub-features); it
 // performs no numerical checks (test_simd.cpp does that).
 #include <cstdio>
 #include <cstring>
@@ -78,6 +78,14 @@ int main(int argc, char** argv) {
     (void)k4;
     (void)k5;
 
+    if (argc > 1 && std::strcmp(argv[1], "--f16c") == 0) {
+#if defined(SHADER_MATH_HAS_F16C) && defined(SHADER_MATH_HAS_HALF)
+        std::printf("1\n");
+#else
+        std::printf("0\n");
+#endif
+        return 0;
+    }
     if (argc > 1 && std::strcmp(argv[1], "--sse41") == 0) {
 #if defined(SHADER_MATH_ISA_SSE2) && defined(SHADER_MATH_HAS_SSE41)
         std::printf("1\n");
