@@ -1,0 +1,7 @@
+prefix=${pcfiledir}/@SHADER_MATH_PC_TO_PREFIX@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: shader_math
+Description: HLSL / GLSL compatible float vector and matrix library (C++20, header-only, SIMD)
+Version: @PROJECT_VERSION@
+Cflags: -I${includedir}@SHADER_MATH_PC_BOOST_CFLAGS@

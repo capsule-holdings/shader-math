@@ -179,11 +179,27 @@ SHADER_MATH_INLINE void regs_fill(fvec<L, T>* o, F&& f) {
     for (int i = 0; i < N; ++i) o[i] = fvec<L, T>(f(i));
 }
 
-// N registers of L lanes <-> dense array p[i * L + j] = regs[i][j]
+// N registers of L lanes <-> dense array p[i * L + j] = regs[i][j].
+// On NEON, 4-lane rows are read out as whole registers (store4 into the dense
+// array): gcc's lane-by-lane reads made the 4x4 inverse slower than the
+// scalar backend there, while on x86 the lane reads measured faster.
+// Writes stay lane by lane through comp_: a vector store read back as float
+// elements is the union type-punning CONTEXT.md describes, and gcc on
+// AArch64 (float32x4_t is not may_alias) dropped such a store at -O2.
 template <int N, int L, class T>
 SHADER_MATH_INLINE void pack_dense(const fvec<L, T>* regs, T* p) {
-    for (int i = 0; i < N; ++i)
-        for (int j = 0; j < L; ++j) p[i * L + j] = regs[i][j];
+    for (int i = 0; i < N; ++i) {
+#if defined(SHADER_MATH_ISA_NEON)
+        constexpr bool whole_rows = (L == 4);
+#else
+        constexpr bool whole_rows = false;
+#endif
+        if constexpr (whole_rows) {
+            vops<T>::store4(regs[i].q_, p + i * 4);
+        } else {
+            for (int j = 0; j < L; ++j) p[i * L + j] = regs[i][j];
+        }
+    }
 }
 template <int N, int L, class T>
 SHADER_MATH_INLINE void unpack_dense(const T* q, fvec<L, T>* regs) {

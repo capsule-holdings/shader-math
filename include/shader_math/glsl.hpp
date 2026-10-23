@@ -128,6 +128,29 @@ template <class A>
 SHADER_MATH_INLINE auto roundEven(const A& a) {
     return detail::round_even_impl(a);
 }
+template <class A>
+    requires detail::VecLike<A>
+SHADER_MATH_INLINE auto asinh(const A& a) {
+    return detail::asinh_impl(a);
+}
+template <class A>
+    requires detail::VecLike<A>
+SHADER_MATH_INLINE auto acosh(const A& a) {
+    return detail::acosh_impl(a);
+}
+template <class A>
+    requires detail::VecLike<A>
+SHADER_MATH_INLINE auto atanh(const A& a) {
+    return detail::atanh_impl(a);
+}
+// mix(x, y, bvec): y where the selector is true, else x (no blending)
+template <class A, class B, int N>
+    requires requires(const A& x, const B& y, const detail::bvec<N>& c) {
+        detail::select_impl(c, y, x);
+    }
+SHADER_MATH_INLINE auto mix(const A& x, const B& y, const detail::bvec<N>& c) {
+    return detail::select_impl(c, y, x);
+}
 // atan(y, x): GLSL spells the two-argument arctangent as an atan overload
 template <class A, class B>
     requires requires(const A& y, const B& x) { detail::atan2_impl(y, x); }

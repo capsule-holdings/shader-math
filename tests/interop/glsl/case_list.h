@@ -8,6 +8,9 @@
     X(exact_componentwise, case_exact_componentwise(IN_A, IN_B))          \
     X(exact_rounding, case_exact_rounding(IN_A, IN_B))                    \
     X(exact_compare, case_exact_compare(IN_A, IN_B))                      \
+    X(exact_misc, case_exact_misc(IN_A, IN_B))                            \
+    X(exact_classify, case_exact_classify(IN_A))                          \
+    X(exact_mix_bool, case_exact_mix_bool(IN_A, IN_B))                    \
     X(near_matrix_product, case_near_matrix_product(IN_A))                \
     X(near_inverse, case_near_inverse(IN_A))                              \
     X(near_mod, case_near_mod(IN_A, IN_B))                                \

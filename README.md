@@ -1,5 +1,7 @@
 # shader-math
 
+日本語 | [English](README.en.md)
+
 HLSL / GLSL 互換の float ベクトル・行列ライブラリ（C++20、ヘッダオンリー、SIMD）。
 
 シェーダに書いた式を、そのままの意味で `.cpp` に書けることを目的とする。`operator*` の意味が HLSL（成分ごと）と GLSL（行列積）で逆であるため、公開 API を二重名前空間に分離している。
@@ -40,7 +42,9 @@ void glsl_side() {
   - ARM ターゲットでは `arm_neon.h` がグローバル `float16_t` を定義するため、`using namespace glsl` 下の非修飾 `float16_t` は曖昧になる。`glsl::float16_t` と修飾するか `hlsl::half` を使う
 - 行列: R,C ∈ {2,3,4} の全9形。`hlsl::floatRxC`（行格納・行優先 ctor）と `glsl::matCxR`（列格納・列優先 ctor）は **別型**、相互変換は explicit
 - 対応関係は非正方で入れ替わる: `float3x4`（3行4列）≡ `mat4x3`（4列3行）
-- 比較結果: `bool2/3/4`（= `bvec2/3/4`）と `boolRxC`。算術なし・bool への暗黙変換なし
+- 比較結果: `bool2/3/4`（= `bvec2/3/4`）と `boolRxC`。算術なし・bool への暗黙変換なし。
+  `bool3(true, false, true)` / `bool3(true)` で作れる（引数は bool のみ。int や float からは作れない）。
+  成分は `b[i]` と単成分の `.x` 〜 `.w` / `.r` 〜 `.a` で**読み出しのみ**（複数成分の swizzle と書き込みは無し）
 - Slang / HLSL と共有できる型・演算のサブセットは [docs/slang_compat.md](docs/slang_compat.md) 参照
   （Slang との相互コンパイル検証ハーネスで CI 照合済み）
 
@@ -57,7 +61,7 @@ void glsl_side() {
 | `==` | 成分ごと bool 行列/ベクトル | 全成分一致のスカラー bool |
 | `<` `>` `<=` `>=` | 成分ごと bool | ベクトルには無し（`lessThan()` 等） |
 | 成分アクセス | `m[row][col]`, `_m00`, `_11` | `m[col][row]` |
-| swizzle | `.xyzw` `.rgba` 全組み合わせ（読み書き） | 同左 |
+| swizzle | `.xyzw` `.rgba` 全組み合わせ（読み書き） | 同左。`.stpq` はオプトイン（下記） |
 
 `transpose` / `determinant` / `inverse` / `dot` / `cross` / `length` / `normalize` / `all` / `any` は両方にある（`inverse` は GLSL 公式・HLSL 側は拡張）。
 
@@ -121,9 +125,14 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
 - 幾何（両言語共通）: `distance` `reflect` `refract` `faceforward`（`dot` `cross` `length`
   `normalize` と同じくスカラー / ベクトルを返す）
 - HLSL のみ: `lerp` `frac` `rcp` `rsqrt` `saturate` `atan2` `fmod` `mad` `isfinite` `sincos`
-- GLSL のみ: `mix` `fract` `inversesqrt` `roundEven` `atan(y, x)` `mod` `fma`（GLSL に
+  `log10` `ldexp`（指数は float）`frexp`（指数を float で返す）`select`（HLSL 2021）`dst` `lit`
+  （`lit` は HLSL と同じくスカラー引数で `float4` を返す）、float ベクトル / 行列の `%`（`fmod` と同じ）
+- GLSL のみ: `mix` `fract` `inversesqrt` `roundEven` `atan(y, x)` `mod` `fma` `asinh` `acosh` `atanh`、
+  `mix(x, y, bvec)`（選択子が真の成分は y）（GLSL に
   `saturate` / `rcp` は無い → 定義していない。逆も同様で、言語に無い名前はコンパイルエラー）
-- 対象外: `ldexp` / `frexp`（GLSL が int ベクトルを取るため。int 型は範囲外）
+- 対象外: GLSL の `ldexp` / `frexp`（int ベクトルを取るため。int 型は範囲外）。HLSL 2021 の
+  `and()` / `or()`（C++ の代替トークン `and` / `or` と同名で定義できない。bool ベクトルの
+  `&&` / `||` も HLSL 2021 と同じく使えない）
 
 意味論の注記:
 
@@ -133,6 +142,7 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
 - `min` / `max` / `saturate` の NaN 挙動は backend 依存（シェーダ言語仕様も未定義）
 - `rcp` / `rsqrt` / `inversesqrt` は近似命令（`rcpps` / `rsqrtps`）を使わない正確版
 - 超越関数は per-lane で libm を呼ぶ（SIMD 多項式近似はしない）。`pow(負, 非整数)` は NaN
+- `select(c, a, b)` は c が真の成分で a、`mix(x, y, bvec)` は真の成分で y（引数の順が逆）
 - `hlsl::fmod` と `glsl::mod` は**意味が違う**: `fmod` は trunc 基準で結果は x の符号
   （`fmod(-7, 3) = -1`）、`mod` は floor 基準で y の符号（`mod(-7, 3) = 2`）
 - 2 引数の逆正接は HLSL が `atan2(y, x)`、GLSL が `atan(y, x)`。どちらも y が先
@@ -179,8 +189,11 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 - Boost（Config / Predef ヘッダ）はパッケージに同梱しない。`find_package` 時に利用側で探し、
   見つからなければ `SHADER_MATH_BOOST_INCLUDE`（Predef が別の場所なら
   `SHADER_MATH_BOOST_PREDEF_INCLUDE` も）を指定する
-- `SHADER_MATH_FORCE_SCALAR` はこのリポジトリのテスト用。利用側で scalar を強制するときは
-  `SHADER_MATH_FORCE_SCALAR` マクロを自分のターゲットに定義する
+- scalar 強制: サブプロジェクトなら `-DSHADER_MATH_FORCE_SCALAR=ON`、インストール済みパッケージなら
+  `find_package` の前に `set(SHADER_MATH_FORCE_SCALAR ON)`。どちらもマクロが `shader_math::shader_math`
+  に付くので、リンクする全ターゲットで揃う（SIMD と scalar の翻訳単位が混ざると ODR 違反になる）
+- pkg-config: `<prefix>/share/pkgconfig/shader_math.pc`（`pkg-config --cflags shader_math`）。Boost は
+  システムの Boost を使ってインストールした場合だけ含まれる（自動取得した Boost はインストールされない）
 - バージョンは 0.x の間は同一マイナーのみ互換（`SameMinorVersion`）
 
 ベンチマーク: `./build/shader_math_bench`（SIMD）と `./build/shader_math_bench_scalar`
@@ -198,6 +211,11 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
 ## 既知の逸脱（HLSL/GLSL との差分）
 
 - **行列の複数成分 swizzle**（`_m00_m11` 等）は未実装。単成分 `_m00`〜`_m33` / `_11`〜`_44` は全対応（範囲外は使用時にコンパイルエラー）。複数成分はメンバ宣言の組み合わせが最大 16⁴ 通りで現実的でないため
+- GLSL の `.stpq` swizzle は**オプトイン**: `SHADER_MATH_GLSL_STPQ` を定義すると有効
+  （CMake では `-DSHADER_MATH_GLSL_STPQ=ON`、インストール済みパッケージは `find_package` の前に
+  `set(SHADER_MATH_GLSL_STPQ ON)`。どちらも `shader_math::shader_math` に付くので全翻訳単位で揃う）。
+  ベクトル型は `hlsl` と共有なので、有効にすると HLSL 側でも `.stp` が通る（HLSL には無い綴り。意味は
+  `.xyz` と同じ）。既定で無効なのはこのため。コンパイル時間は gcc で +5〜11%、clang では誤差程度（実測）
 - GLSL の `not()` は C++ キーワードのため `not_()`
 - `v.x` はプロキシ型（可変長引数に直接渡すときは `float(v.x)` にする）
 - 対象は float と half（ベクトル）。`int` / `double`、`1xN` 行列、GPU 専用機能（テクスチャ・微分・atomic）は対象外

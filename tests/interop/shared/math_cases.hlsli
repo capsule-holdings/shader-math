@@ -166,11 +166,56 @@ float4 case_near_matrix_intrinsics(float4 a, float4 b)
     return float4(r[0].x + r[1].y, r[0].y - r[2].x, r[1].x + r[2].y, r[2].x * 0.5f);
 }
 
+// ---- constructors, element access, compound ops (exact) ---------------------
+float4 case_exact_ctor_access(float4 a, float4 b)
+{
+    float3x3 rows = float3x3(a.xyz, b.xyz, float3(1.0f, 2.0f, 3.0f));  // row vectors
+    float3x3 splat = float3x3(0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f);
+    float3x3 s1 = float3x3(0.25f);                                       // scalar ctor: every element
+    float4x4 big = float4x4(a, b, a * 2.0f, b * 0.5f);
+    float2x2 small = (float2x2)big;                                      // truncating cast
+    float4 r = float4(rows._m01 + rows._12, rows._m20 * 10.0f, small._m11 + small._21, s1._33);
+    r += splat[1].xyzx;
+    r *= 2.0f;
+    r -= float4(b.w, a.w, b.z, a.z);
+    bool4 nb = !(a > b);
+    r.w = r.w + (nb[0] ? 1.0f : 0.0f) + (nb[1] ? 2.0f : 0.0f);
+    float3x2 t = transpose(float2x3(a.xyz, b.xyz));
+    return r + float4(t[2].x, t[0].y, t[1].x, t[1].y);
+}
+
+// ---- remaining transcendentals / geometry (near) ---------------------------
+float4 case_near_misc(float4 a, float4 b)
+{
+    float4 s = clamp(a * 0.25f, -1.0f, 1.0f);
+    float4 r = exp(s) + log(abs(b) + 1.0f) + tan(s * 0.5f);
+    float l = length(a.xyz) + length(b);
+    return r + float4(l, l * 0.5f, length(a.xy), 0.0f);
+}
+
+// ---- additions: log10 ldexp select lit %, bool literals --------------------
+// Left out: frexp (Slang returns the exponent as an int vector, HLSL and
+// shader-math as float) and dst (the Slang CPU prelude does not implement it).
+// ldexp gets integral exponents, which both read alike.
+float4 case_exact_select_bool(float4 a, float4 b)
+{
+    bool4 lit4 = bool4(true, false, true, false);
+    float4 s = select(lit4, a, b) + select(a > b, a, 0.5f);
+    float flags = (lit4.x ? 1.0f : 0.0f) + (lit4.y ? 2.0f : 0.0f) + ((a > b).z ? 4.0f : 0.0f);
+    return s + float4(flags, 0.0f, 0.0f, 0.0f) + (a * 3.0f) % b;
+}
+
+float4 case_near_log10_ldexp(float4 a, float4 b)
+{
+    float4 r = log10(abs(a) + 1.0f) + ldexp(b, float4(1.0f, -2.0f, 3.0f, 0.0f));
+    return r + lit(0.5f, abs(b.y) * 0.1f, 4.0f) + lit(-0.25f, 0.5f, 2.0f);
+}
+
 // ---- half tier --------------------------------------------------------------
-// Excluded from SM_INTEROP_CASES for now: the Slang CPU target's C++ prelude
-// (v2026.16) does not implement half vector arithmetic, so generated code
-// containing half math fails to compile. Kept here (and dual-compiled once the
-// SPIR-V phase lands); guarded so slangc does not emit it while unreferenced.
+// The Slang CPU target's C++ prelude (v2026.16) does not implement half vector
+// arithmetic, so these cases run through kernels_half.slang compiled to SPIR-V
+// on Vulkan (lavapipe) instead (SM_INTEROP_HALF_CASES); guarded so the CPU
+// build never sees them.
 #if defined(SM_INTEROP_ENABLE_HALF)
 float4 case_half_chain(float4 af)
 {
@@ -179,5 +224,17 @@ float4 case_half_chain(float4 af)
     r = min(r, half(8.0f));
     r = abs(r) + half4(saturate(float4(h)));
     return float4(r);
+}
+
+float4 case_half_products(float4 af, float4 bf)
+{
+    half4 a = half4(af);
+    half4 b = half4(bf);
+    half d = dot(a.xyz, b.xyz);
+    half4 l = lerp(a, b, half(0.25f));
+    half4 m = max(a, b) - clamp(b, half(-1.0f), half(1.0f));
+    half2x2 hm = half2x2(a.x, a.y, a.z, a.w);
+    half2 v = mul(b.xy, hm);
+    return float4(float(d), float(l.y + m.z), float(v.x), float(v.y));
 }
 #endif

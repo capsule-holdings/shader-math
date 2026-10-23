@@ -73,7 +73,20 @@ else()
         $<BUILD_INTERFACE:${boost_predef_SOURCE_DIR}/include>)
 endif()
 
-option(SHADER_MATH_FORCE_SCALAR "Force the scalar (non-SIMD) backend" OFF)
+option(SHADER_MATH_FORCE_SCALAR
+       "Force the scalar (non-SIMD) backend for shader_math and everything linking it" OFF)
+# On the library target, so every translation unit of a consumer agrees (a mix
+# of SIMD and scalar TUs would break the ODR). Build tree only: an installed
+# package lets the consumer choose (cmake/shader_mathConfig.cmake.in).
+if(SHADER_MATH_FORCE_SCALAR)
+    target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_FORCE_SCALAR>)
+endif()
+option(SHADER_MATH_GLSL_STPQ
+       "Enable GLSL .stpq swizzles on shader_math and everything linking it" OFF)
+# Same scheme as FORCE_SCALAR (the macro changes the vector class definition)
+if(SHADER_MATH_GLSL_STPQ)
+    target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_GLSL_STPQ>)
+endif()
 option(SHADER_MATH_BUILD_TESTS "Build shader-math tests and examples" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INSTALL "Generate the install / find_package rules" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INTEROP_SLANG
@@ -121,9 +134,6 @@ if(SHADER_MATH_BUILD_TESTS)
     add_executable(shader_math_tests ${SHADER_MATH_TEST_SOURCES})
     target_link_libraries(shader_math_tests PRIVATE shader_math)
     shader_math_warnings(shader_math_tests)
-    if(SHADER_MATH_FORCE_SCALAR)
-        target_compile_definitions(shader_math_tests PRIVATE SHADER_MATH_FORCE_SCALAR)
-    endif()
     add_test(NAME shader_math_tests COMMAND shader_math_tests)
 
     # The scalar backend is never skipped: the same full suite runs against it
@@ -163,6 +173,14 @@ if(SHADER_MATH_BUILD_TESTS)
     target_link_libraries(shader_math_bench_scalar PRIVATE shader_math)
     target_compile_definitions(shader_math_bench_scalar PRIVATE SHADER_MATH_FORCE_SCALAR)
     shader_math_warnings(shader_math_bench_scalar)
+
+    # Opt-in .stpq swizzles: its own executable (the macro changes the class
+    # definition, so it cannot share a binary with the other tests)
+    add_executable(shader_math_tests_stpq tests/test_stpq.cpp)
+    target_link_libraries(shader_math_tests_stpq PRIVATE shader_math)
+    target_compile_definitions(shader_math_tests_stpq PRIVATE SHADER_MATH_GLSL_STPQ)
+    shader_math_warnings(shader_math_tests_stpq)
+    add_test(NAME shader_math_tests_stpq COMMAND shader_math_tests_stpq)
 
     # Approximate-equivalence proof for the batch skinning backends (pure CPU,
     # no SDL): oracle bound + pairwise agreement + invariance properties.
@@ -215,6 +233,45 @@ if(SHADER_MATH_BUILD_TESTS)
                      COMMAND ${Python3_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/compare.py
                              $<TARGET_FILE:slang_interop_runner>
                              $<TARGET_FILE:shader_math_interop_cpp>)
+
+            # half cases: the CPU target cannot compile half vector math, so
+            # they go through SPIR-V on Vulkan (lavapipe) when it is available
+            find_package(Vulkan)
+            if(Vulkan_FOUND)
+                set(SHADER_MATH_INTEROP_HALF_SPV ${CMAKE_CURRENT_BINARY_DIR}/kernels_half.spv)
+                add_custom_command(
+                    OUTPUT ${SHADER_MATH_INTEROP_HALF_SPV}
+                    COMMAND ${SLANGC_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/kernels_half.slang
+                            -target spirv -entry runCases -stage compute
+                            -o ${SHADER_MATH_INTEROP_HALF_SPV}
+                    DEPENDS ${SHADER_MATH_INTEROP_DIR}/kernels_half.slang
+                            ${SHADER_MATH_INTEROP_DIR}/shared/math_cases.hlsli
+                            ${SHADER_MATH_INTEROP_DIR}/shared/case_list.h
+                    COMMENT "slangc: compiling the half cases to SPIR-V"
+                    VERBATIM)
+                add_custom_target(slang_interop_half_spv ALL DEPENDS ${SHADER_MATH_INTEROP_HALF_SPV})
+
+                add_executable(slang_vk_runner_half ${SHADER_MATH_INTEROP_DIR}/vk_runner.cpp)
+                target_include_directories(slang_vk_runner_half PRIVATE ${SHADER_MATH_INTEROP_DIR})
+                target_compile_definitions(slang_vk_runner_half PRIVATE
+                    "SM_VK_CASES_HEADER=\"shared/case_list.h\"" SM_VK_CASES=SM_INTEROP_HALF_CASES)
+                target_link_libraries(slang_vk_runner_half PRIVATE Vulkan::Vulkan)
+                shader_math_warnings(slang_vk_runner_half)
+
+                add_executable(shader_math_interop_cpp_half ${SHADER_MATH_INTEROP_DIR}/cpp_harness.cpp)
+                target_compile_definitions(shader_math_interop_cpp_half PRIVATE SM_INTEROP_ENABLE_HALF)
+                target_link_libraries(shader_math_interop_cpp_half PRIVATE shader_math)
+                shader_math_warnings(shader_math_interop_cpp_half)
+
+                add_test(NAME slang_interop_half_check
+                         COMMAND ${Python3_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/compare.py
+                                 $<TARGET_FILE:slang_vk_runner_half>
+                                 $<TARGET_FILE:shader_math_interop_cpp_half>
+                                 slang-spirv ${SHADER_MATH_INTEROP_HALF_SPV} --f16)
+                set_tests_properties(slang_interop_half_check PROPERTIES SKIP_RETURN_CODE 77)
+            else()
+                message(STATUS "Vulkan not found: skipping the Slang half cross-check")
+            endif()
         else()
             message(WARNING "SHADER_MATH_INTEROP_SLANG=ON but slangc or python3 "
                             "was not found (set SHADER_MATH_SLANG_DIR); skipping "
@@ -242,7 +299,10 @@ if(SHADER_MATH_BUILD_TESTS)
                 VERBATIM)
             add_custom_target(glsl_interop_spv ALL DEPENDS ${SM_GLSL_SPV})
 
-            add_executable(glsl_vk_runner ${SM_GLSL_DIR}/vk_runner.cpp)
+            add_executable(glsl_vk_runner ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop/vk_runner.cpp)
+            target_include_directories(glsl_vk_runner PRIVATE ${SM_GLSL_DIR})
+            target_compile_definitions(glsl_vk_runner PRIVATE
+                "SM_VK_CASES_HEADER=\"case_list.h\"" SM_VK_CASES=SM_GLSL_CASES)
             target_link_libraries(glsl_vk_runner PRIVATE Vulkan::Vulkan)
             shader_math_warnings(glsl_vk_runner)
 
@@ -256,6 +316,38 @@ if(SHADER_MATH_BUILD_TESTS)
                              $<TARGET_FILE:glsl_vk_runner>
                              $<TARGET_FILE:shader_math_glsl_interop_cpp>
                              vulkan ${SM_GLSL_SPV})
+
+            # f16vec / f16mat cases (shaderFloat16; skipped when the device lacks it)
+            set(SM_GLSL_HALF_SPV ${CMAKE_CURRENT_BINARY_DIR}/glsl_kernels_half.spv)
+            add_custom_command(
+                OUTPUT ${SM_GLSL_HALF_SPV}
+                COMMAND ${GLSLANG_VALIDATOR} -V --target-env vulkan1.2
+                        -o ${SM_GLSL_HALF_SPV} ${SM_GLSL_DIR}/kernels_half.comp
+                DEPENDS ${SM_GLSL_DIR}/kernels_half.comp ${SM_GLSL_DIR}/half_cases.glsl
+                        ${SM_GLSL_DIR}/half_case_list.h ${SM_GLSL_DIR}/math_cases.glsl
+                COMMENT "glslang: compiling kernels_half.comp to SPIR-V"
+                VERBATIM)
+            add_custom_target(glsl_interop_half_spv ALL DEPENDS ${SM_GLSL_HALF_SPV})
+
+            add_executable(glsl_vk_runner_half ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop/vk_runner.cpp)
+            target_include_directories(glsl_vk_runner_half PRIVATE ${SM_GLSL_DIR})
+            target_compile_definitions(glsl_vk_runner_half PRIVATE
+                "SM_VK_CASES_HEADER=\"half_case_list.h\"" SM_VK_CASES=SM_GLSL_HALF_CASES)
+            target_link_libraries(glsl_vk_runner_half PRIVATE Vulkan::Vulkan)
+            shader_math_warnings(glsl_vk_runner_half)
+
+            add_executable(shader_math_glsl_interop_cpp_half ${SM_GLSL_DIR}/cpp_harness.cpp)
+            target_compile_definitions(shader_math_glsl_interop_cpp_half PRIVATE SM_GLSL_HALF)
+            target_link_libraries(shader_math_glsl_interop_cpp_half PRIVATE shader_math)
+            shader_math_warnings(shader_math_glsl_interop_cpp_half)
+
+            add_test(NAME glsl_interop_half_check
+                     COMMAND ${Python3_EXECUTABLE}
+                             ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop/compare.py
+                             $<TARGET_FILE:glsl_vk_runner_half>
+                             $<TARGET_FILE:shader_math_glsl_interop_cpp_half>
+                             vulkan ${SM_GLSL_HALF_SPV} --f16)
+            set_tests_properties(glsl_interop_half_check PROPERTIES SKIP_RETURN_CODE 77)
         else()
             message(WARNING "SHADER_MATH_INTEROP_GLSL=ON but glslangValidator, Vulkan "
                             "or python3 was not found; skipping the GLSL cross-check")
@@ -286,6 +378,31 @@ if(SHADER_MATH_INSTALL)
         ${CMAKE_CURRENT_BINARY_DIR}/shader_mathConfig.cmake
         ${CMAKE_CURRENT_BINARY_DIR}/shader_mathConfigVersion.cmake
         DESTINATION ${SHADER_MATH_CMAKE_DIR})
+
+    # pkg-config for non-CMake builds. Header-only, so it goes to
+    # share/pkgconfig; the prefix is relative to the .pc file, which keeps
+    # `cmake --install --prefix <dir>` working. Boost is listed only when a
+    # system copy was used (a fetched copy is not installed).
+    set(SHADER_MATH_PC_DIR ${CMAKE_INSTALL_DATADIR}/pkgconfig)
+    # one ".." per component of the (relative) pkgconfig dir: share/pkgconfig
+    # -> ../.. (file(RELATIVE_PATH) needs absolute paths, which differ by OS)
+    string(REPLACE "/" ";" _pc_parts "${SHADER_MATH_PC_DIR}")
+    set(SHADER_MATH_PC_TO_PREFIX "")
+    foreach(_part ${_pc_parts})
+        if(SHADER_MATH_PC_TO_PREFIX)
+            string(APPEND SHADER_MATH_PC_TO_PREFIX "/")
+        endif()
+        string(APPEND SHADER_MATH_PC_TO_PREFIX "..")
+    endforeach()
+    set(SHADER_MATH_PC_BOOST_CFLAGS "")
+    foreach(_dir ${SHADER_MATH_BOOST_INCLUDE} ${SHADER_MATH_BOOST_PREDEF_INCLUDE})
+        if(_dir AND NOT _dir STREQUAL "/usr/include"
+           AND NOT SHADER_MATH_PC_BOOST_CFLAGS MATCHES "-I${_dir}( |$)")
+            string(APPEND SHADER_MATH_PC_BOOST_CFLAGS " -I${_dir}")
+        endif()
+    endforeach()
+    configure_file(cmake/shader_math.pc.in ${CMAKE_CURRENT_BINARY_DIR}/shader_math.pc @ONLY)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/shader_math.pc DESTINATION ${SHADER_MATH_PC_DIR})
 endif()
 
 # SDL_GPU skinned-mesh demo (FBX via ufbx, CPU skinning via shader-math).

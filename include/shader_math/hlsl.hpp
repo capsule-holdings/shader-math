@@ -134,6 +134,50 @@ template <class A>
 SHADER_MATH_INLINE auto rsqrt(const A& a) {
     return detail::rsqrt_impl(a);
 }
+template <class A>
+    requires detail::VecLike<A>
+SHADER_MATH_INLINE auto log10(const A& a) {
+    return detail::log10_impl(a);
+}
+template <class A, class B>
+    requires requires(const A& a, const B& b) { detail::ldexp_impl(a, b); }
+SHADER_MATH_INLINE auto ldexp(const A& a, const B& b) {
+    return detail::ldexp_impl(a, b);
+}
+template <class A, int N, class T>
+    requires requires(const A& a, detail::fvec<N, T>& e) { detail::frexp_impl(a, e); }
+SHADER_MATH_INLINE auto frexp(const A& a, detail::fvec<N, T>& e) {
+    return detail::frexp_impl(a, e);
+}
+// select(cond, a, b) (HLSL 2021): a where cond, else b; scalar a / b broadcast
+template <int N, class A, class B>
+    requires requires(const detail::bvec<N>& c, const A& a, const B& b) {
+        detail::select_impl(c, a, b);
+    }
+SHADER_MATH_INLINE auto select(const detail::bvec<N>& c, const A& a, const B& b) {
+    return detail::select_impl(c, a, b);
+}
+// dst(a, b) = (1, a.y * b.y, a.z, b.w): the distance vector of the
+// fixed-function lighting model (float4 only, like HLSL)
+template <class A, class B>
+    requires(detail::SameVec<A, B> && detail::vec_size_v<A> == 4)
+SHADER_MATH_INLINE auto dst(const A& a0, const B& b0) {
+    using T = detail::vec_elem_t<A>;
+    const detail::fvec<4, T> a = detail::to_vec(a0);
+    const detail::fvec<4, T> b = detail::to_vec(b0);
+    return detail::fvec<4, T>(T(1.0f), a[1] * b[1], a[2], b[3]);
+}
+// lit(n_dot_l, n_dot_h, m) = (1, diffuse, specular, 1): scalar inputs, like
+// HLSL; specular is 0 when either dot product is negative
+template <class S0, class S1, class S2>
+    requires(std::is_arithmetic_v<S0> && std::is_arithmetic_v<S1> && std::is_arithmetic_v<S2>)
+SHADER_MATH_INLINE detail::fvec<4, float> lit(S0 n_dot_l, S1 n_dot_h, S2 m) {
+    const float l = static_cast<float>(n_dot_l);
+    const float h = static_cast<float>(n_dot_h);
+    const float diffuse = l < 0.0f ? 0.0f : l;
+    const float specular = (l < 0.0f || h < 0.0f) ? 0.0f : std::pow(h, static_cast<float>(m));
+    return detail::fvec<4, float>(1.0f, diffuse, specular, 1.0f);
+}
 template <class A, class B>
     requires requires(const A& y, const B& x) { detail::atan2_impl(y, x); }
 SHADER_MATH_INLINE auto atan2(const A& y, const B& x) {
@@ -230,6 +274,27 @@ SM_HLSL_MAT_COMPOUND(-)
 SM_HLSL_MAT_COMPOUND(*)
 SM_HLSL_MAT_COMPOUND(/)
 #undef SM_HLSL_MAT_COMPOUND
+
+// ---- % on float vectors / matrices: fmod (trunc-based, sign of x) ----------
+// HLSL defines % for floats; GLSL does not (its mod() is floor-based).
+template <class A, class B>
+    requires requires(const A& a, const B& b) { detail::fmod_impl(a, b); }
+SHADER_MATH_INLINE auto operator%(const A& a, const B& b) {
+    return detail::fmod_impl(a, b);
+}
+template <int R, int C, class T>
+SHADER_MATH_INLINE matrix<R, C, T> operator%(const matrix<R, C, T>& a, const matrix<R, C, T>& b) {
+    matrix<R, C, T> o;
+    for (int r = 0; r < R; ++r) o.row_[r] = detail::fmod_impl(a.row_[r], b.row_[r]);
+    return o;
+}
+template <int R, int C, class T, class S>
+    requires detail::ScalarFor<S, T>
+SHADER_MATH_INLINE matrix<R, C, T> operator%(const matrix<R, C, T>& a, const S& s) {
+    matrix<R, C, T> o;
+    for (int r = 0; r < R; ++r) o.row_[r] = detail::fmod_impl(a.row_[r], s);
+    return o;
+}
 
 // ---- comparisons: per-component results (HLSL semantics) --------------------
 // `if (a == b)` does not compile (bvec has no bool conversion); use all()/any().
