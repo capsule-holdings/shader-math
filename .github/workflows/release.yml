@@ -1,0 +1,57 @@
+# Publishes a GitHub release when a vX.Y.Z tag is pushed. The tag must name a
+# commit on main whose ci workflow (push event) succeeded, and must match
+# project(VERSION) and include/shader_math/version.hpp. Release notes are
+# generated from the merged PRs.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write  # create the release
+  actions: read    # look up the ci run of the tagged commit
+
+jobs:
+  release:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Tag matches project(VERSION) and version.hpp
+        run: |
+          cmake_v=$(sed -n 's/^project(shader_math VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          hdr_v=$(awk '/#define SHADER_MATH_VERSION_(MAJOR|MINOR|PATCH) /{printf "%s%s", sep, $3; sep="."}' \
+            include/shader_math/version.hpp)
+          echo "tag=$GITHUB_REF_NAME cmake=$cmake_v header=$hdr_v"
+          if [ "v$cmake_v" != "$GITHUB_REF_NAME" ] || [ "$hdr_v" != "$cmake_v" ]; then
+            echo "::error::tag $GITHUB_REF_NAME, project(VERSION) $cmake_v and version.hpp $hdr_v must agree"
+            exit 1
+          fi
+
+      - name: Tagged commit is on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on main"
+            exit 1
+          fi
+
+      - name: ci passed on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          c=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci --commit "$GITHUB_SHA" \
+                --event push --json conclusion -q '.[0].conclusion')
+          if [ "$c" != "success" ]; then
+            echo "::error::ci for $GITHUB_SHA is '${c:-missing}' (wait for it to pass, then re-run this job)"
+            exit 1
+          fi
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" \
+            --verify-tag --generate-notes --title "$GITHUB_REF_NAME"

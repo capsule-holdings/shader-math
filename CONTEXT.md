@@ -125,6 +125,17 @@ Blacksmith ランナー（GitHub-hosted ではない）。`fail-fast: false`:
 
 前提: org に Blacksmith app がインストールされていること。
 
+### バージョンとリリース
+
+- 版は `project(shader_math VERSION x.y.z)` と `include/shader_math/version.hpp`
+  （`SHADER_MATH_VERSION_MAJOR/MINOR/PATCH`、CMake を使わない利用者向け）の 2 か所。
+  食い違うと CMake の configure が止まる
+- 0.x の間は同一マイナーのみ互換（`write_basic_package_version_file` の `SameMinorVersion`）
+- 手順: 版を上げる PR を `main` にマージ → その `main` の ci（push）が通るのを待つ →
+  `vX.Y.Z` タグを push。`.github/workflows/release.yml` がタグと 2 か所の版の一致、タグが
+  `main` 上であること、そのコミットの ci 成功を確認してから、マージ済み PR からリリースノートを
+  生成して GitHub Release を作る。ci 待ちで落ちたら、ci 完了後にジョブを再実行すればよい
+
 ## 既知の逸脱（意図的）
 
 - 行列の複数成分 swizzle（`_m00_m11`）は未実装。単成分 `_m00`〜`_44` は全対応
