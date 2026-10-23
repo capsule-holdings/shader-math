@@ -38,16 +38,41 @@ jobs:
             exit 1
           fi
 
+      # ci skips commits that change only Markdown / docs/ (its paths-ignore),
+      # so such a commit is accepted when the nearest ancestor ci passed on
+      # differs from it in those paths alone.
       - name: ci passed on the tagged commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          c=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci --commit "$GITHUB_SHA" \
-                --event push --json conclusion -q '.[0].conclusion')
-          if [ "$c" != "success" ]; then
-            echo "::error::ci for $GITHUB_SHA is '${c:-missing}' (wait for it to pass, then re-run this job)"
+          ci_of() {
+            gh run list -R "$GITHUB_REPOSITORY" --workflow ci --commit "$1" \
+              --event push --json conclusion -q '.[0].conclusion'
+          }
+          c=$(ci_of "$GITHUB_SHA")
+          if [ "$c" = "success" ]; then exit 0; fi
+          if [ -n "$c" ]; then
+            echo "::error::ci for $GITHUB_SHA is '$c' (wait for it to pass, then re-run this job)"
             exit 1
           fi
+          for sha in $(git rev-list --first-parent --max-count=50 "$GITHUB_SHA"~1); do
+            c=$(ci_of "$sha")
+            [ -z "$c" ] && continue
+            if [ "$c" != "success" ]; then
+              echo "::error::nearest ci run ($sha) is '$c'"
+              exit 1
+            fi
+            other=$(git diff --name-only "$sha" "$GITHUB_SHA" | grep -vE '\.md$|^docs/' || true)
+            if [ -n "$other" ]; then
+              echo "::error::no ci run for $GITHUB_SHA, and it changes more than docs since $sha:"
+              echo "$other"
+              exit 1
+            fi
+            echo "no ci run for $GITHUB_SHA (docs-only since $sha, whose ci passed)"
+            exit 0
+          done
+          echo "::error::no ci run found for $GITHUB_SHA or its recent ancestors"
+          exit 1
 
       - name: Create the GitHub release
         env:

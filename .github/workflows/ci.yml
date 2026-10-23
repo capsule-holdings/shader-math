@@ -16,10 +16,13 @@
 name: ci
 
 # push builds main only; other branches are built by their pull_request run.
+# Changes that touch only Markdown or docs/ build nothing and skip CI.
 on:
   push:
     branches: [main]
+    paths-ignore: ["**.md", "docs/**"]
   pull_request:
+    paths-ignore: ["**.md", "docs/**"]
   workflow_dispatch:
 
 permissions:
