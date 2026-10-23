@@ -19,4 +19,10 @@
     X(near_matrix, case_near_matrix(IN_A))                     \
     X(near_determinant, case_near_determinant(IN_A))           \
     X(near_lighting, case_near_lighting(IN_N, IN_L, IN_C))     \
-    X(near_transcend, case_near_transcend(IN_A, IN_B))
+    X(near_transcend, case_near_transcend(IN_A, IN_B))         \
+    X(exact_classify, case_exact_classify(IN_A))               \
+    X(exact_matrix_intrinsics, case_exact_matrix_intrinsics(IN_A, IN_B)) \
+    X(near_geometry, case_near_geometry(IN_N, IN_L, IN_C))     \
+    X(near_inverse_trig, case_near_inverse_trig(IN_A, IN_B))   \
+    X(near_fmod_mad, case_near_fmod_mad(IN_A, IN_B))           \
+    X(near_matrix_intrinsics, case_near_matrix_intrinsics(IN_A, IN_B))
