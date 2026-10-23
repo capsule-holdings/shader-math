@@ -6,7 +6,7 @@
 // Every case returns a float4 = 4 output slots. Tolerances are chosen from
 // the name prefix by compare.py (exact_ / near_ / half_).
 
-// Half cases are a separate list: the Slang CPU target's C++ prelude (v2026.16)
+// Half cases are a separate list: the Slang CPU target's C++ prelude (v2026.20)
 // does not implement half vector arithmetic, so SM_INTEROP_HALF_CASES runs
 // through kernels_half.slang -> SPIR-V on Vulkan (lavapipe) instead; see
 // docs/slang_compat.md.

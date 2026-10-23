@@ -158,12 +158,12 @@ jobs:
           - name: linux-x64-slang-interop
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
-            slang_version: "2026.16"
+            slang_version: "2026.20"
             # lavapipe runs the half cases compiled to SPIR-V
             packages: libvulkan-dev mesa-vulkan-drivers
             # sha256 of slang-<version>-linux-x86_64.tar.gz (matches the
             # release asset digest); update together with slang_version
-            slang_sha256: e572e1a293f21971d8a98124c4576848ad4cd6a19b922ce5bad784fee0950648
+            slang_sha256: e863e568c204810d6e8bc31852f056aef6763c55ea9925db2db7affa060347c9
             cmake_extra: -DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=/tmp/slang
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}

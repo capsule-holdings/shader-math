@@ -7,7 +7,7 @@
 サブセット外の構文はどちらかのコンパイラで必ずエラーになる。
 
 検証ハーネスの実行方法は `tests/interop/` と README の「ビルドとテスト」を参照。
-検証済み Slang バージョン: **v2026.16**（CI で固定ダウンロード）。
+検証済み Slang バージョン: **v2026.20**（CI で固定ダウンロード）。
 
 ## 共有可能サブセット（両方でそのままコンパイル・一致確認済み）
 
@@ -39,14 +39,14 @@
 | `v.x` の可変長引数直渡し | shader-math の `v.x` はプロキシ型。`printf` 等には `float(v.x)`（共有数式では非該当だが注意） |
 | **スカラーへの intrinsic 適用** | HLSL/Slang は `saturate(dot(n,l))` のようにスカラーにも intrinsic が効くが、shader-math は純スカラーを意図的に非対応にして `std::` に譲る。共有ファイルでは **intrinsic はベクトル引数のみ** に使う（スカラー値は `float3(d,d,d)` のようにベクトルへ載せて計算するか、三項演算子で書く。例: `case_near_lighting`） |
 | bool ベクトルの `.xyzw` | shader-math の `boolN` は成分名アクセスを持たない（比較結果のマスク型）。`isnan(v)[2]` のように添字で読む |
-| **half（`half2/3/4`）の CPU 実行** | Slang（v2026.16）の CPU ターゲットの C++ prelude が half ベクトル演算を未実装（`Vector<_Float16, 4>` の `operator*` 等が無い）。half のケースは `SM_INTEROP_HALF_CASES` に分け、`kernels_half.slang` を `-target spirv` で SPIR-V にして Vulkan（lavapipe）で実行し照合する（`slang_interop_half_check`、`shaderFloat16` の無いデバイスではスキップ） |
+| **half（`half2/3/4`）の CPU 実行** | Slang（v2026.20）の CPU ターゲットの C++ prelude が half ベクトル演算を未実装（`Vector<_Float16, 4>` の `operator*` 等が無い）。half のケースは `SM_INTEROP_HALF_CASES` に分け、`kernels_half.slang` を `-target spirv` で SPIR-V にして Vulkan（lavapipe）で実行し照合する（`slang_interop_half_check`、`shaderFloat16` の無いデバイスではスキップ） |
 
 ## 意味差（コンパイルは通るが結果・規則が異なりうるもの）
 
-- **`frexp` の指数の型**: HLSL（DXC）と shader-math は指数を float で返すが、Slang（v2026.16）は int
+- **`frexp` の指数の型**: HLSL（DXC）と shader-math は指数を float で返すが、Slang（v2026.20）は int
   ベクトルで返す（`out` 引数の型が違うので共有ファイルでは呼べない）。`ldexp` も Slang は int の指数を
   取る（float は暗黙変換）ので、共有ケースでは整数値の指数だけを渡す
-- **`dst`**: Slang（v2026.16）では CPU ターゲットの C++ prelude に実装が無く、`-target spirv` でも
+- **`dst`**: Slang（v2026.20）では CPU ターゲットの C++ prelude に実装が無く、`-target spirv` でも
   コア側の組み込みコードの解析に失敗する（`snippet parsing failed`）。共有ファイルには書かない
   （shader-math 側は単体テストのみ）。`frexp` も SPIR-V 経由で同じく int の指数を取る
 
