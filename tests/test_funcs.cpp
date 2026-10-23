@@ -136,6 +136,12 @@ template <class A>
 concept has_sincos = requires(const A& a, A& s, A& c) { sincos(a, s, c); };
 static_assert(has_atan_yx<vec3> && !has_atan2<vec3>);
 static_assert(has_mod<vec3> && !has_fmod<vec3>);
+// GLSL's generic functions take genType only: no component-wise matrix forms
+template <class M>
+concept has_mat_abs = requires(const M& m) { abs(m); };
+template <class M>
+concept has_mat_min = requires(const M& m) { min(m, m); };
+static_assert(!has_mat_abs<mat3> && !has_mat_min<mat2x3>);
 static_assert(has_fma<vec3> && !has_mad<vec3>);
 static_assert(!has_isfinite<vec3> && !has_sincos<vec3>);
 }  // namespace glsl_scope
@@ -349,6 +355,56 @@ static void test_funcs_geometry_hlsl() {
     CHECK(isfinite(special.zw)[1]);
 }
 
+static void test_funcs_matrix_hlsl() {
+    using namespace shader_math::hlsl;
+
+    // non-square on purpose: 2 rows x 3 columns
+    const float2x3 m(-1.5f, 0.25f, 2.75f,
+                     -0.5f, 1.0f, -3.25f);
+    const float2x3 a = abs(m);
+    CHECK_EQF(a[0][0], 1.5f);
+    CHECK_EQF(a[1][2], 3.25f);
+    CHECK_EQF(floor(m)[0][2], 2.0f);
+    CHECK_EQF(floor(m)[1][0], -1.0f);
+    CHECK_EQF(frac(m)[0][0], 0.5f);
+    CHECK_EQF(saturate(m)[0][2], 1.0f);
+    CHECK_EQF(saturate(m)[1][0], 0.0f);
+    CHECK_EQF(sign(m)[1][2], -1.0f);
+
+    CHECK_EQF(min(m, 0.0f)[0][1], 0.0f);         // matrix, scalar
+    CHECK_EQF(max(m, a)[1][0], 0.5f);            // matrix, matrix
+    CHECK_EQF(clamp(m, -1.0f, 1.0f)[0][2], 1.0f);
+    CHECK_EQF(clamp(m, -a, a)[1][1], 1.0f);
+    CHECK_EQF(step(0.0f, m)[0][1], 1.0f);        // edge first
+    CHECK_EQF(step(m, a)[1][2], 1.0f);
+    CHECK_NEAR(lerp(m, a, 0.5f)[0][0], 0.0f);
+    CHECK_NEAR(lerp(m, a, float2x3(1.0f))[1][2], 3.25f);
+    CHECK_NEAR(smoothstep(-1.0f, 1.0f, m)[1][0], 0.15625f);  // t = 0.25: t*t*(3 - 2t)
+    CHECK_NEAR(mad(m, a, float2x3(1.0f))[0][1], 1.0625f);
+    CHECK_NEAR(pow(a, 2.0f)[0][0], 2.25f);
+    CHECK_NEAR(fmod(m, 2.0f)[1][2], -1.25f);
+    CHECK_NEAR(atan2(m, a)[1][0], std::atan2(-0.5f, 0.5f));
+    CHECK_NEAR(sin(m)[0][2], std::sin(2.75f));
+    CHECK_NEAR(sqrt(a)[1][1], 1.0f);
+
+    float2x3 special = m;
+    special[0][1] = std::numeric_limits<float>::quiet_NaN();
+    special[1][2] = std::numeric_limits<float>::infinity();
+    const bool2x3 n = isnan(special);
+    const bool2x3 i = isinf(special);
+    const bool2x3 f = isfinite(special);
+    CHECK(n[0][1] && !n[0][0] && !n[1][2]);
+    CHECK(i[1][2] && !i[0][1]);
+    CHECK(!f[0][1] && !f[1][2] && f[0][0] && f[1][1]);
+
+#if defined(SHADER_MATH_HAS_HALF)
+    const half2x2 hm(half(-1.5f), half(0.25f), half(2.0f), half(-0.75f));
+    CHECK_EQF(static_cast<float>(abs(hm)[0][0]), 1.5f);
+    CHECK_EQF(static_cast<float>(saturate(hm)[1][0]), 1.0f);
+    CHECK_EQF(static_cast<float>(min(hm, half(0.0f))[0][1]), 0.0f);
+#endif
+}
+
 static void test_funcs_geometry_glsl() {
     using namespace shader_math::glsl;
 
@@ -405,5 +461,6 @@ void test_funcs() {
     test_funcs_glsl();
     test_funcs_geometry_hlsl();
     test_funcs_geometry_glsl();
+    test_funcs_matrix_hlsl();
     test_funcs_half();
 }

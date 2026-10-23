@@ -102,7 +102,15 @@ void glsl_side() {
 
 ベクトル（float / half）に対する成分ごと関数。スカラー第 2/3 引数は演算子と同じ規則
 （float ベクトルは算術スカラー可、half ベクトルは half のみ）。純スカラーには定義しない
-（`std::` を使う）。行列への成分ごと適用は未対応。
+（`std::` を使う）。
+
+行列への成分ごと適用は **HLSL のみ**（HLSL の intrinsic は行列も取るが、GLSL の汎用関数は
+genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` はコンパイルエラー）。対象は
+`abs` `sign` `floor` `ceil` `trunc` `round` `frac` `saturate` `sqrt` `rsqrt` `rcp` `exp` `exp2`
+`log` `log2` `sin` `cos` `tan` `asin` `acos` `atan` `sinh` `cosh` `tanh` `radians` `degrees`、
+`min` `max` `pow` `fmod`（行列 / スカラー）、`atan2`、`step`（`step(スカラー, 行列)` も可）、
+`lerp`（`t` は行列 / スカラー）、`clamp`、`smoothstep`、`mad`、`isnan` `isinf` `isfinite`
+（`boolRxC` を返す）。同じ形の行列同士のみ（`float2x3` と `float3x2` は混ぜられない）。
 
 - 両言語共通: `abs` `sign` `min` `max` `clamp` `step` `smoothstep` `floor` `ceil` `trunc`
   `round` `sqrt` `exp` `exp2` `log` `log2` `pow` `sin` `cos` `tan` `asin` `acos` `atan`
