@@ -264,3 +264,7 @@ cmake -S . -B build-interop -DCMAKE_BUILD_TYPE=Release \
 cmake --build build-interop
 ctest --test-dir build-interop -R slang_interop --output-on-failure
 ```
+
+## ライセンス
+
+[MIT](LICENSE)

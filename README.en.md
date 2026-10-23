@@ -157,3 +157,7 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 - Language-compatible, not ABI-compatible: `sizeof(float3) == 16`, unrelated to constant-buffer packing
 - Component access and swizzles rely on union type punning, which ISO C++ leaves undefined; it holds on gcc / clang / MSVC as CI checks, and it rules out `constexpr` ([CONTEXT.md](CONTEXT.md), Japanese)
 - Lanes past N of an N < 4 vector (and of matrix rows / columns) are unspecified and may hold NaN / Inf; results only ever depend on the first N lanes, but a floating-point-exception trap can fire on them
+
+## License
+
+[MIT](LICENSE)
