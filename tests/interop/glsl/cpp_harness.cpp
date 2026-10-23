@@ -9,6 +9,7 @@
 namespace interop_glsl {
 using namespace shader_math::glsl;
 
+#define SM_NOT not_
 #include "math_cases.glsl"
 
 #include "case_list.h"

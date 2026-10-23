@@ -25,4 +25,6 @@
     X(near_geometry, case_near_geometry(IN_N, IN_L, IN_C))     \
     X(near_inverse_trig, case_near_inverse_trig(IN_A, IN_B))   \
     X(near_fmod_mad, case_near_fmod_mad(IN_A, IN_B))           \
-    X(near_matrix_intrinsics, case_near_matrix_intrinsics(IN_A, IN_B))
+    X(near_matrix_intrinsics, case_near_matrix_intrinsics(IN_A, IN_B)) \
+    X(exact_ctor_access, case_exact_ctor_access(IN_A, IN_B))   \
+    X(near_misc, case_near_misc(IN_A, IN_B))

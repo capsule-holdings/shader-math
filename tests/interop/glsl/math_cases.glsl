@@ -18,6 +18,8 @@
 //   near_   : relative 1e-5 (products, sums of products, division)
 //   approx_ : relative 1e-4 (transcendentals: GLSL allows relaxed precision)
 
+// GLSL's not() is not_() in shader-math (`not` is a C++ alternative token);
+// kernels.comp defines SM_NOT as not, cpp_harness.cpp as not_
 const vec4 IN_A = vec4(1.25f, -2.5f, 3.75f, 0.5f);
 const vec4 IN_B = vec4(-0.75f, 4.0f, 0.25f, -1.5f);
 
@@ -130,6 +132,34 @@ vec4 case_near_geometry(vec4 a, vec4 b)
                 inversesqrt(abs(a) + 1.0f).x + smoothstep(0.0f, 2.0f, a).w);
 }
 
+// ---- exact: remaining constructors, operators, swizzles, relations ----------
+vec4 case_exact_misc(vec4 a, vec4 b)
+{
+    mat3 cols = mat3(a.xyz, b.xyz, vec3(1.0f, 2.0f, 3.0f));  // column vectors
+    mat3 sum = cols + mat3(2.0f) - cols * 0.5f;              // component-wise + -, scalar *
+    mat2 q = mat2(a.x, a.y, a.z, a.w) / 2.0f;                // component-wise / by a scalar
+    vec4 r = vec4(cols[1][2], sum[0][0], sum[2][1], q[1][0]);
+    r += b.rgba * 0.5f;                                      // .rgba swizzle, compound ops
+    r *= 2.0f;
+    vec4 w = vec4(1.4f, -1.4f, 2.6f, -0.2f);                 // round() away from .5 ties
+    r = r + round(w) + vec4(a.bgr, b.a);
+    float flags = (all(lessThanEqual(a, a)) ? 1.0f : 0.0f) + (any(greaterThan(a, b)) ? 2.0f : 0.0f) +
+                  (any(notEqual(a, b)) ? 4.0f : 0.0f) + (all(SM_NOT(equal(a, b))) ? 8.0f : 0.0f);
+    return r + vec4(flags);
+}
+
+vec4 case_exact_classify(vec4 a)
+{
+    vec4 big = vec4(3.0e38f) * 10.0f;                        // +inf without a division
+    vec4 v = vec4(a.x, big.y, big.z - big.w, -big.x);        // finite, +inf, NaN, -inf
+    vec4 r;
+    r.x = (isnan(v)[2] && !isnan(v)[0]) ? 1.0f : 0.0f;
+    r.y = (isinf(v)[1] && isinf(v)[3] && !isinf(v)[2]) ? 1.0f : 0.0f;
+    r.z = any(isnan(a)) ? 0.0f : 1.0f;
+    r.w = any(isinf(a)) ? 0.0f : 1.0f;
+    return r;
+}
+
 // ---- approx: transcendentals -------------------------------------------------
 vec4 case_approx_transcend(vec4 a, vec4 b)
 {
@@ -137,5 +167,6 @@ vec4 case_approx_transcend(vec4 a, vec4 b)
     vec4 r = atan(a, b) + atan(-a, b) + atan(b);  // atan(y, x): y first
     r = r + asin(s) + acos(s * 0.5f) + sin(a) * cos(b) + tan(s);
     r = r + exp2(clamp(a, -2.0f, 2.0f)) + log2(abs(b) + 1.0f) + sqrt(abs(a));
+    r = r + sinh(s) + cosh(s) * 0.5f + tanh(b) + exp(s) + log(abs(b) + 1.0f);
     return r + pow(abs(b) + 0.5f, vec4(1.5f)) + radians(a * 10.0f) + degrees(s) * 0.01f;
 }
