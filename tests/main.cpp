@@ -14,6 +14,7 @@ void test_half();
 void test_funcs();
 void test_pad_lanes();
 void test_random();
+void test_proxy_alias();
 
 int main() {
 #if defined(SHADER_MATH_ISA_NEON)
@@ -44,6 +45,7 @@ int main() {
     test_funcs();
     test_pad_lanes();
     test_random();
+    test_proxy_alias();
 
     std::printf("[shader-math] %d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

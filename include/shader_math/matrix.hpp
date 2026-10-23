@@ -21,7 +21,7 @@ namespace detail {
 // Declared for all 16 positions on every matrix; out-of-range positions fail
 // at the point of use.
 template <class T, int R, int C, int RI, int CI>
-struct mswz {
+struct SHADER_MATH_MAY_ALIAS mswz {
     static constexpr bool valid = (RI >= 0 && RI < R && CI >= 0 && CI < C);
     T d[R * 4];
 

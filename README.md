@@ -203,7 +203,8 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
 - 対象は float と half（ベクトル）。`int` / `double`、`1xN` 行列、GPU 専用機能（テクスチャ・微分・atomic）は対象外
 - 言語互換であってメモリ ABI 互換ではない（`sizeof(float3) == 16`。定数バッファのパッキングとは別物）
 - 成分アクセス・swizzle は SIMD レジスタとの union による型パンニングで実装している。
-  ISO C++ では未定義動作で、gcc / clang / MSVC の実装上の扱いに依存する（CI の全構成で検証）。
+  ISO C++ では未定義動作で、gcc / clang / MSVC の実装上の扱いに依存する（gcc / clang ではプロキシ型に
+  `may_alias` を付けている。CI の全構成で検証）。
   このため型は `constexpr` で使えない。詳細は [CONTEXT.md](CONTEXT.md)
 - `floatN`（N < 4）や行列の行・列は 4 レーンのレジスタに格納され、**N 以上のレーンの値は不定**
   （スカラー演算や除算の結果、NaN / Inf が入ることもある）。演算結果は常に有効な N レーンだけで決まる。

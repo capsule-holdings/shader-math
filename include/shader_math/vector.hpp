@@ -69,7 +69,7 @@ constexpr bool swz_unique() {
 // Swizzle proxy. Lives inside fvec's union; d overlays the register storage.
 // T = element type, N = parent vector width, Is... = selected component indices.
 template <class T, int N, int... Is>
-struct swz {
+struct SHADER_MATH_MAY_ALIAS swz {
     static constexpr int M = static_cast<int>(sizeof...(Is));
     static constexpr int idx[M] = {Is...};
     static constexpr bool in_range = ((Is >= 0 && Is < N) && ...);
