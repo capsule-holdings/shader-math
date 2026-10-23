@@ -246,3 +246,22 @@ jobs:
             -DSHADER_MATH_SOURCE_DIR="$root" "${extra[@]}"
           cmake --build build-pkg-sub --config $cfg
           ctest --test-dir build-pkg-sub --output-on-failure -C $cfg
+          # SHADER_MATH_FORCE_SCALAR reaches consumers through the target
+          # (tests/package/main.cpp #errors otherwise), both ways
+          for mode in find_package subdirectory; do
+            cmake -S tests/package -B build-pkg-scalar-$mode -DSHADER_MATH_CONSUME=$mode \
+              -DCMAKE_PREFIX_PATH="$root/pkg" -DSHADER_MATH_SOURCE_DIR="$root" \
+              -DSHADER_MATH_FORCE_SCALAR=ON "${extra[@]}"
+            cmake --build build-pkg-scalar-$mode --config $cfg
+          done
+          # pkg-config (not on Windows): compile the consumer with its flags
+          if [ "$RUNNER_OS" != "Windows" ] && command -v pkg-config > /dev/null; then
+            boost=()
+            if [ -d build/_deps/boost_config-src ]; then
+              boost=(-I"$root/build/_deps/boost_config-src/include" -I"$root/build/_deps/boost_predef-src/include")
+            fi
+            flags=$(PKG_CONFIG_PATH="$root/pkg/share/pkgconfig" pkg-config --cflags shader_math)
+            echo "pkg-config --cflags shader_math: $flags"
+            ${{ matrix.cxx }} -std=c++20 $flags "${boost[@]}" tests/package/main.cpp -o build-pkg-config-consumer
+            ./build-pkg-config-consumer
+          fi

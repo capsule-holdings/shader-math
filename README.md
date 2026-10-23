@@ -187,8 +187,11 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 - Boost（Config / Predef ヘッダ）はパッケージに同梱しない。`find_package` 時に利用側で探し、
   見つからなければ `SHADER_MATH_BOOST_INCLUDE`（Predef が別の場所なら
   `SHADER_MATH_BOOST_PREDEF_INCLUDE` も）を指定する
-- `SHADER_MATH_FORCE_SCALAR` はこのリポジトリのテスト用。利用側で scalar を強制するときは
-  `SHADER_MATH_FORCE_SCALAR` マクロを自分のターゲットに定義する
+- scalar 強制: サブプロジェクトなら `-DSHADER_MATH_FORCE_SCALAR=ON`、インストール済みパッケージなら
+  `find_package` の前に `set(SHADER_MATH_FORCE_SCALAR ON)`。どちらもマクロが `shader_math::shader_math`
+  に付くので、リンクする全ターゲットで揃う（SIMD と scalar の翻訳単位が混ざると ODR 違反になる）
+- pkg-config: `<prefix>/share/pkgconfig/shader_math.pc`（`pkg-config --cflags shader_math`）。Boost は
+  システムの Boost を使ってインストールした場合だけ含まれる（自動取得した Boost はインストールされない）
 - バージョンは 0.x の間は同一マイナーのみ互換（`SameMinorVersion`）
 
 ベンチマーク: `./build/shader_math_bench`（SIMD）と `./build/shader_math_bench_scalar`
