@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Run the Slang-CPU runner and the shader-math harness, compare outputs.
+"""Run a reference runner (Slang-CPU or Vulkan/GLSL) and the shader-math
+harness, compare outputs.
+
+  compare.py <reference_runner> <cpp_harness> [label] [runner args...]
 
 Line format from both binaries:  name[i] 0xBITS
 Tolerance is chosen from the case-name prefix:
   exact_  bit-identical
   near_   relative 1e-5 (inner products, divisions, transcendentals)
+  approx_ relative 1e-4 (GPU transcendentals with relaxed GLSL precision)
   half_   relative 2e-3 (binary16 ulp + promoted-path rounding)
 NaN == NaN is accepted (bit pattern may differ).
 
@@ -20,8 +24,8 @@ import sys
 LINE = re.compile(r"^(\w+)\[(\d)\] 0x([0-9a-fA-F]{8})$")
 
 
-def run(binary):
-    out = subprocess.run([binary], capture_output=True, text=True, check=True).stdout
+def run(binary, *args):
+    out = subprocess.run([binary, *args], capture_output=True, text=True, check=True).stdout
     values = {}
     for line in out.strip().splitlines():
         m = LINE.match(line.strip())
@@ -41,13 +45,16 @@ def tolerance(key):
         return 0.0
     if key.startswith("half_"):
         return 2e-3
+    if key.startswith("approx_"):
+        return 1e-4
     return 1e-5
 
 
 def main():
-    if len(sys.argv) != 3:
-        raise SystemExit("usage: compare.py <slang_runner> <cpp_harness>")
-    slang = run(sys.argv[1])
+    if len(sys.argv) < 3:
+        raise SystemExit("usage: compare.py <reference_runner> <cpp_harness> [label] [runner args...]")
+    label = sys.argv[3] if len(sys.argv) > 3 else "slang"
+    slang = run(sys.argv[1], *sys.argv[4:])
     cpp = run(sys.argv[2])
     if slang.keys() != cpp.keys():
         raise SystemExit(
@@ -70,7 +77,7 @@ def main():
         status = "OK  " if ok else "FAIL"
         if not ok:
             failures += 1
-        print(f"{status} {key:28s} slang=0x{sb:08x} ({sf!r}) cpp=0x{cb:08x} ({cf!r})")
+        print(f"{status} {key:28s} {label}=0x{sb:08x} ({sf!r}) cpp=0x{cb:08x} ({cf!r})")
 
     total = len(slang)
     print(f"{total - failures}/{total} slots matched")
