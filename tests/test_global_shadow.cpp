@@ -21,6 +21,8 @@ static_assert(std::is_same_v<decltype(isnan(float4())), bool4>);
 static_assert(std::is_same_v<decltype(isinf(float4().xy)), bool2>);
 static_assert(std::is_same_v<decltype(isfinite(float4())), bool4>);
 static_assert(std::is_same_v<decltype(isfinite(float4().xyz)), bool3>);
+static_assert(std::is_same_v<decltype(isnan(float3x3())), bool3x3>);
+static_assert(std::is_same_v<decltype(isfinite(float2x4())), bool2x4>);
 }  // namespace hlsl_shadow
 
 namespace glsl_shadow {

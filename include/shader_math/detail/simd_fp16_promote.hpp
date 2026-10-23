@@ -10,6 +10,10 @@
 #  error "shader-math: include <shader_math/simd.hpp> instead of detail/simd_fp16_promote.hpp"
 #endif
 
+#if defined(SHADER_MATH_HAS_F16C)
+#  include <immintrin.h>
+#endif
+
 namespace shader_math {
 namespace detail {
 
@@ -18,6 +22,19 @@ struct alignas(8) hreg {
 };
 
 struct hops {
+#if defined(SHADER_MATH_HAS_F16C)
+    // One instruction each way. vcvtps2ph with an explicit round-to-nearest-
+    // even immediate gives the same bits as static_cast<half_t>(float).
+    static SHADER_MATH_INLINE freg widen(hreg v) {
+        return _mm_cvtph_ps(_mm_loadl_epi64(reinterpret_cast<const __m128i*>(v.h)));
+    }
+    static SHADER_MATH_INLINE hreg narrow(freg f) {
+        hreg r;
+        _mm_storel_epi64(reinterpret_cast<__m128i*>(r.h),
+                         _mm_cvtps_ph(f, _MM_FROUND_TO_NEAREST_INT));
+        return r;
+    }
+#else
     static SHADER_MATH_INLINE freg widen(hreg v) {
         return ops::set(static_cast<float>(v.h[0]), static_cast<float>(v.h[1]),
                         static_cast<float>(v.h[2]), static_cast<float>(v.h[3]));
@@ -28,6 +45,7 @@ struct hops {
         return {{static_cast<half_t>(t[0]), static_cast<half_t>(t[1]),
                  static_cast<half_t>(t[2]), static_cast<half_t>(t[3])}};
     }
+#endif
 
     static SHADER_MATH_INLINE hreg zero() {
         const half_t z = static_cast<half_t>(0.0f);

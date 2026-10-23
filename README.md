@@ -85,6 +85,9 @@ void glsl_side() {
   `roundps`（1 命令、`round` は trunc + 補正）になる。それ以外の x86 はレーンごとの libm 呼び出し。
   gcc/clang は `__SSE4_1__`（例: `-march=x86-64-v2`）、MSVC は `/arch:AVX` 以上で有効。結果は libm と
   ビット一致（符号付きゼロ・NaN 含む）
+- `SHADER_MATH_HAS_F16C` — F16C 検出時（x86 の SSE2 バックエンドのみ）、half を f32 に広げる / 戻す変換が
+  それぞれ 1 命令（`vcvtph2ps` / `vcvtps2ph`）になる。gcc/clang は `__F16C__`（例: `-march=x86-64-v3`）、
+  MSVC は `/arch:AVX2` で有効。結果は従来のスカラー変換とビット一致（丸めは最近接偶数）
 - `SHADER_MATH_HAS_AVX` — AVX1 検出時、**FMA と併用の場合のみ** float 4x4 の行列積の内部で
   2 行（GLSL は 2 列）を 1 本の YMM に詰めて計算する（fmadd 16 回 → YMM 8 回）。
   公開型の幅は変わらず（`float4x4` は 4 本の 128-bit のまま）、結果は 128-bit 経路とビット一致。
@@ -102,7 +105,15 @@ void glsl_side() {
 
 ベクトル（float / half）に対する成分ごと関数。スカラー第 2/3 引数は演算子と同じ規則
 （float ベクトルは算術スカラー可、half ベクトルは half のみ）。純スカラーには定義しない
-（`std::` を使う）。行列への成分ごと適用は未対応。
+（`std::` を使う）。
+
+行列への成分ごと適用は **HLSL のみ**（HLSL の intrinsic は行列も取るが、GLSL の汎用関数は
+genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` はコンパイルエラー）。対象は
+`abs` `sign` `floor` `ceil` `trunc` `round` `frac` `saturate` `sqrt` `rsqrt` `rcp` `exp` `exp2`
+`log` `log2` `sin` `cos` `tan` `asin` `acos` `atan` `sinh` `cosh` `tanh` `radians` `degrees`、
+`min` `max` `pow` `fmod`（行列 / スカラー）、`atan2`、`step`（`step(スカラー, 行列)` も可）、
+`lerp`（`t` は行列 / スカラー）、`clamp`、`smoothstep`、`mad`、`isnan` `isinf` `isfinite`
+（`boolRxC` を返す）。同じ形の行列同士のみ（`float2x3` と `float3x2` は混ぜられない）。
 
 - 両言語共通: `abs` `sign` `min` `max` `clamp` `step` `smoothstep` `floor` `ceil` `trunc`
   `round` `sqrt` `exp` `exp2` `log` `log2` `pow` `sin` `cos` `tan` `asin` `acos` `atan`
@@ -153,7 +164,7 @@ cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON  # scalar 強制
 include(FetchContent)
 FetchContent_Declare(shader_math
     GIT_REPOSITORY https://github.com/capsule-holdings/shader-math.git
-    GIT_TAG <commit>)
+    GIT_TAG v0.1.0)
 FetchContent_MakeAvailable(shader_math)
 
 # B) インストール済みパッケージ

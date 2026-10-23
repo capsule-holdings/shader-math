@@ -136,6 +136,17 @@ pull_request の 1 本で検証し、同じ PR への追加 push で古い実行
 ランナーは Blacksmith が基本（前提: org に Blacksmith app がインストールされていること）。
 macOS と Windows ARM64 は Blacksmith に無いので GitHub-hosted（公開リポジトリのため無料）。
 
+### バージョンとリリース
+
+- 版は `project(shader_math VERSION x.y.z)` と `include/shader_math/version.hpp`
+  （`SHADER_MATH_VERSION_MAJOR/MINOR/PATCH`、CMake を使わない利用者向け）の 2 か所。
+  食い違うと CMake の configure が止まる
+- 0.x の間は同一マイナーのみ互換（`write_basic_package_version_file` の `SameMinorVersion`）
+- 手順: 版を上げる PR を `main` にマージ → その `main` の ci（push）が通るのを待つ →
+  `vX.Y.Z` タグを push。`.github/workflows/release.yml` がタグと 2 か所の版の一致、タグが
+  `main` 上であること、そのコミットの ci 成功を確認してから、マージ済み PR からリリースノートを
+  生成して GitHub Release を作る。ci 待ちで落ちたら、ci 完了後にジョブを再実行すればよい
+
 ## 既知の逸脱（意図的）
 
 - 行列の複数成分 swizzle（`_m00_m11`）は未実装。単成分 `_m00`〜`_44` は全対応
@@ -157,8 +168,9 @@ macOS と Windows ARM64 は Blacksmith に無いので GitHub-hosted（公開リ
   言語別名: HLSL `lerp`/`frac`/`rcp`/`rsqrt`/`saturate` ⇔ GLSL `mix`/`fract`/`inversesqrt`。
   超越関数は per-lane libm、丸めは SSE2 のみ per-lane、他 backend はネイティブ）。
   2 行レジスタ詰め込み最適化（AVX1+FMA3 の 4x4）。
-- **未実装**: RVV バックエンド。行列への成分ごと intrinsic（HLSL の `abs(m)` 等）。
-  純スカラーへの intrinsic（`std::` を使う）。
+- **実装済み**: 行列への成分ごと intrinsic（HLSL のみ。`abs(m)` `lerp(a, b, t)` `isnan(m)` 等。
+  各行にベクトル版を適用）。GLSL の汎用関数は genType のみなので `glsl` 側には置かない。
+- **未実装**: RVV バックエンド。純スカラーへの intrinsic（`std::` を使う）。
 
 ## Slang 相互検証ハーネス（2026-08-20 追加）
 

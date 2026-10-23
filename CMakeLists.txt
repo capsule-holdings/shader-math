@@ -1,6 +1,24 @@
 cmake_minimum_required(VERSION 3.16)
 project(shader_math VERSION 0.1.0 LANGUAGES CXX)
 
+# include/shader_math/version.hpp carries the same version for non-CMake
+# users; keep the two in step.
+file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/include/shader_math/version.hpp _sm_version_lines
+     REGEX "^#define SHADER_MATH_VERSION_(MAJOR|MINOR|PATCH) ")
+set(_sm_header_version "")
+foreach(_part MAJOR MINOR PATCH)
+    foreach(_line ${_sm_version_lines})
+        if(_line MATCHES "^#define SHADER_MATH_VERSION_${_part} ([0-9]+)")
+            list(APPEND _sm_header_version ${CMAKE_MATCH_1})
+        endif()
+    endforeach()
+endforeach()
+list(JOIN _sm_header_version "." _sm_header_version)
+if(NOT _sm_header_version STREQUAL PROJECT_VERSION)
+    message(FATAL_ERROR "include/shader_math/version.hpp (${_sm_header_version}) does not match "
+                        "project(VERSION ${PROJECT_VERSION})")
+endif()
+
 # PROJECT_IS_TOP_LEVEL needs CMake 3.21
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(SHADER_MATH_IS_TOP_LEVEL ON)

@@ -10,6 +10,8 @@
 - **PR は squash マージする**。squash 時のコミットメッセージ（タイトル・説明）は
   その時点の PR 内容に合わせて都度書き直すこと（古い説明の使い回し禁止）。
 - **`main` への `push -f`（force push）は禁止**。
+- **リリースタグ（`vX.Y.Z`）は人間の確認なしに作らない**。手順と自動チェックは CONTEXT.md の
+  「バージョンとリリース」。版を変えるときは `project(VERSION)` と `include/shader_math/version.hpp` の両方を変える。
 
 ## Cursor Cloud specific instructions
 
