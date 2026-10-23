@@ -244,6 +244,6 @@ float4 case_half_products(float4 af, float4 bf)
     half4 m = max(a, b) - clamp(b, half(-1.0f), half(1.0f));
     half2x2 hm = half2x2(a.x, a.y, a.z, a.w);
     half2 v = mul(b.xy, hm);
-    return float4(float(d), float(l.y + m.z), float(v.x), float(v.y));
+    return float4(float(d), float(l.y + m.z), float(half(v.x)), float(half(v.y)));
 }
 #endif
