@@ -14,6 +14,13 @@
     X(half_chain, case_half_chain(IN_A))                       \
     X(half_products, case_half_products(IN_A, IN_B))
 
+// Swizzles of swizzles are opt-in in shader-math (SHADER_MATH_NESTED_SWIZZLE),
+// so they are a separate list run by kernels_nested.slang and a C++ twin
+// built with the macro.
+#define SM_INTEROP_NESTED_CASES(X)                             \
+    X(exact_nested_read, case_exact_nested_read(IN_A, IN_B))   \
+    X(exact_nested_mixed, case_exact_nested_mixed(IN_A, IN_B))
+
 #define SM_INTEROP_CASES(X)                                    \
     X(exact_hadamard, case_exact_hadamard(IN_A, IN_B))         \
     X(exact_swizzle, case_exact_swizzle(IN_A, IN_B))           \

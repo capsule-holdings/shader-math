@@ -16,6 +16,7 @@
 | ベクトル型 | `float2` / `float3` / `float4`（コンストラクタ・要素アクセス含む） |
 | 成分ごと演算子 | `+` `-` `*` `/`（ベクトル同士、ベクトル×スカラー） |
 | swizzle | `.xyzw` の読み書き（重複書き込みは両方でエラー） |
+| swizzle の重ねがけ | 2・3 成分の swizzle に対する読み出し（`a.zw.yx`、`b.bgr.rrgb`）。shader-math ではオプトインなので、`shared/nested_cases.hlsli` を `kernels_nested.slang` と `SHADER_MATH_NESTED_SWIZZLE` 付きの C++ 側で照合する（`slang_interop_nested_check`） |
 | 行列 | `floatRxC`（R,C ∈ {2,3,4}）、行優先 ctor、Hadamard `*` |
 | 行列演算 | `mul` 全形（vec×mat / mat×vec / mat×mat）、`transpose`、`determinant` |
 | ベクトル演算 | `dot` / `cross` / `length` / `normalize` |

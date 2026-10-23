@@ -1,0 +1,26 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// GLSL side of the nested-swizzle cross-check.
+layout(local_size_x = 1) in;
+layout(std430, binding = 0) buffer Out { float o[]; };
+
+#define SM_NOT not
+#include "math_cases.glsl"
+#include "nested_cases.glsl"
+#include "nested_case_list.h"
+
+void main()
+{
+    int slot = 0;
+#define X(name, expr)      \
+    {                      \
+        vec4 r = (expr);   \
+        o[slot] = r.x;     \
+        o[slot + 1] = r.y; \
+        o[slot + 2] = r.z; \
+        o[slot + 3] = r.w; \
+        slot += 4;         \
+    }
+    SM_GLSL_NESTED_CASES(X)
+#undef X
+}
