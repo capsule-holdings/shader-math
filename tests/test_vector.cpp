@@ -39,7 +39,17 @@ static float union_access_model(float (*v)[4], int n, float k) {
     return acc;
 }
 
+// GLSL spellings of the bool-vector checks (own function: the two language
+// namespaces never share a scope)
+static void test_bool_vector_glsl() {
+    using namespace shader_math::glsl;
+    CHECK(bvec3(true, false, true) == bvec3(true, false, true));
+    CHECK(lessThan(vec2(1.0f, 3.0f), vec2(2.0f, 2.0f)).x);
+    CHECK(!lessThan(vec2(1.0f, 3.0f), vec2(2.0f, 2.0f)).y);
+}
+
 void test_vector() {
+    test_bool_vector_glsl();
     using namespace shader_math::hlsl;  // vectors are shared; hlsl surface used here
 
     // ---- constructors ------------------------------------------------------
@@ -222,6 +232,19 @@ void test_vector() {
         CHECK_EQF(float(v.z), 3.0f);
     }
 
+    // ---- bool vectors: literal construction and component reads ---------------
+    {
+        const bool3 lit(true, false, true);
+        CHECK(lit.x && !lit.y && lit.z);
+        CHECK(lit.r && !lit.g && lit.b);
+        CHECK(lit[0] && !lit[1] && lit[2]);
+        CHECK(all(bool4(true)) && !any(bool2(false)));
+        const float4 p(1.0f, -2.0f, 3.0f, -4.0f);
+        const bool4 pos = p > 0.0f;
+        CHECK(pos.x && !pos.y && pos.z && !pos.w);
+        CHECK(!pos.a);
+        CHECK(all((p > 0.0f) == bool4(true, false, true, false)));
+    }
     // ---- union access survives optimization ---------------------------------
     {
         float4 vs[8];

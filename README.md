@@ -40,7 +40,9 @@ void glsl_side() {
   - ARM ターゲットでは `arm_neon.h` がグローバル `float16_t` を定義するため、`using namespace glsl` 下の非修飾 `float16_t` は曖昧になる。`glsl::float16_t` と修飾するか `hlsl::half` を使う
 - 行列: R,C ∈ {2,3,4} の全9形。`hlsl::floatRxC`（行格納・行優先 ctor）と `glsl::matCxR`（列格納・列優先 ctor）は **別型**、相互変換は explicit
 - 対応関係は非正方で入れ替わる: `float3x4`（3行4列）≡ `mat4x3`（4列3行）
-- 比較結果: `bool2/3/4`（= `bvec2/3/4`）と `boolRxC`。算術なし・bool への暗黙変換なし
+- 比較結果: `bool2/3/4`（= `bvec2/3/4`）と `boolRxC`。算術なし・bool への暗黙変換なし。
+  `bool3(true, false, true)` / `bool3(true)` で作れる（引数は bool のみ。int や float からは作れない）。
+  成分は `b[i]` と単成分の `.x` 〜 `.w` / `.r` 〜 `.a` で**読み出しのみ**（複数成分の swizzle と書き込みは無し）
 - Slang / HLSL と共有できる型・演算のサブセットは [docs/slang_compat.md](docs/slang_compat.md) 参照
   （Slang との相互コンパイル検証ハーネスで CI 照合済み）
 
@@ -121,9 +123,14 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
 - 幾何（両言語共通）: `distance` `reflect` `refract` `faceforward`（`dot` `cross` `length`
   `normalize` と同じくスカラー / ベクトルを返す）
 - HLSL のみ: `lerp` `frac` `rcp` `rsqrt` `saturate` `atan2` `fmod` `mad` `isfinite` `sincos`
-- GLSL のみ: `mix` `fract` `inversesqrt` `roundEven` `atan(y, x)` `mod` `fma`（GLSL に
+  `log10` `ldexp`（指数は float）`frexp`（指数を float で返す）`select`（HLSL 2021）`dst` `lit`
+  （`lit` は HLSL と同じくスカラー引数で `float4` を返す）、float ベクトル / 行列の `%`（`fmod` と同じ）
+- GLSL のみ: `mix` `fract` `inversesqrt` `roundEven` `atan(y, x)` `mod` `fma` `asinh` `acosh` `atanh`、
+  `mix(x, y, bvec)`（選択子が真の成分は y）（GLSL に
   `saturate` / `rcp` は無い → 定義していない。逆も同様で、言語に無い名前はコンパイルエラー）
-- 対象外: `ldexp` / `frexp`（GLSL が int ベクトルを取るため。int 型は範囲外）
+- 対象外: GLSL の `ldexp` / `frexp`（int ベクトルを取るため。int 型は範囲外）。HLSL 2021 の
+  `and()` / `or()`（C++ の代替トークン `and` / `or` と同名で定義できない。bool ベクトルの
+  `&&` / `||` も HLSL 2021 と同じく使えない）
 
 意味論の注記:
 
@@ -133,6 +140,7 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
 - `min` / `max` / `saturate` の NaN 挙動は backend 依存（シェーダ言語仕様も未定義）
 - `rcp` / `rsqrt` / `inversesqrt` は近似命令（`rcpps` / `rsqrtps`）を使わない正確版
 - 超越関数は per-lane で libm を呼ぶ（SIMD 多項式近似はしない）。`pow(負, 非整数)` は NaN
+- `select(c, a, b)` は c が真の成分で a、`mix(x, y, bvec)` は真の成分で y（引数の順が逆）
 - `hlsl::fmod` と `glsl::mod` は**意味が違う**: `fmod` は trunc 基準で結果は x の符号
   （`fmod(-7, 3) = -1`）、`mod` は floor 基準で y の符号（`mod(-7, 3) = 2`）
 - 2 引数の逆正接は HLSL が `atan2(y, x)`、GLSL が `atan(y, x)`。どちらも y が先
