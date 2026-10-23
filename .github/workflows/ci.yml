@@ -6,7 +6,8 @@
 # one Slang cross-compilation job (pinned Slang release, see docs/slang_compat.md),
 # one GLSL cross-check job (glslang -> SPIR-V -> lavapipe, see docs/glsl_interop.md),
 # macOS arm64 (Apple Clang), the README's minimum compiler versions, and one
-# Debug ASan/UBSan job, and the SDL_GPU demo rendered headless on lavapipe.
+# Debug ASan/UBSan job, a coverage job, and the SDL_GPU demo rendered headless
+# on lavapipe.
 # Warnings are errors in this repo's own targets.
 # NOTE: the fp16 job compiles FEAT_FP16 instructions unconditionally; the ARM
 # runners must support them (check fphp/asimdhp in /proc/cpuinfo) or the
@@ -92,6 +93,16 @@ jobs:
           - name: windows-arm64-msvc
             runner: windows-11-arm
             cxx: cl
+          # source-based coverage of include/ over the SIMD and scalar test
+          # binaries; the report goes to the job summary (nothing is gated)
+          - name: linux-x64-clang-coverage
+            runner: blacksmith-2vcpu-ubuntu-2404
+            cxx: clang++
+            build_type: Debug
+            coverage: true
+            packages: llvm
+            cmake_extra: >-
+              -DCMAKE_CXX_FLAGS="-fprofile-instr-generate -fcoverage-mapping"
           - name: linux-x64-clang-asan-ubsan
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: clang++
@@ -132,6 +143,8 @@ jobs:
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
             slang_version: "2026.16"
+            # lavapipe runs the half cases compiled to SPIR-V
+            packages: libvulkan-dev mesa-vulkan-drivers
             # sha256 of slang-<version>-linux-x86_64.tar.gz (matches the
             # release asset digest); update together with slang_version
             slang_sha256: e572e1a293f21971d8a98124c4576848ad4cd6a19b922ce5bad784fee0950648
@@ -180,7 +193,25 @@ jobs:
         run: cmake --build build --config ${{ matrix.build_type || 'Release' }}
 
       - name: Test
+        # read only by -fprofile-instr-generate binaries (the coverage job)
+        env:
+          LLVM_PROFILE_FILE: ${{ github.workspace }}/build/prof/%p-%m.profraw
         run: ctest --test-dir build --output-on-failure -C ${{ matrix.build_type || 'Release' }}
+
+      - name: Coverage report (informational)
+        if: matrix.coverage
+        continue-on-error: true
+        run: |
+          llvm-profdata merge -sparse build/prof/*.profraw -o build/merged.profdata
+          llvm-cov report build/shader_math_tests -object build/shader_math_tests_scalar \
+            -instr-profile=build/merged.profdata "$PWD/include" | sed "s|$PWD/||" > coverage.txt
+          cat coverage.txt
+          {
+            echo "### Coverage of include/ (shader_math_tests + scalar twin)"
+            echo '```'
+            cat coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Informational only: shared runners are noisy, so nothing is gated on
       # the numbers. SIMD and the scalar reference go to the job summary.
@@ -244,3 +275,22 @@ jobs:
             -DSHADER_MATH_SOURCE_DIR="$root" "${extra[@]}"
           cmake --build build-pkg-sub --config $cfg
           ctest --test-dir build-pkg-sub --output-on-failure -C $cfg
+          # SHADER_MATH_FORCE_SCALAR reaches consumers through the target
+          # (tests/package/main.cpp #errors otherwise), both ways
+          for mode in find_package subdirectory; do
+            cmake -S tests/package -B build-pkg-scalar-$mode -DSHADER_MATH_CONSUME=$mode \
+              -DCMAKE_PREFIX_PATH="$root/pkg" -DSHADER_MATH_SOURCE_DIR="$root" \
+              -DSHADER_MATH_FORCE_SCALAR=ON "${extra[@]}"
+            cmake --build build-pkg-scalar-$mode --config $cfg
+          done
+          # pkg-config (not on Windows): compile the consumer with its flags
+          if [ "$RUNNER_OS" != "Windows" ] && command -v pkg-config > /dev/null; then
+            boost=()
+            if [ -d build/_deps/boost_config-src ]; then
+              boost=(-I"$root/build/_deps/boost_config-src/include" -I"$root/build/_deps/boost_predef-src/include")
+            fi
+            flags=$(PKG_CONFIG_PATH="$root/pkg/share/pkgconfig" pkg-config --cflags shader_math)
+            echo "pkg-config --cflags shader_math: $flags"
+            ${{ matrix.cxx }} -std=c++20 $flags "${boost[@]}" tests/package/main.cpp -o build-pkg-config-consumer
+            ./build-pkg-config-consumer
+          fi

@@ -31,12 +31,20 @@ CI は `linux-x64-glsl-interop` ジョブで実行する。
 | `near_geometry` | `reflect` `refract` `faceforward` `distance` `inversesqrt` `smoothstep` |
 | `approx_transcend` | `atan(y, x)`、逆三角・三角・指数・対数・`pow`・`radians` `degrees` |
 
+## half（`f16vec` / `f16mat`）
+
+`kernels_half.comp`（`GL_EXT_shader_explicit_arithmetic_types_float16`）と `half_cases.glsl` で、
+`f16vec` の演算・`min` `abs` `clamp` `mix` `dot`・`f16mat2 * f16vec2` を照合する
+（`glsl_interop_half_check`）。デバイスの `shaderFloat16` が必要で、無ければスキップ（終了コード 77）。
+共有ファイルでは `float16_t` を書かない（ARM では `arm_neon.h` のグローバル `float16_t` と曖昧になる）。
+
 ## 許容誤差（名前の接頭辞で決まる）
 
 - `exact_`: ビット一致。1 回丸めの演算だけを置く（GLSL コンパイラは `a * b + c` を融合してよく、
   除算や超越関数の精度も緩い）
 - `near_`: 相対 1e-5（積和・除算）
 - `approx_`: 相対 1e-4（超越関数。lavapipe の実装は libm と 1e-5 程度ずれる）
+- `half_`: 相対 2e-3（binary16 の ulp と、f32 に広げて計算する経路の丸め）
 
 ## 共有ファイルの書き方
 

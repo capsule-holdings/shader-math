@@ -24,8 +24,17 @@ import sys
 LINE = re.compile(r"^(\w+)\[(\d)\] 0x([0-9a-fA-F]{8})$")
 
 
+SKIP = 77  # ctest SKIP_RETURN_CODE: the reference runner lacks a device feature
+
+
 def run(binary, *args):
-    out = subprocess.run([binary, *args], capture_output=True, text=True, check=True).stdout
+    proc = subprocess.run([binary, *args], capture_output=True, text=True)
+    if proc.returncode == SKIP:
+        print(proc.stderr.strip() or f"SKIP: {binary}")
+        sys.exit(SKIP)
+    if proc.returncode != 0:
+        raise SystemExit(f"{binary} failed ({proc.returncode}): {proc.stderr.strip()}")
+    out = proc.stdout
     values = {}
     for line in out.strip().splitlines():
         m = LINE.match(line.strip())

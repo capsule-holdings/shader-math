@@ -194,10 +194,10 @@ float4 case_near_misc(float4 a, float4 b)
 }
 
 // ---- half tier --------------------------------------------------------------
-// Excluded from SM_INTEROP_CASES for now: the Slang CPU target's C++ prelude
-// (v2026.16) does not implement half vector arithmetic, so generated code
-// containing half math fails to compile. Kept here (and dual-compiled once the
-// SPIR-V phase lands); guarded so slangc does not emit it while unreferenced.
+// The Slang CPU target's C++ prelude (v2026.16) does not implement half vector
+// arithmetic, so these cases run through kernels_half.slang compiled to SPIR-V
+// on Vulkan (lavapipe) instead (SM_INTEROP_HALF_CASES); guarded so the CPU
+// build never sees them.
 #if defined(SM_INTEROP_ENABLE_HALF)
 float4 case_half_chain(float4 af)
 {
@@ -206,5 +206,17 @@ float4 case_half_chain(float4 af)
     r = min(r, half(8.0f));
     r = abs(r) + half4(saturate(float4(h)));
     return float4(r);
+}
+
+float4 case_half_products(float4 af, float4 bf)
+{
+    half4 a = half4(af);
+    half4 b = half4(bf);
+    half d = dot(a.xyz, b.xyz);
+    half4 l = lerp(a, b, half(0.25f));
+    half4 m = max(a, b) - clamp(b, half(-1.0f), half(1.0f));
+    half2x2 hm = half2x2(a.x, a.y, a.z, a.w);
+    half2 v = mul(b.xy, hm);
+    return float4(float(d), float(l.y + m.z), float(v.x), float(v.y));
 }
 #endif

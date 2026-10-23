@@ -334,6 +334,11 @@ struct fvec {
         : q_(ops_t::set(static_cast<T>(o[0]), static_cast<T>(o[1]),
                         N > 2 ? static_cast<T>(o[2]) : T(0.0f),
                         N > 3 ? static_cast<T>(o[3]) : T(0.0f))) {}
+    // ... and from a swizzle of the other element type (half4(f.wzyx)): the
+    // proxy cannot deduce U through the overload above
+    template <class U, int M, int... Is>
+        requires(!std::is_same_v<U, T> && sizeof...(Is) == N)
+    SHADER_MATH_INLINE explicit fvec(const swz<U, M, Is...>& s) : fvec(fvec<N, U>(s)) {}
 
     SHADER_MATH_INLINE T& operator[](int i) { return comp_[i]; }
     SHADER_MATH_INLINE T operator[](int i) const { return comp_[i]; }

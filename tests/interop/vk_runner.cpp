@@ -1,9 +1,12 @@
-// Vulkan side of the GLSL cross-check: runs kernels.comp (compiled to SPIR-V
-// by glslang) once on the first Vulkan device (lavapipe in CI) and dumps
-// "name[i] 0xBITS" lines. The case names come from the shared X-macro; the
-// expressions are never compiled here.
+// Vulkan side of the GLSL and half cross-checks: runs a compute kernel
+// (GLSL via glslang, or Slang via -target spirv) once on the first Vulkan
+// device (lavapipe in CI) and dumps "name[i] 0xBITS" lines. The case names
+// come from the X-macro named by SM_VK_CASES in SM_VK_CASES_HEADER (set per
+// target by CMake); the expressions are never compiled here.
 //
-//   glsl_vk_runner <kernels.spv>
+//   <runner> <kernel.spv> [--f16]
+//
+// --f16 enables shaderFloat16; a device without it exits 77 (ctest skip).
 #include <vulkan/vulkan.h>
 
 #include <cstdint>
@@ -13,13 +16,13 @@
 #include <iterator>
 #include <vector>
 
-#include "case_list.h"
+#include SM_VK_CASES_HEADER
 
 namespace {
 
 const char* const kNames[] = {
 #define X(name, expr) #name,
-    SM_GLSL_CASES(X)
+    SM_VK_CASES(X)
 #undef X
 };
 constexpr int kCases = static_cast<int>(sizeof(kNames) / sizeof(kNames[0]));
@@ -32,8 +35,9 @@ bool ok(VkResult r, const char* what) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        std::fprintf(stderr, "usage: glsl_vk_runner <kernels.spv>\n");
+    const bool want_f16 = argc == 3 && std::strcmp(argv[2], "--f16") == 0;
+    if (argc != 2 && !want_f16) {
+        std::fprintf(stderr, "usage: %s <kernel.spv> [--f16]\n", argv[0]);
         return 1;
     }
     std::ifstream f(argv[1], std::ios::binary);
@@ -47,7 +51,7 @@ int main(int argc, char** argv) {
 
     app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app.pApplicationName = "shader-math glsl interop";
-    app.apiVersion = VK_API_VERSION_1_1;
+    app.apiVersion = VK_API_VERSION_1_2;
     VkInstanceCreateInfo ici{};
     ici.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     ici.pApplicationInfo = &app;
@@ -82,6 +86,21 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // float16 arithmetic (core in Vulkan 1.2) only when the kernel needs it
+    VkPhysicalDeviceShaderFloat16Int8Features f16{};
+    f16.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES;
+    if (want_f16) {
+        VkPhysicalDeviceFeatures2 feats{};
+        feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        feats.pNext = &f16;
+        vkGetPhysicalDeviceFeatures2(phys, &feats);
+        if (!f16.shaderFloat16) {
+            std::fprintf(stderr, "SKIP: %s has no shaderFloat16\n", props.deviceName);
+            return 77;
+        }
+        f16.shaderInt8 = VK_FALSE;
+    }
+
     const float prio = 1.0f;
     VkDeviceQueueCreateInfo qci{};
     qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -92,6 +111,7 @@ int main(int argc, char** argv) {
     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     dci.queueCreateInfoCount = 1;
     dci.pQueueCreateInfos = &qci;
+    if (want_f16) dci.pNext = &f16;
     VkDevice dev;
     if (!ok(vkCreateDevice(phys, &dci, nullptr, &dev), "vkCreateDevice")) return 1;
     VkQueue queue;
