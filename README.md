@@ -40,7 +40,9 @@ void glsl_side() {
   - ARM ターゲットでは `arm_neon.h` がグローバル `float16_t` を定義するため、`using namespace glsl` 下の非修飾 `float16_t` は曖昧になる。`glsl::float16_t` と修飾するか `hlsl::half` を使う
 - 行列: R,C ∈ {2,3,4} の全9形。`hlsl::floatRxC`（行格納・行優先 ctor）と `glsl::matCxR`（列格納・列優先 ctor）は **別型**、相互変換は explicit
 - 対応関係は非正方で入れ替わる: `float3x4`（3行4列）≡ `mat4x3`（4列3行）
-- 比較結果: `bool2/3/4`（= `bvec2/3/4`）と `boolRxC`。算術なし・bool への暗黙変換なし
+- 比較結果: `bool2/3/4`（= `bvec2/3/4`）と `boolRxC`。算術なし・bool への暗黙変換なし。
+  `bool3(true, false, true)` / `bool3(true)` で作れる（引数は bool のみ。int や float からは作れない）。
+  成分は `b[i]` と単成分の `.x` 〜 `.w` / `.r` 〜 `.a` で**読み出しのみ**（複数成分の swizzle と書き込みは無し）
 - Slang / HLSL と共有できる型・演算のサブセットは [docs/slang_compat.md](docs/slang_compat.md) 参照
   （Slang との相互コンパイル検証ハーネスで CI 照合済み）
 
