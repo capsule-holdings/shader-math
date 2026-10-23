@@ -9,13 +9,23 @@
 namespace interop_glsl {
 using namespace shader_math::glsl;
 
+#define SM_NOT not_
 #include "math_cases.glsl"
 
 #include "case_list.h"
 
+// SM_GLSL_HALF (set by CMake for the half twin) selects the f16 cases
+#if defined(SM_GLSL_HALF)
+#  include "half_cases.glsl"
+#  include "half_case_list.h"
+#  define SM_HARNESS_CASES SM_GLSL_HALF_CASES
+#else
+#  define SM_HARNESS_CASES SM_GLSL_CASES
+#endif
+
 static const char* const kNames[] = {
 #define X(name, expr) #name,
-    SM_GLSL_CASES(X)
+    SM_HARNESS_CASES(X)
 #undef X
 };
 
@@ -29,7 +39,7 @@ inline int run_cases(float* out) {
         out[slot++] = r[2];         \
         out[slot++] = r[3];         \
     }
-    SM_GLSL_CASES(X)
+    SM_HARNESS_CASES(X)
 #undef X
     return slot;
 }

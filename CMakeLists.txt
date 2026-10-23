@@ -214,6 +214,45 @@ if(SHADER_MATH_BUILD_TESTS)
                      COMMAND ${Python3_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/compare.py
                              $<TARGET_FILE:slang_interop_runner>
                              $<TARGET_FILE:shader_math_interop_cpp>)
+
+            # half cases: the CPU target cannot compile half vector math, so
+            # they go through SPIR-V on Vulkan (lavapipe) when it is available
+            find_package(Vulkan)
+            if(Vulkan_FOUND)
+                set(SHADER_MATH_INTEROP_HALF_SPV ${CMAKE_CURRENT_BINARY_DIR}/kernels_half.spv)
+                add_custom_command(
+                    OUTPUT ${SHADER_MATH_INTEROP_HALF_SPV}
+                    COMMAND ${SLANGC_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/kernels_half.slang
+                            -target spirv -entry runCases -stage compute
+                            -o ${SHADER_MATH_INTEROP_HALF_SPV}
+                    DEPENDS ${SHADER_MATH_INTEROP_DIR}/kernels_half.slang
+                            ${SHADER_MATH_INTEROP_DIR}/shared/math_cases.hlsli
+                            ${SHADER_MATH_INTEROP_DIR}/shared/case_list.h
+                    COMMENT "slangc: compiling the half cases to SPIR-V"
+                    VERBATIM)
+                add_custom_target(slang_interop_half_spv ALL DEPENDS ${SHADER_MATH_INTEROP_HALF_SPV})
+
+                add_executable(slang_vk_runner_half ${SHADER_MATH_INTEROP_DIR}/vk_runner.cpp)
+                target_include_directories(slang_vk_runner_half PRIVATE ${SHADER_MATH_INTEROP_DIR})
+                target_compile_definitions(slang_vk_runner_half PRIVATE
+                    "SM_VK_CASES_HEADER=\"shared/case_list.h\"" SM_VK_CASES=SM_INTEROP_HALF_CASES)
+                target_link_libraries(slang_vk_runner_half PRIVATE Vulkan::Vulkan)
+                shader_math_warnings(slang_vk_runner_half)
+
+                add_executable(shader_math_interop_cpp_half ${SHADER_MATH_INTEROP_DIR}/cpp_harness.cpp)
+                target_compile_definitions(shader_math_interop_cpp_half PRIVATE SM_INTEROP_ENABLE_HALF)
+                target_link_libraries(shader_math_interop_cpp_half PRIVATE shader_math)
+                shader_math_warnings(shader_math_interop_cpp_half)
+
+                add_test(NAME slang_interop_half_check
+                         COMMAND ${Python3_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/compare.py
+                                 $<TARGET_FILE:slang_vk_runner_half>
+                                 $<TARGET_FILE:shader_math_interop_cpp_half>
+                                 slang-spirv ${SHADER_MATH_INTEROP_HALF_SPV} --f16)
+                set_tests_properties(slang_interop_half_check PROPERTIES SKIP_RETURN_CODE 77)
+            else()
+                message(STATUS "Vulkan not found: skipping the Slang half cross-check")
+            endif()
         else()
             message(WARNING "SHADER_MATH_INTEROP_SLANG=ON but slangc or python3 "
                             "was not found (set SHADER_MATH_SLANG_DIR); skipping "
@@ -241,7 +280,10 @@ if(SHADER_MATH_BUILD_TESTS)
                 VERBATIM)
             add_custom_target(glsl_interop_spv ALL DEPENDS ${SM_GLSL_SPV})
 
-            add_executable(glsl_vk_runner ${SM_GLSL_DIR}/vk_runner.cpp)
+            add_executable(glsl_vk_runner ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop/vk_runner.cpp)
+            target_include_directories(glsl_vk_runner PRIVATE ${SM_GLSL_DIR})
+            target_compile_definitions(glsl_vk_runner PRIVATE
+                "SM_VK_CASES_HEADER=\"case_list.h\"" SM_VK_CASES=SM_GLSL_CASES)
             target_link_libraries(glsl_vk_runner PRIVATE Vulkan::Vulkan)
             shader_math_warnings(glsl_vk_runner)
 
@@ -255,6 +297,38 @@ if(SHADER_MATH_BUILD_TESTS)
                              $<TARGET_FILE:glsl_vk_runner>
                              $<TARGET_FILE:shader_math_glsl_interop_cpp>
                              vulkan ${SM_GLSL_SPV})
+
+            # f16vec / f16mat cases (shaderFloat16; skipped when the device lacks it)
+            set(SM_GLSL_HALF_SPV ${CMAKE_CURRENT_BINARY_DIR}/glsl_kernels_half.spv)
+            add_custom_command(
+                OUTPUT ${SM_GLSL_HALF_SPV}
+                COMMAND ${GLSLANG_VALIDATOR} -V --target-env vulkan1.2
+                        -o ${SM_GLSL_HALF_SPV} ${SM_GLSL_DIR}/kernels_half.comp
+                DEPENDS ${SM_GLSL_DIR}/kernels_half.comp ${SM_GLSL_DIR}/half_cases.glsl
+                        ${SM_GLSL_DIR}/half_case_list.h ${SM_GLSL_DIR}/math_cases.glsl
+                COMMENT "glslang: compiling kernels_half.comp to SPIR-V"
+                VERBATIM)
+            add_custom_target(glsl_interop_half_spv ALL DEPENDS ${SM_GLSL_HALF_SPV})
+
+            add_executable(glsl_vk_runner_half ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop/vk_runner.cpp)
+            target_include_directories(glsl_vk_runner_half PRIVATE ${SM_GLSL_DIR})
+            target_compile_definitions(glsl_vk_runner_half PRIVATE
+                "SM_VK_CASES_HEADER=\"half_case_list.h\"" SM_VK_CASES=SM_GLSL_HALF_CASES)
+            target_link_libraries(glsl_vk_runner_half PRIVATE Vulkan::Vulkan)
+            shader_math_warnings(glsl_vk_runner_half)
+
+            add_executable(shader_math_glsl_interop_cpp_half ${SM_GLSL_DIR}/cpp_harness.cpp)
+            target_compile_definitions(shader_math_glsl_interop_cpp_half PRIVATE SM_GLSL_HALF)
+            target_link_libraries(shader_math_glsl_interop_cpp_half PRIVATE shader_math)
+            shader_math_warnings(shader_math_glsl_interop_cpp_half)
+
+            add_test(NAME glsl_interop_half_check
+                     COMMAND ${Python3_EXECUTABLE}
+                             ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop/compare.py
+                             $<TARGET_FILE:glsl_vk_runner_half>
+                             $<TARGET_FILE:shader_math_glsl_interop_cpp_half>
+                             vulkan ${SM_GLSL_HALF_SPV} --f16)
+            set_tests_properties(glsl_interop_half_check PROPERTIES SKIP_RETURN_CODE 77)
         else()
             message(WARNING "SHADER_MATH_INTEROP_GLSL=ON but glslangValidator, Vulkan "
                             "or python3 was not found; skipping the GLSL cross-check")
