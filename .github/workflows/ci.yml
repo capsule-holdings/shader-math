@@ -41,9 +41,11 @@ jobs:
             cxx: g++
             package: true
             bench: true
+            compile_time: true
           - name: linux-x64-clang
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: clang++
+            compile_time: true
           - name: linux-arm-gcc
             runner: blacksmith-2vcpu-ubuntu-2404-arm
             cxx: g++
@@ -226,6 +228,18 @@ jobs:
             ./build/shader_math_bench --markdown
             echo
             ./build/shader_math_bench_scalar --markdown
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Informational only, like the benchmark: front-end time of a TU that
+      # includes the library, per opt-in macro set, to catch header cost.
+      - name: Header compile time (informational)
+        if: matrix.compile_time
+        continue-on-error: true
+        run: |
+          python3 bench/compile_time.py ${{ matrix.cxx }}
+          {
+            echo "### ${{ matrix.name }}"
+            python3 bench/compile_time.py ${{ matrix.cxx }} --markdown
           } >> "$GITHUB_STEP_SUMMARY"
 
       # The clip animates, so identical first / last frames mean the
