@@ -87,6 +87,11 @@ option(SHADER_MATH_GLSL_STPQ
 if(SHADER_MATH_GLSL_STPQ)
     target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_GLSL_STPQ>)
 endif()
+option(SHADER_MATH_NESTED_SWIZZLE
+       "Enable swizzles of swizzles (v.xy.yx) on shader_math and everything linking it" OFF)
+if(SHADER_MATH_NESTED_SWIZZLE)
+    target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_NESTED_SWIZZLE>)
+endif()
 option(SHADER_MATH_BUILD_TESTS "Build shader-math tests and examples" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INSTALL "Generate the install / find_package rules" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INTEROP_SLANG
@@ -181,6 +186,19 @@ if(SHADER_MATH_BUILD_TESTS)
     target_compile_definitions(shader_math_tests_stpq PRIVATE SHADER_MATH_GLSL_STPQ)
     shader_math_warnings(shader_math_tests_stpq)
     add_test(NAME shader_math_tests_stpq COMMAND shader_math_tests_stpq)
+
+    # Opt-in swizzles of swizzles, alone and together with .stpq.
+    add_executable(shader_math_tests_nested tests/test_nested_swizzle.cpp)
+    target_link_libraries(shader_math_tests_nested PRIVATE shader_math)
+    target_compile_definitions(shader_math_tests_nested PRIVATE SHADER_MATH_NESTED_SWIZZLE)
+    shader_math_warnings(shader_math_tests_nested)
+    add_test(NAME shader_math_tests_nested COMMAND shader_math_tests_nested)
+    add_executable(shader_math_tests_nested_stpq tests/test_nested_swizzle.cpp)
+    target_link_libraries(shader_math_tests_nested_stpq PRIVATE shader_math)
+    target_compile_definitions(shader_math_tests_nested_stpq PRIVATE
+        SHADER_MATH_NESTED_SWIZZLE SHADER_MATH_GLSL_STPQ)
+    shader_math_warnings(shader_math_tests_nested_stpq)
+    add_test(NAME shader_math_tests_nested_stpq COMMAND shader_math_tests_nested_stpq)
 
     # Approximate-equivalence proof for the batch skinning backends (pure CPU,
     # no SDL): oracle bound + pairwise agreement + invariance properties.

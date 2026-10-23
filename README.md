@@ -62,6 +62,7 @@ void glsl_side() {
 | `<` `>` `<=` `>=` | 成分ごと bool | ベクトルには無し（`lessThan()` 等） |
 | 成分アクセス | `m[row][col]`, `_m00`, `_11` | `m[col][row]` |
 | swizzle | `.xyzw` `.rgba` 全組み合わせ（読み書き） | 同左。`.stpq` はオプトイン（下記） |
+| swizzle の重ねがけ（`v.xy.yx`） | オプトイン（下記） | 同左 |
 
 `transpose` / `determinant` / `inverse` / `dot` / `cross` / `length` / `normalize` / `all` / `any` は両方にある（`inverse` は GLSL 公式・HLSL 側は拡張）。
 
@@ -191,7 +192,8 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
   `SHADER_MATH_BOOST_PREDEF_INCLUDE` も）を指定する
 - scalar 強制: サブプロジェクトなら `-DSHADER_MATH_FORCE_SCALAR=ON`、インストール済みパッケージなら
   `find_package` の前に `set(SHADER_MATH_FORCE_SCALAR ON)`。どちらもマクロが `shader_math::shader_math`
-  に付くので、リンクする全ターゲットで揃う（SIMD と scalar の翻訳単位が混ざると ODR 違反になる）
+  に付くので、リンクする全ターゲットで揃う（SIMD と scalar の翻訳単位が混ざると ODR 違反になる）。
+  `SHADER_MATH_GLSL_STPQ` / `SHADER_MATH_NESTED_SWIZZLE` も同じ方法で有効にする
 - pkg-config: `<prefix>/share/pkgconfig/shader_math.pc`（`pkg-config --cflags shader_math`）。Boost は
   システムの Boost を使ってインストールした場合だけ含まれる（自動取得した Boost はインストールされない）
 - バージョンは 0.x の間は同一マイナーのみ互換（`SameMinorVersion`）
@@ -216,6 +218,11 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
   `set(SHADER_MATH_GLSL_STPQ ON)`。どちらも `shader_math::shader_math` に付くので全翻訳単位で揃う）。
   ベクトル型は `hlsl` と共有なので、有効にすると HLSL 側でも `.stp` が通る（HLSL には無い綴り。意味は
   `.xyz` と同じ）。既定で無効なのはこのため。コンパイル時間は gcc で +5〜11%、clang では誤差程度（実測）
+- **swizzle の重ねがけ**（`v.xy.yx`、`v.xyz.zx`）は**オプトイン**: `SHADER_MATH_NESTED_SWIZZLE` を定義すると
+  2・3 成分の swizzle に対して読み出しだけ有効（`.stpq` も有効ならそれも使える）。4 成分の swizzle からの
+  重ねがけ（`v.wzyx.xy`）と重ねがけ先への書き込みは無い（`float4(v.wzyx).xy` と書く）。メンバ宣言が
+  組み合わせで増えるため、有効にするとライブラリを include するだけの翻訳単位のフロントエンド時間が
+  約 3 倍になる（clang 実測 0.35 → 1.03 秒）。既定で無効なのはこのため
 - GLSL の `not()` は C++ キーワードのため `not_()`
 - `v.x` はプロキシ型（可変長引数に直接渡すときは `float(v.x)` にする）
 - 対象は float と half（ベクトル）。`int` / `double`、`1xN` 行列、GPU 専用機能（テクスチャ・微分・atomic）は対象外
