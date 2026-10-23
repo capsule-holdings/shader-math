@@ -38,6 +38,25 @@ struct ops {
     template <int I>
     static SHADER_MATH_INLINE freg bcast(freg v) { return splat(v.f[I]); }
 
+    static SHADER_MATH_INLINE freg cat_lo(freg a, freg b) {
+        return {{a.f[0], a.f[1], b.f[0], b.f[1]}};
+    }
+    static SHADER_MATH_INLINE freg cat_hi(freg a, freg b) {
+        return {{a.f[2], a.f[3], b.f[2], b.f[3]}};
+    }
+    static SHADER_MATH_INLINE freg even(freg a, freg b) {
+        return {{a.f[0], a.f[2], b.f[0], b.f[2]}};
+    }
+    static SHADER_MATH_INLINE freg odd(freg a, freg b) {
+        return {{a.f[1], a.f[3], b.f[1], b.f[3]}};
+    }
+    static SHADER_MATH_INLINE freg swap_pairs(freg a) {
+        return {{a.f[1], a.f[0], a.f[3], a.f[2]}};
+    }
+    static SHADER_MATH_INLINE freg swap_halves(freg a) {
+        return {{a.f[2], a.f[3], a.f[0], a.f[1]}};
+    }
+
     static SHADER_MATH_INLINE freg add(freg a, freg b) {
         return {{a.f[0] + b.f[0], a.f[1] + b.f[1], a.f[2] + b.f[2], a.f[3] + b.f[3]}};
     }
@@ -63,6 +82,11 @@ struct ops {
     static SHADER_MATH_INLINE freg fmadd(freg a, freg b, freg c) {
         return {{a.f[0] * b.f[0] + c.f[0], a.f[1] * b.f[1] + c.f[1], a.f[2] * b.f[2] + c.f[2],
                  a.f[3] * b.f[3] + c.f[3]}};
+    }
+    // c - a*b
+    static SHADER_MATH_INLINE freg fnmadd(freg a, freg b, freg c) {
+        return {{c.f[0] - a.f[0] * b.f[0], c.f[1] - a.f[1] * b.f[1], c.f[2] - a.f[2] * b.f[2],
+                 c.f[3] - a.f[3] * b.f[3]}};
     }
 
 #define SHADER_MATH_SCALAR_MAP1(name, expr)                                          \
