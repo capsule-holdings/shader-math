@@ -1,10 +1,20 @@
-// X-macro list for the DXC cross-check: the shared float cases plus the
-// DXC-only ones. Includes shared/case_list.h itself so vk_runner can use it
-// as its only case header.
+// X-macro lists for the DXC cross-checks: the shared float cases plus the
+// DXC-only ones. Includes shared/case_list.h itself so vk_runner and
+// d3d12_runner can use it as their only case header.
 #include "shared/case_list.h"
 
-// lit is left out: DXC's SPIR-V backend computes its specular term as
+#define SM_DXC_CASES_COMMON(X)                                 \
+    SM_INTEROP_CASES_BASE(X)                                   \
+    X(exact_dst, case_exact_dst(IN_A, IN_B))
+
+// SPIR-V leaves lit out: DXC's SPIR-V backend computes its specular term as
 // (n.h) * m instead of the documented (n.h)^m.
 #define SM_DXC_CASES(X)                                        \
-    SM_INTEROP_CASES_BASE(X)                                   \
-    X(exact_frexp_dst, case_exact_frexp_dst(IN_A, IN_B))
+    SM_DXC_CASES_COMMON(X)                                     \
+    X(exact_frexp, case_exact_frexp(IN_A))
+
+// DXIL leaves frexp out: DXC's DXIL lowering builds the mantissa as
+// (bits & 0x007fffff) | 0x3f000000, which drops the sign of a negative input.
+#define SM_DXIL_CASES(X)                                       \
+    SM_DXC_CASES_COMMON(X)                                     \
+    X(near_lit, case_near_lit())

@@ -98,6 +98,8 @@ option(SHADER_MATH_INTEROP_SLANG
        "Build the Slang cross-compilation check (needs slangc + python3)" OFF)
 option(SHADER_MATH_INTEROP_DXC
        "Build the DXC cross-check (needs dxc, Vulkan, python3; set SHADER_MATH_DXC_DIR)" OFF)
+option(SHADER_MATH_INTEROP_DXIL
+       "Build the DXIL cross-check on D3D12 WARP (Windows; needs dxc, python3; set SHADER_MATH_DXC_DIR)" OFF)
 option(SHADER_MATH_INTEROP_GLSL
        "Build the GLSL cross-check (needs glslangValidator, Vulkan, python3)" OFF)
 option(SHADER_MATH_WARNINGS_AS_ERRORS
@@ -407,6 +409,87 @@ if(SHADER_MATH_BUILD_TESTS)
         else()
             message(WARNING "SHADER_MATH_INTEROP_DXC=ON but dxc (set SHADER_MATH_DXC_DIR), "
                             "Vulkan or python3 was not found; skipping the DXC cross-check")
+        endif()
+    endif()
+
+    # DXIL cross-check (Windows): the same HLSL compiled by DXC to DXIL and run
+    # on WARP through D3D12. dxc signs the DXIL with the dxil.dll next to it,
+    # which D3D12 requires.
+    if(SHADER_MATH_INTEROP_DXIL)
+        if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(ARM64|arm64|aarch64)$")
+            set(SM_DXIL_HOST_ARCH arm64)
+        else()
+            set(SM_DXIL_HOST_ARCH x64)
+        endif()
+        find_program(DXIL_DXC_EXECUTABLE dxc HINTS ${SHADER_MATH_DXC_DIR}/bin/${SM_DXIL_HOST_ARCH}
+                     NO_DEFAULT_PATH)
+        find_program(DXIL_DXC_EXECUTABLE dxc)
+        find_package(Python3 COMPONENTS Interpreter)
+        if(WIN32 AND DXIL_DXC_EXECUTABLE AND Python3_FOUND)
+            set(SM_INTEROP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop)
+            set(SM_DXIL_DEPS ${SM_INTEROP_DIR}/dxc/kernels.hlsl ${SM_INTEROP_DIR}/dxc/dxc_cases.hlsli
+                             ${SM_INTEROP_DIR}/dxc/dxc_case_list.h
+                             ${SM_INTEROP_DIR}/shared/math_cases.hlsli ${SM_INTEROP_DIR}/shared/case_list.h)
+            set(SM_DXIL_RUN ${DXIL_DXC_EXECUTABLE} -T cs_6_2 -E main -HV 2021 -I ${SM_INTEROP_DIR}
+                            -D SM_INTEROP_OPAQUE_INPUTS=1)
+            set(SM_DXIL_OUT ${CMAKE_CURRENT_BINARY_DIR}/dxil_kernels.dxil)
+            set(SM_DXIL_HALF_OUT ${CMAKE_CURRENT_BINARY_DIR}/dxil_kernels_half.dxil)
+            add_custom_command(
+                OUTPUT ${SM_DXIL_OUT}
+                COMMAND ${SM_DXIL_RUN} -D SM_INTEROP_DXIL=1
+                        -Fo ${SM_DXIL_OUT} ${SM_INTEROP_DIR}/dxc/kernels.hlsl
+                DEPENDS ${SM_DXIL_DEPS}
+                COMMENT "dxc: compiling the HLSL cases to DXIL"
+                VERBATIM)
+            add_custom_command(
+                OUTPUT ${SM_DXIL_HALF_OUT}
+                COMMAND ${SM_DXIL_RUN} -enable-16bit-types -D SM_INTEROP_ENABLE_HALF=1
+                        -Fo ${SM_DXIL_HALF_OUT} ${SM_INTEROP_DIR}/dxc/kernels.hlsl
+                DEPENDS ${SM_DXIL_DEPS}
+                COMMENT "dxc: compiling the half cases to DXIL (-enable-16bit-types)"
+                VERBATIM)
+            add_custom_target(dxil_interop_kernels ALL DEPENDS ${SM_DXIL_OUT} ${SM_DXIL_HALF_OUT})
+
+            add_executable(dxil_d3d12_runner ${SM_INTEROP_DIR}/d3d12_runner.cpp)
+            target_include_directories(dxil_d3d12_runner PRIVATE ${SM_INTEROP_DIR})
+            target_compile_definitions(dxil_d3d12_runner PRIVATE
+                "SM_D3D12_CASES_HEADER=\"dxc/dxc_case_list.h\"" SM_D3D12_CASES=SM_DXIL_CASES)
+            target_link_libraries(dxil_d3d12_runner PRIVATE d3d12 dxgi)
+            shader_math_warnings(dxil_d3d12_runner)
+            add_executable(dxil_d3d12_runner_half ${SM_INTEROP_DIR}/d3d12_runner.cpp)
+            target_include_directories(dxil_d3d12_runner_half PRIVATE ${SM_INTEROP_DIR})
+            target_compile_definitions(dxil_d3d12_runner_half PRIVATE
+                "SM_D3D12_CASES_HEADER=\"shared/case_list.h\"" SM_D3D12_CASES=SM_INTEROP_HALF_CASES)
+            target_link_libraries(dxil_d3d12_runner_half PRIVATE d3d12 dxgi)
+            shader_math_warnings(dxil_d3d12_runner_half)
+
+            add_executable(shader_math_dxil_cpp ${SM_INTEROP_DIR}/cpp_harness.cpp)
+            target_compile_definitions(shader_math_dxil_cpp PRIVATE SM_INTEROP_DXIL)
+            target_include_directories(shader_math_dxil_cpp PRIVATE ${SM_INTEROP_DIR})
+            target_link_libraries(shader_math_dxil_cpp PRIVATE shader_math)
+            shader_math_warnings(shader_math_dxil_cpp)
+            add_executable(shader_math_dxil_cpp_half ${SM_INTEROP_DIR}/cpp_harness.cpp)
+            target_compile_definitions(shader_math_dxil_cpp_half PRIVATE SM_INTEROP_ENABLE_HALF)
+            target_link_libraries(shader_math_dxil_cpp_half PRIVATE shader_math)
+            shader_math_warnings(shader_math_dxil_cpp_half)
+
+            # WARP's asin / acos / atan are about 1e-3 off libm in the cases
+            # using them (its other transcendentals stay within near_)
+            add_test(NAME dxil_interop_check
+                     COMMAND ${Python3_EXECUTABLE} ${SM_INTEROP_DIR}/compare.py
+                             $<TARGET_FILE:dxil_d3d12_runner> $<TARGET_FILE:shader_math_dxil_cpp>
+                             dxil ${SM_DXIL_OUT}
+                             --tol=near_inverse_trig:2e-3 --tol=near_matrix_intrinsics:2e-3)
+            add_test(NAME dxil_interop_half_check
+                     COMMAND ${Python3_EXECUTABLE} ${SM_INTEROP_DIR}/compare.py
+                             $<TARGET_FILE:dxil_d3d12_runner_half> $<TARGET_FILE:shader_math_dxil_cpp_half>
+                             dxil ${SM_DXIL_HALF_OUT} --f16)
+            set_tests_properties(dxil_interop_check dxil_interop_half_check PROPERTIES
+                                 SKIP_RETURN_CODE 77)
+        else()
+            message(WARNING "SHADER_MATH_INTEROP_DXIL=ON but this is not Windows, or dxc "
+                            "(set SHADER_MATH_DXC_DIR) or python3 was not found; "
+                            "skipping the DXIL cross-check")
         endif()
     endif()
 

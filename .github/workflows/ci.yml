@@ -6,6 +6,7 @@
 # one Slang cross-compilation job (pinned Slang release, see docs/slang_compat.md),
 # one GLSL cross-check job (glslang -> SPIR-V -> lavapipe, see docs/glsl_interop.md),
 # one DXC cross-check job (DXC -> SPIR-V -> lavapipe, see docs/slang_compat.md),
+# one DXIL cross-check job (DXC -> DXIL -> D3D12 WARP on Windows x64),
 # macOS arm64 (Apple Clang), the README's minimum compiler versions, and one
 # Debug ASan/UBSan job, a coverage job, and the SDL_GPU demo rendered headless
 # on lavapipe.
@@ -144,6 +145,7 @@ jobs:
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
             packages: glslang-tools libvulkan-dev mesa-vulkan-drivers
+            interop_tests: glsl_interop
             cmake_extra: -DSHADER_MATH_INTEROP_GLSL=ON
           # HLSL against the official compiler: DXC -> SPIR-V -> lavapipe
           - name: linux-x64-dxc-interop
@@ -154,7 +156,18 @@ jobs:
             # sha256 of dxc_asset (the release asset digest); update together
             dxc_sha256: 96faadc7f5c282d2ffda49804beb4c3ee38127bc252b723234e3c5cdf7aa39a1
             packages: libvulkan-dev mesa-vulkan-drivers
+            interop_tests: dxc_interop
             cmake_extra: -DSHADER_MATH_INTEROP_DXC=ON -DSHADER_MATH_DXC_DIR=/tmp/dxc
+          # the same HLSL through DXC's DXIL backend, run on D3D12 WARP
+          - name: windows-x64-dxil-interop
+            runner: blacksmith-2vcpu-windows-2025
+            cxx: cl
+            dxc_version: "1.9.2609"
+            dxc_asset: dxc_2026_09_29.zip
+            # sha256 of dxc_asset (the release asset digest); update together
+            dxc_sha256: ad31b1fc8443175d204f77a611fdb3ef2ec42759bdc2f1167368de24a4a7e7f1
+            interop_tests: dxil_interop
+            cmake_extra: -DSHADER_MATH_INTEROP_DXIL=ON -DSHADER_MATH_DXC_DIR=C:/dxc
           - name: linux-x64-slang-interop
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
@@ -164,6 +177,7 @@ jobs:
             # sha256 of slang-<version>-linux-x86_64.tar.gz (matches the
             # release asset digest); update together with slang_version
             slang_sha256: e863e568c204810d6e8bc31852f056aef6763c55ea9925db2db7affa060347c9
+            interop_tests: slang_interop
             cmake_extra: -DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=/tmp/slang
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
@@ -193,7 +207,7 @@ jobs:
           git diff --exit-code -- examples/sdl_gpu_skinning/
 
       - name: Install DXC (dxc interop job only)
-        if: matrix.dxc_version != ''
+        if: matrix.dxc_version != '' && runner.os == 'Linux'
         run: |
           curl -fsSL -o /tmp/dxc.tar.gz \
             https://github.com/microsoft/DirectXShaderCompiler/releases/download/v${{ matrix.dxc_version }}/${{ matrix.dxc_asset }}
@@ -201,6 +215,17 @@ jobs:
           mkdir -p /tmp/dxc
           tar -xzf /tmp/dxc.tar.gz -C /tmp/dxc
           LD_LIBRARY_PATH=/tmp/dxc/lib /tmp/dxc/bin/dxc --version
+
+      - name: Install DXC (dxil interop job only)
+        if: matrix.dxc_version != '' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $zip = "$env:RUNNER_TEMP\dxc.zip"
+          Invoke-WebRequest -Uri "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v${{ matrix.dxc_version }}/${{ matrix.dxc_asset }}" -OutFile $zip
+          $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
+          if ($hash -ne "${{ matrix.dxc_sha256 }}") { throw "dxc sha256 mismatch: $hash" }
+          Expand-Archive -Path $zip -DestinationPath C:\dxc
+          C:\dxc\bin\x64\dxc.exe --version
 
       - name: Configure (Linux / macOS)
         if: runner.os != 'Windows'
@@ -223,6 +248,14 @@ jobs:
         env:
           LLVM_PROFILE_FILE: ${{ github.workspace }}/build/prof/%p-%m.profraw
         run: ctest --test-dir build --output-on-failure -C ${{ matrix.build_type || 'Release' }}
+
+      # CMake only warns when an interop prerequisite is missing, which would
+      # leave the cross-check unregistered and the Test step green
+      - name: Cross-check is registered (interop jobs)
+        if: matrix.interop_tests
+        run: >-
+          ctest --test-dir build -C ${{ matrix.build_type || 'Release' }} --no-tests=error
+          -R ${{ matrix.interop_tests }}
 
       - name: Coverage report (informational)
         if: matrix.coverage

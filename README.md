@@ -251,8 +251,9 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
 
 ## DXC との相互検証
 
-HLSL 面は Slang に加えて、公式の HLSL コンパイラ DXC でも照合している（DXC で SPIR-V にして lavapipe で
-実行）。Slang では照合できない `frexp` / `dst` もここで照合する。詳細は [docs/slang_compat.md](docs/slang_compat.md) の DXC 節。
+HLSL 面は Slang に加えて、公式の HLSL コンパイラ DXC でも照合している。DXC で SPIR-V にして lavapipe で
+実行するものと、Windows で DXIL にして D3D12 の WARP で実行するものの 2 通り。Slang では照合できない
+`frexp` / `dst` もここで照合する。詳細は [docs/slang_compat.md](docs/slang_compat.md) の DXC 節。
 
 ## Slang との相互検証
 
