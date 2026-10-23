@@ -446,6 +446,17 @@ SM_VEC_COMPOUND(/)
 #undef SM_VEC_COMPOUND
 
 // ---- shared vector functions (same meaning in both languages) --------------
+// sum of the first n lane products, broadcast to every lane, added in lane
+// order ((x + y) + z) + w without leaving the register
+template <int n, class T>
+SHADER_MATH_INLINE vreg<T> dot_splat(vreg<T> a, vreg<T> b) {
+    const vreg<T> s = vops<T>::mul(a, b);
+    vreg<T> r = vops<T>::add(vops<T>::template bcast<0>(s), vops<T>::template bcast<1>(s));
+    if constexpr (n >= 3) r = vops<T>::add(r, vops<T>::template bcast<2>(s));
+    if constexpr (n == 4) r = vops<T>::add(r, vops<T>::template bcast<3>(s));
+    return r;
+}
+
 template <class A, class B>
     requires SameVec<A, B>
 SHADER_MATH_INLINE vec_elem_t<A> dot(const A& a0, const B& b0) {
@@ -474,8 +485,10 @@ SHADER_MATH_INLINE auto cross(const A& a0, const B& b0) {
 template <class A>
     requires VecLike<A>
 SHADER_MATH_INLINE vec_elem_t<A> length(const A& a) {
+    constexpr int n = vec_size_v<A>;
     using T = vec_elem_t<A>;
-    return static_cast<T>(std::sqrt(static_cast<float>(dot(a, a))));
+    const auto v = to_vec(a).q_;
+    return vops<T>::template lane_c<0>(vops<T>::sqrt(dot_splat<n, T>(v, v)));
 }
 
 template <class A>
@@ -483,8 +496,8 @@ template <class A>
 SHADER_MATH_INLINE auto normalize(const A& a) {
     constexpr int n = vec_size_v<A>;
     using T = vec_elem_t<A>;
-    const fvec<n, T> v = to_vec(a);
-    return v / length(v);
+    const auto v = to_vec(a).q_;
+    return fvec<n, T>(vops<T>::div(v, vops<T>::sqrt(dot_splat<n, T>(v, v))));
 }
 
 // ---- component-wise functions (same meaning in both languages) --------------
