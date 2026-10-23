@@ -166,6 +166,33 @@ float4 case_near_matrix_intrinsics(float4 a, float4 b)
     return float4(r[0].x + r[1].y, r[0].y - r[2].x, r[1].x + r[2].y, r[2].x * 0.5f);
 }
 
+// ---- constructors, element access, compound ops (exact) ---------------------
+float4 case_exact_ctor_access(float4 a, float4 b)
+{
+    float3x3 rows = float3x3(a.xyz, b.xyz, float3(1.0f, 2.0f, 3.0f));  // row vectors
+    float3x3 splat = float3x3(0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f);
+    float3x3 s1 = float3x3(0.25f);                                       // scalar ctor: every element
+    float4x4 big = float4x4(a, b, a * 2.0f, b * 0.5f);
+    float2x2 small = (float2x2)big;                                      // truncating cast
+    float4 r = float4(rows._m01 + rows._12, rows._m20 * 10.0f, small._m11 + small._21, s1._33);
+    r += splat[1].xyzx;
+    r *= 2.0f;
+    r -= float4(b.w, a.w, b.z, a.z);
+    bool4 nb = !(a > b);
+    r.w = r.w + (nb[0] ? 1.0f : 0.0f) + (nb[1] ? 2.0f : 0.0f);
+    float3x2 t = transpose(float2x3(a.xyz, b.xyz));
+    return r + float4(t[2].x, t[0].y, t[1].x, t[1].y);
+}
+
+// ---- remaining transcendentals / geometry (near) ---------------------------
+float4 case_near_misc(float4 a, float4 b)
+{
+    float4 s = clamp(a * 0.25f, -1.0f, 1.0f);
+    float4 r = exp(s) + log(abs(b) + 1.0f) + tan(s * 0.5f);
+    float l = length(a.xyz) + length(b);
+    return r + float4(l, l * 0.5f, length(a.xy), 0.0f);
+}
+
 // ---- half tier --------------------------------------------------------------
 // The Slang CPU target's C++ prelude (v2026.16) does not implement half vector
 // arithmetic, so these cases run through kernels_half.slang compiled to SPIR-V
