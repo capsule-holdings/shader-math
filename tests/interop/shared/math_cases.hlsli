@@ -95,6 +95,77 @@ float4 case_near_transcend(float4 a, float4 b)
     return r + rsqrt(abs(a) + 1.0f) + rcp(b);
 }
 
+// ---- classification and matrix intrinsics (exact) ---------------------------
+// bool results are folded into floats with all()/any() and scalar ?: (no
+// bool-vector -> float-vector conversion in the shared subset)
+float4 case_exact_classify(float4 a)
+{
+    float4 inf = rcp(float4(0.0f, 0.0f, 0.0f, 0.0f));
+    float4 v = float4(a.x, inf.y, inf.z - inf.w, -inf.x);  // finite, +inf, NaN, -inf
+    float4 r;
+    // bool vectors are indexed, not swizzled (shader-math's boolN has no .xyzw)
+    r.x = (isnan(v)[2] && !isnan(v)[0]) ? 1.0f : 0.0f;
+    r.y = (isinf(v)[1] && isinf(v)[3] && !isinf(v)[2]) ? 1.0f : 0.0f;
+    r.z = (isfinite(v)[0] && !isfinite(v)[1] && !isfinite(v)[2]) ? 1.0f : 0.0f;
+    r.w = any(isnan(a)) ? 0.0f : 1.0f;
+    return r;
+}
+
+float4 case_exact_matrix_intrinsics(float4 a, float4 b)
+{
+    float2x4 m = float2x4(a.x, a.y, a.z, a.w,
+                          b.x, b.y, b.z, b.w);
+    float2x4 r = abs(m) + floor(m) - saturate(m);
+    r = r + min(m, 1.0f) + max(m, abs(m) * 0.5f);
+    r = r + clamp(m, -1.0f, 2.0f) + step(0.0f, m) + sign(m) + frac(m);
+    return r[0] + r[1] * 0.5f;
+}
+
+// ---- geometry / inverse trig / fmod (near) ----------------------------------
+float4 case_near_geometry(float3 n, float3 l, float3 c)
+{
+    float3 nn = normalize(n);
+    float3 i = normalize(l - c);
+    float3 refl = reflect(i, nn);
+    float3 refr = refract(i, nn, 0.75f);
+    float3 tir = refract(normalize(float3(1.0f, -0.05f, 0.0f)), float3(0.0f, 1.0f, 0.0f), 1.5f);
+    float3 ff = faceforward(nn, i, c);
+    return float4(distance(n, l) + tir.x + tir.y, refl.x + refr.y, refl.z * refr.x + ff.y,
+                  ff.x + ff.z + refr.z);
+}
+
+float4 case_near_inverse_trig(float4 a, float4 b)
+{
+    float4 s = clamp(a * 0.25f, -1.0f, 1.0f);
+    float4 r = asin(s) + acos(s * 0.5f) + atan(b);
+    r = r + atan2(a, b) + atan2(-a, b) + atan2(a, -b);
+    r = r + sinh(s) + cosh(s) * 0.5f + tanh(b);
+    return r + radians(a * 10.0f) + degrees(s) * 0.01f;
+}
+
+float4 case_near_fmod_mad(float4 a, float4 b)
+{
+    // fmod keeps the sign of x (trunc-based): opposite-sign operands included
+    float4 r = fmod(a, b) + fmod(-a, b) * 0.5f + fmod(a * 3.0f, 1.5f);
+    r = r + mad(a, b, float4(1.0f, -1.0f, 0.5f, 2.0f));
+    float4 ip;
+    float4 fr = modf(a * 1.5f, ip);
+    float4 sn;
+    float4 cs;
+    sincos(b, sn, cs);
+    return r + fr + ip * 0.25f + sn + cs * 0.5f;
+}
+
+float4 case_near_matrix_intrinsics(float4 a, float4 b)
+{
+    float3x2 m = float3x2(a.x, a.y, a.z, a.w, b.x, b.y);
+    float3x2 t = float3x2(b.z, b.w, a.x, b.x, a.w, b.y);
+    float3x2 r = lerp(m, t, 0.25f) + lerp(m, t, saturate(t));
+    r = r + sqrt(abs(m)) + sin(m) * cos(t) + pow(abs(t) + 0.5f, 1.5f);
+    r = r + smoothstep(-1.0f, 2.0f, m) + mad(m, t, m) + atan2(m, t) + fmod(m, 1.25f);
+    return float4(r[0].x + r[1].y, r[0].y - r[2].x, r[1].x + r[2].y, r[2].x * 0.5f);
+}
+
 // ---- half tier --------------------------------------------------------------
 // Excluded from SM_INTEROP_CASES for now: the Slang CPU target's C++ prelude
 // (v2026.16) does not implement half vector arithmetic, so generated code
