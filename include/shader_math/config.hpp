@@ -45,6 +45,16 @@
 #  define SHADER_MATH_HAS_SSE41 1
 #endif
 
+//   SHADER_MATH_HAS_F16C - F16C half <-> float conversion (vcvtph2ps /
+//                          vcvtps2ph) for the widened half path on x86.
+//                          GCC/Clang define __F16C__ (e.g. -march=x86-64-v3);
+//                          MSVC has no such macro, but /arch:AVX2 implies it.
+//                          SSE2 backend only (the scalar freg is no __m128).
+#if defined(SHADER_MATH_ISA_SSE2) && \
+    (defined(__F16C__) || (defined(_MSC_VER) && defined(__AVX2__)))
+#  define SHADER_MATH_HAS_F16C 1
+#endif
+
 //   SHADER_MATH_HAS_AVX - AVX1 (256-bit float ops). Used only to pack two
 //                         rows/columns of a 4x4 float matrix product into one
 //                         YMM register, and only together with FMA (AVX1-only
