@@ -51,6 +51,17 @@ SM_TEST_NOINLINE float swizzle_write_then_mul(float4 a) {
     const float4 w = v[1] * 2.0f;
     return w[3];
 }
+// The bool-vector component accessors (bswz) overlay the mask register the
+// same way.
+SM_TEST_NOINLINE bool bool_array_y(float4 a, float4 b, int n) {
+    bool4 m[2];
+    for (int i = 0; i < n; ++i) m[i] = a < b;
+    return m[1].y;
+}
+SM_TEST_NOINLINE bool bool_literal_z(bool x) {
+    const bool3 c(x, !x, x);
+    return c.z;
+}
 }  // namespace
 
 void test_proxy_alias() {
@@ -69,4 +80,6 @@ void test_proxy_alias() {
     CHECK_EQF(ctor_m11(1.0f, 1.1f, 2.0f, 2.1f), 2.1f);
     CHECK_EQF(proxy_write_then_add(a2), 200.0f);
     CHECK_EQF(swizzle_write_then_mul(float4(1.0f, 2.0f, 3.0f, 4.0f)), 16.0f);
+    CHECK(bool_array_y(float4(1.0f, 1.0f, 1.0f, 1.0f), float4(2.0f, 2.0f, 2.0f, 2.0f), 2));
+    CHECK(bool_literal_z(true));
 }

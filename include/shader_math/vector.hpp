@@ -978,7 +978,7 @@ SHADER_MATH_INLINE auto faceforward(const A& n0, const B& i, const C& nref) {
 // Read-only single-component accessor (b.x, b.a) overlaying the mask
 // register, like the float swizzle proxies; out-of-range lanes fail at use.
 template <int N, int I>
-struct bswz {
+struct SHADER_MATH_MAY_ALIAS bswz {
     mreg d;
     SHADER_MATH_INLINE operator bool() const {
         static_assert(I < N, "shader-math: bool vector component out of range");
