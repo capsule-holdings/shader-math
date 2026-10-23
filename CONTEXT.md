@@ -136,7 +136,9 @@ concepts + オーバーロード不宣言 + `= delete` 相当の3段構え:
 
 ジョブ一覧は `.github/workflows/ci.yml` が正（ここには分類だけを書く）。`fail-fast: false`、
 全ジョブで `-DSHADER_MATH_WARNINGS_AS_ERRORS=ON`。push は `main` のみ、ブランチは
-pull_request の 1 本で検証し、同じ PR への追加 push で古い実行を打ち切る。
+pull_request の 1 本で検証し、同じ PR への追加 push で古い実行を打ち切る。`*.md` と `docs/`
+だけの変更では CI を走らせない（`paths-ignore`。`release.yml` は、CI の無いコミットでも、CI が通った
+直近の祖先からの差分が文書だけなら受け付ける）。
 
 - バックエンド: Linux x64（SSE2 / x86-64-v2 = SSE4.1 / ivybridge = AVX+F16C で FMA なし /
   x86-64-v3 = FMA+AVX）、Linux ARM
