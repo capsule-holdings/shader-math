@@ -112,6 +112,26 @@ static_assert(has_atan2<float3> && !has_atan_yx<float3>);
 static_assert(has_fmod<float3> && !has_mod<float3>);
 static_assert(has_mad<float3> && !has_fma<float3>);
 static_assert(has_isfinite<float3> && has_sincos<float3>);
+template <class A>
+concept has_log10 = requires(const A& a) { log10(a); };
+template <class A>
+concept has_ldexp = requires(const A& a) { ldexp(a, a); };
+template <class A>
+concept has_frexp = requires(const A& a, A& e) { frexp(a, e); };
+template <class A>
+concept has_select = requires(const A& a) { select(a < a, a, a); };
+template <class A>
+concept has_dst = requires(const A& a) { dst(a, a); };
+template <class A>
+concept has_lit = requires(typename A::elem_t s) { lit(s, s, s); };
+template <class A>
+concept has_mod_op = requires(const A& a) { a % a; };
+template <class A>
+concept has_asinh = requires(const A& a) { asinh(a); acosh(a); atanh(a); };
+template <class A>
+concept has_mix_bvec = requires(const A& a) { mix(a, a, lessThan(a, a)); };
+static_assert(has_log10<float4> && has_ldexp<float4> && has_frexp<float4> && has_select<float4>);
+static_assert(has_dst<float4> && has_lit<float4> && has_mod_op<float4> && !has_asinh<float4>);
 }  // namespace hlsl_scope
 
 namespace glsl_scope {
@@ -144,6 +164,27 @@ concept has_mat_min = requires(const M& m) { min(m, m); };
 static_assert(!has_mat_abs<mat3> && !has_mat_min<mat2x3>);
 static_assert(has_fma<vec3> && !has_mad<vec3>);
 static_assert(!has_isfinite<vec3> && !has_sincos<vec3>);
+template <class A>
+concept has_log10 = requires(const A& a) { log10(a); };
+template <class A>
+concept has_ldexp = requires(const A& a) { ldexp(a, a); };
+template <class A>
+concept has_frexp = requires(const A& a, A& e) { frexp(a, e); };
+template <class A>
+concept has_select = requires(const A& a) { select(lessThan(a, a), a, a); };
+template <class A>
+concept has_dst = requires(const A& a) { dst(a, a); };
+template <class A>
+concept has_lit = requires(typename A::elem_t s) { lit(s, s, s); };
+template <class A>
+concept has_mod_op = requires(const A& a) { a % a; };
+template <class A>
+concept has_asinh = requires(const A& a) { asinh(a); acosh(a); atanh(a); };
+template <class A>
+concept has_mix_bvec = requires(const A& a) { mix(a, a, lessThan(a, a)); };
+static_assert(!has_log10<vec4> && !has_ldexp<vec4> && !has_frexp<vec4> && !has_select<vec4>);
+static_assert(!has_dst<vec4> && !has_lit<vec4> && !has_mod_op<vec4> && has_asinh<vec4> &&
+              has_mix_bvec<vec4>);
 }  // namespace glsl_scope
 
 // ---- ScalarFor operand rules (common-name functions are ADL-visible) --------
@@ -355,6 +396,68 @@ static void test_funcs_geometry_hlsl() {
     CHECK(isfinite(special.zw)[1]);
 }
 
+static void test_funcs_compat_gaps() {
+    {
+        using namespace shader_math::hlsl;
+        const float4 x(100.0f, 0.001f, 2.0f, 1.0f);
+        CHECK_NEAR(log10(x)[0], 2.0f);
+        CHECK_NEAR(log10(x)[1], -3.0f);
+        CHECK_EQF(ldexp(float4(1.5f, -3.0f, 0.75f, 1.0f), float4(2.0f, -1.0f, 3.0f, 0.0f))[0], 6.0f);
+        CHECK_EQF(ldexp(float4(1.5f, -3.0f, 0.75f, 1.0f), float4(2.0f, -1.0f, 3.0f, 0.0f))[1], -1.5f);
+        float4 e;
+        const float4 m = frexp(float4(8.0f, -0.375f, 1.0f, 0.0f), e);
+        CHECK_EQF(m[0], 0.5f);   // 8 = 0.5 * 2^4
+        CHECK_EQF(e[0], 4.0f);
+        CHECK_EQF(m[1], -0.75f);  // -0.375 = -0.75 * 2^-1
+        CHECK_EQF(e[1], -1.0f);
+        CHECK_EQF(m[3], 0.0f);
+        CHECK_EQF(e[3], 0.0f);
+
+        const float4 a(1.0f, 2.0f, 3.0f, 4.0f);
+        const float4 b(-1.0f, -2.0f, -3.0f, -4.0f);
+        const float4 s = select(a > 2.0f, a, b);  // a where true
+        CHECK_EQF(s[0], -1.0f);
+        CHECK_EQF(s[3], 4.0f);
+        CHECK_EQF(select(a > 2.0f, a, 0.0f)[1], 0.0f);
+        CHECK_EQF(select(a > 2.0f, 9.0f, b)[2], 9.0f);
+
+        const float4 d = dst(float4(9.0f, 2.0f, 3.0f, 4.0f), float4(5.0f, 0.5f, 7.0f, 8.0f));
+        CHECK_EQF(d[0], 1.0f);
+        CHECK_EQF(d[1], 1.0f);  // a.y * b.y
+        CHECK_EQF(d[2], 3.0f);  // a.z
+        CHECK_EQF(d[3], 8.0f);  // b.w
+        const float4 l = lit(0.5f, 0.5f, 2.0f);
+        CHECK_EQF(l[0], 1.0f);
+        CHECK_EQF(l[1], 0.5f);
+        CHECK_NEAR(l[2], 0.25f);
+        CHECK_EQF(l[3], 1.0f);
+        CHECK_EQF(lit(-0.5f, 0.5f, 2.0f)[1], 0.0f);  // facing away: no diffuse
+        CHECK_EQF(lit(-0.5f, 0.5f, 2.0f)[2], 0.0f);  // ... and no specular
+        CHECK_EQF(lit(0.5f, -0.5f, 2.0f)[2], 0.0f);
+
+        // % is fmod: trunc-based, sign of x
+        const float4 r = float4(-7.0f, 7.0f, 5.5f, -5.5f) % float4(3.0f, -3.0f, 2.0f, 2.0f);
+        CHECK_EQF(r[0], -1.0f);
+        CHECK_EQF(r[1], 1.0f);
+        CHECK_EQF(r[2], 1.5f);
+        CHECK_EQF(r[3], -1.5f);
+        CHECK_EQF((float4(7.0f) % 4.0f)[0], 3.0f);
+        CHECK_EQF((float2x2(5.0f, -5.0f, 7.5f, 1.0f) % 2.0f)[0][1], -1.0f);
+    }
+    {
+        using namespace shader_math::glsl;
+        const vec3 x(0.5f, 1.5f, -0.25f);
+        CHECK_NEAR(asinh(x)[0], std::asinh(0.5f));
+        CHECK_NEAR(acosh(x)[1], std::acosh(1.5f));
+        CHECK_NEAR(atanh(x)[2], std::atanh(-0.25f));
+        const vec4 a(1.0f, 2.0f, 3.0f, 4.0f);
+        const vec4 b(-1.0f, -2.0f, -3.0f, -4.0f);
+        const vec4 m = mix(a, b, greaterThan(a, vec4(2.0f)));  // y where true
+        CHECK_EQF(m[0], 1.0f);
+        CHECK_EQF(m[3], -4.0f);
+    }
+}
+
 static void test_funcs_matrix_hlsl() {
     using namespace shader_math::hlsl;
 
@@ -462,5 +565,6 @@ void test_funcs() {
     test_funcs_geometry_hlsl();
     test_funcs_geometry_glsl();
     test_funcs_matrix_hlsl();
+    test_funcs_compat_gaps();
     test_funcs_half();
 }
