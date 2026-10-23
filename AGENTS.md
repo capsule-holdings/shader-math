@@ -17,8 +17,8 @@
 
 `shader-math` はヘッダオンリーの C++20 ライブラリ（CMake、Boost はヘッダのみ利用）。
 常駐するサーバ・Web アプリは無く、「アプリケーション」に相当するのは
-テストスイート（`shader_math_tests` / `shader_math_tests_scalar`）と
-遊び場実行ファイル `sandbox`。
+テストスイート（`shader_math_tests` / `shader_math_tests_scalar`）、
+遊び場実行ファイル `sandbox`、ベンチマーク（`shader_math_bench` / `shader_math_bench_scalar`）。
 
 ### ビルド・テスト・実行
 
@@ -31,8 +31,16 @@
   `cmake -S . -B build-interop -DCMAKE_BUILD_TYPE=Release -DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=<展開先>`
   → build 後 `ctest --test-dir build-interop -R slang_interop --output-on-failure`。
   サブセット定義は `docs/slang_compat.md`、ケース本体は `tests/interop/shared/math_cases.hlsli`。
-- テストバイナリを直接実行するとバックエンドと `N checks, 0 failures` を出力する（例: `SSE2, 397 checks`）。
-  既定ビルドでは `ctest` が SIMD 版と scalar twin（`shader_math_tests_scalar`）の 2 つを実行する。
+- テストバイナリを直接実行するとバックエンド名（例: `SSE2+FMA`、`NEON+FP16`）と
+  `N checks, 0 failures` を出力する。件数はテスト追加で増えるので固定値で比べないこと。
+- 既定ビルドの `ctest` は 5 件: SIMD 版と scalar twin（`shader_math_tests_scalar`）、
+  codegen チェック（Release かつ非 MSVC のみ。objdump が無ければ skip）、`sandbox`、`skin_batch_check`。
+- CI は全ジョブ `-DSHADER_MATH_WARNINGS_AS_ERRORS=ON`（gcc/clang は `-Wall -Wextra -Wpedantic -Werror`、
+  MSVC は `/W4 /WX`）。手元でも付けて確認すること。
+- ベンチマーク: `./build/shader_math_bench` と `./build/shader_math_bench_scalar`（`--markdown` で表）。
+  参考値であり合否判定はしない。
+- SDL_GPU デモ（任意）: `-DSHADER_MATH_DEMO_SDLGPU=ON`。ヘッドレスなら `-DSDL_UNIX_CONSOLE_BUILD=ON` で
+  X11 不要、lavapipe（`mesa-vulkan-drivers`）上で `--headless N --out <dir>`（出力先は事前に作成）。
 
 ### 非自明な注意点
 
