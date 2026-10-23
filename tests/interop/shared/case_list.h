@@ -21,9 +21,9 @@
     X(exact_nested_read, case_exact_nested_read(IN_A, IN_B))   \
     X(exact_nested_mixed, case_exact_nested_mixed(IN_A, IN_B))
 
-// SM_INTEROP_CASES_BASE is everything both Slang and DXC check;
+// SM_INTEROP_CASES_BASE is everything Slang and both DXC backends check;
 // SM_INTEROP_CASES (Slang) adds lit, which DXC's SPIR-V backend computes
-// differently (see case_near_lit).
+// differently (see case_near_lit; the DXIL list adds it as well).
 #define SM_INTEROP_CASES(X)                                    \
     SM_INTEROP_CASES_BASE(X)                                   \
     X(near_lit, case_near_lit())

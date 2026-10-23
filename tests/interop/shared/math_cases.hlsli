@@ -211,8 +211,8 @@ float4 case_near_log10_ldexp(float4 a, float4 b)
 }
 
 // lit's specular term is (n.h)^m (Microsoft's lit documentation, Slang,
-// shader-math); DXC's SPIR-V backend emits (n.h) * m, so the DXC check
-// leaves this case out (dxc/dxc_case_list.h)
+// DXC's DXIL backend, shader-math); DXC's SPIR-V backend emits (n.h) * m,
+// so only its SPIR-V check leaves this case out (dxc/dxc_case_list.h)
 float4 case_near_lit()
 {
     // scalar arguments are literals: no intrinsics on scalars in the shared
