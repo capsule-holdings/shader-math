@@ -60,7 +60,7 @@ void glsl_side() {
 | 行列⇔行列 ctor | 縮小のみ（左上切り出し） | 拡大（単位行列で補完）/ 縮小 |
 | `==` | 成分ごと bool 行列/ベクトル | 全成分一致のスカラー bool |
 | `<` `>` `<=` `>=` | 成分ごと bool | ベクトルには無し（`lessThan()` 等） |
-| 成分アクセス | `m[row][col]`, `_m00`, `_11` | `m[col][row]` |
+| 成分アクセス | `m[row][col]`, `_m00`, `_11`（複数成分 `_m00_m11` はオプトイン、下記） | `m[col][row]` |
 | swizzle | `.xyzw` `.rgba` 全組み合わせ（読み書き） | 同左。`.stpq` はオプトイン（下記） |
 | swizzle の重ねがけ（`v.xy.yx`） | オプトイン（下記） | 同左 |
 
@@ -195,7 +195,7 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 - scalar 強制: サブプロジェクトなら `-DSHADER_MATH_FORCE_SCALAR=ON`、インストール済みパッケージなら
   `find_package` の前に `set(SHADER_MATH_FORCE_SCALAR ON)`。どちらもマクロが `shader_math::shader_math`
   に付くので、リンクする全ターゲットで揃う（SIMD と scalar の翻訳単位が混ざると ODR 違反になる）。
-  `SHADER_MATH_GLSL_STPQ` / `SHADER_MATH_NESTED_SWIZZLE` も同じ方法で有効にする
+  `SHADER_MATH_GLSL_STPQ` / `SHADER_MATH_NESTED_SWIZZLE` / `SHADER_MATH_MATRIX_SWIZZLE(3)` も同じ方法で有効にする
 - pkg-config: `<prefix>/share/pkgconfig/shader_math.pc`（`pkg-config --cflags shader_math`）。Boost は
   システムの Boost を使ってインストールした場合だけ含まれる（自動取得した Boost はインストールされない）
 - バージョンは 0.x の間は同一マイナーのみ互換（`SameMinorVersion`）
@@ -217,7 +217,12 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
 
 ## 既知の逸脱（HLSL/GLSL との差分）
 
-- **行列の複数成分 swizzle**（`_m00_m11` 等）は未実装。単成分 `_m00`〜`_m33` / `_11`〜`_44` は全対応（範囲外は使用時にコンパイルエラー）。複数成分はメンバ宣言の組み合わせが最大 16⁴ 通りで現実的でないため
+- **行列の複数成分 swizzle**（`_m00_m11` 等）は**オプトイン**。単成分 `_m00`〜`_m33` / `_11`〜`_44` は
+  既定で全対応（範囲外は使用時にコンパイルエラー）。`SHADER_MATH_MATRIX_SWIZZLE` で 2 成分
+  （`m._m00_m11`、`m._41_42`）、`SHADER_MATH_MATRIX_SWIZZLE3` で 3 成分（`m._m30_m31_m32`）も有効になる。
+  どちらも行列の形の範囲内だけで、重複の無いものは書き込める。4 成分は無い（行は `m[3]`、それ以外は
+  `float4(m._m00, m._m11, m._m22, m._m33)` と書く）。メンバ宣言が組み合わせで増えるため、
+  `bench/compile_time.py`（全行列型を使う翻訳単位）で 2 成分は約 1.2 倍、3 成分は gcc で約 12 倍・clang で約 4 倍
 - GLSL の `.stpq` swizzle は**オプトイン**: `SHADER_MATH_GLSL_STPQ` を定義すると有効
   （CMake では `-DSHADER_MATH_GLSL_STPQ=ON`、インストール済みパッケージは `find_package` の前に
   `set(SHADER_MATH_GLSL_STPQ ON)`。どちらも `shader_math::shader_math` に付くので全翻訳単位で揃う）。

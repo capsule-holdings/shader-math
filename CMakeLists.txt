@@ -92,6 +92,15 @@ option(SHADER_MATH_NESTED_SWIZZLE
 if(SHADER_MATH_NESTED_SWIZZLE)
     target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_NESTED_SWIZZLE>)
 endif()
+option(SHADER_MATH_MATRIX_SWIZZLE
+       "Enable HLSL 2-element matrix accessors (m._m00_m11) on shader_math and everything linking it" OFF)
+option(SHADER_MATH_MATRIX_SWIZZLE3
+       "Also enable the 3-element ones (m._m30_m31_m32); much slower to compile" OFF)
+if(SHADER_MATH_MATRIX_SWIZZLE3)
+    target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_MATRIX_SWIZZLE3>)
+elseif(SHADER_MATH_MATRIX_SWIZZLE)
+    target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_MATRIX_SWIZZLE>)
+endif()
 option(SHADER_MATH_BUILD_TESTS "Build shader-math tests and examples" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INSTALL "Generate the install / find_package rules" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INTEROP_SLANG
@@ -202,6 +211,18 @@ if(SHADER_MATH_BUILD_TESTS)
     shader_math_warnings(shader_math_tests_nested_stpq)
     add_test(NAME shader_math_tests_nested_stpq COMMAND shader_math_tests_nested_stpq)
 
+    # Opt-in multi-element matrix accessors: 2-element, then also 3-element.
+    add_executable(shader_math_tests_matrix_swizzle tests/test_matrix_swizzle.cpp)
+    target_link_libraries(shader_math_tests_matrix_swizzle PRIVATE shader_math)
+    target_compile_definitions(shader_math_tests_matrix_swizzle PRIVATE SHADER_MATH_MATRIX_SWIZZLE)
+    shader_math_warnings(shader_math_tests_matrix_swizzle)
+    add_test(NAME shader_math_tests_matrix_swizzle COMMAND shader_math_tests_matrix_swizzle)
+    add_executable(shader_math_tests_matrix_swizzle3 tests/test_matrix_swizzle.cpp)
+    target_link_libraries(shader_math_tests_matrix_swizzle3 PRIVATE shader_math)
+    target_compile_definitions(shader_math_tests_matrix_swizzle3 PRIVATE SHADER_MATH_MATRIX_SWIZZLE3)
+    shader_math_warnings(shader_math_tests_matrix_swizzle3)
+    add_test(NAME shader_math_tests_matrix_swizzle3 COMMAND shader_math_tests_matrix_swizzle3)
+
     # Approximate-equivalence proof for the batch skinning backends (pure CPU,
     # no SDL): oracle bound + pairwise agreement + invariance properties.
     add_executable(skin_batch_check tests/test_skin_batch.cpp)
@@ -290,6 +311,43 @@ if(SHADER_MATH_BUILD_TESTS)
                      COMMAND ${Python3_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/compare.py
                              $<TARGET_FILE:slang_interop_runner_nested>
                              $<TARGET_FILE:shader_math_interop_cpp_nested>)
+
+            # opt-in multi-element matrix accessors: kernels_matrix_swizzle.slang
+            # on the CPU target against a twin built with SHADER_MATH_MATRIX_SWIZZLE3
+            set(SHADER_MATH_INTEROP_MATRIX_SWIZZLE_GEN ${CMAKE_CURRENT_BINARY_DIR}/kernels_matrix_swizzle.gen.cpp)
+            add_custom_command(
+                OUTPUT ${SHADER_MATH_INTEROP_MATRIX_SWIZZLE_GEN}
+                COMMAND ${SLANGC_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/kernels_matrix_swizzle.slang
+                        -target cpp -entry runCases -o ${SHADER_MATH_INTEROP_MATRIX_SWIZZLE_GEN}
+                DEPENDS ${SHADER_MATH_INTEROP_DIR}/kernels_matrix_swizzle.slang
+                        ${SHADER_MATH_INTEROP_DIR}/shared/math_cases.hlsli
+                        ${SHADER_MATH_INTEROP_DIR}/shared/matrix_swizzle_cases.hlsli
+                        ${SHADER_MATH_INTEROP_DIR}/shared/case_list.h
+                COMMENT "slangc: generating kernels_matrix_swizzle.gen.cpp (CPU target)"
+                VERBATIM)
+
+            add_executable(slang_interop_runner_matrix_swizzle
+                ${SHADER_MATH_INTEROP_MATRIX_SWIZZLE_GEN}
+                ${SHADER_MATH_INTEROP_DIR}/slang_driver.cpp)
+            target_include_directories(slang_interop_runner_matrix_swizzle PRIVATE
+                ${SHADER_MATH_SLANG_ROOT}/include ${SHADER_MATH_INTEROP_DIR})
+            target_compile_definitions(slang_interop_runner_matrix_swizzle PRIVATE
+                SM_DRIVER_CASES=SM_INTEROP_MATRIX_SWIZZLE_CASES)
+            if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+                target_compile_options(slang_interop_runner_matrix_swizzle PRIVATE -ffp-contract=off -w)
+            endif()
+
+            add_executable(shader_math_interop_cpp_matrix_swizzle
+                ${SHADER_MATH_INTEROP_DIR}/cpp_harness.cpp)
+            target_compile_definitions(shader_math_interop_cpp_matrix_swizzle PRIVATE
+                SM_INTEROP_MATRIX_SWIZZLE SHADER_MATH_MATRIX_SWIZZLE3)
+            target_link_libraries(shader_math_interop_cpp_matrix_swizzle PRIVATE shader_math)
+            shader_math_warnings(shader_math_interop_cpp_matrix_swizzle)
+
+            add_test(NAME slang_interop_matrix_swizzle_check
+                     COMMAND ${Python3_EXECUTABLE} ${SHADER_MATH_INTEROP_DIR}/compare.py
+                             $<TARGET_FILE:slang_interop_runner_matrix_swizzle>
+                             $<TARGET_FILE:shader_math_interop_cpp_matrix_swizzle>)
 
             # half cases: the CPU target cannot compile half vector math, so
             # they go through SPIR-V on Vulkan (lavapipe) when it is available

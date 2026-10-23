@@ -53,7 +53,7 @@ Never import both namespaces into the same scope (`mul`, `transpose` and others 
 | matrix from matrix | shrink only (upper-left block) | grow (identity fill) or shrink |
 | `==` | component-wise bool vector / matrix | scalar bool (all components equal) |
 | `<` `>` `<=` `>=` | component-wise bool | not on vectors (`lessThan()` and friends) |
-| element access | `m[row][col]`, `_m00`, `_11` | `m[col][row]` |
+| element access | `m[row][col]`, `_m00`, `_11` (multi-element `_m00_m11` opt-in, below) | `m[col][row]` |
 | swizzles | every `.xyzw` / `.rgba` combination, read and write | same; `.stpq` is opt-in (below) |
 | swizzle of a swizzle (`v.xy.yx`) | opt-in (below) | same |
 
@@ -137,7 +137,7 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 - As a subproject it builds no tests, examples or install rules (override with `SHADER_MATH_BUILD_TESTS` / `SHADER_MATH_INSTALL`)
 - Boost is not bundled: `find_package` looks for it on the consumer side; set `SHADER_MATH_BOOST_INCLUDE` (and `SHADER_MATH_BOOST_PREDEF_INCLUDE` if Predef lives elsewhere) when it is not found
 - 0.x versions are compatible within the same minor version only
-- Force the scalar backend with `-DSHADER_MATH_FORCE_SCALAR=ON` (subproject) or `set(SHADER_MATH_FORCE_SCALAR ON)` before `find_package`; enable the GLSL `.stpq` swizzles and swizzles of swizzles the same way with `SHADER_MATH_GLSL_STPQ` / `SHADER_MATH_NESTED_SWIZZLE`. All land on `shader_math::shader_math`, so every translation unit agrees (mixing them would break the ODR)
+- Force the scalar backend with `-DSHADER_MATH_FORCE_SCALAR=ON` (subproject) or `set(SHADER_MATH_FORCE_SCALAR ON)` before `find_package`; enable the GLSL `.stpq` swizzles and swizzles of swizzles the same way with `SHADER_MATH_GLSL_STPQ` / `SHADER_MATH_NESTED_SWIZZLE` / `SHADER_MATH_MATRIX_SWIZZLE(3)`. All land on `shader_math::shader_math`, so every translation unit agrees (mixing them would break the ODR)
 - pkg-config: `<prefix>/share/pkgconfig/shader_math.pc` (`pkg-config --cflags shader_math`); Boost is listed only when a system Boost was used at install time
 
 ## Cross-checked against real compilers
@@ -148,7 +148,7 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 
 ## Known deviations
 
-- Multi-component matrix swizzles (`_m00_m11`) are not implemented; every single-component accessor is
+- Multi-element matrix accessors are opt-in; every single-element accessor (`_m00`-`_m33`, `_11`-`_44`) is always there. `SHADER_MATH_MATRIX_SWIZZLE` adds the 2-element lists (`m._m00_m11`, `m._41_42`), `SHADER_MATH_MATRIX_SWIZZLE3` also the 3-element ones (`m._m30_m31_m32`), within the matrix's shape and writable without repeats. There are no 4-element lists (use `m[3]` for a row, otherwise `float4(m._m00, m._m11, m._m22, m._m33)`). The member declarations multiply: `bench/compile_time.py` (a TU using every matrix type) measures about 1.2x for 2-element and about 12x on gcc / 4x on clang for 3-element
 - GLSL `.stpq` swizzles are opt-in (`SHADER_MATH_GLSL_STPQ`): the vector type is shared with `hlsl`, which has no stpq, so enabling them lets HLSL code accept `.stp` too (same lanes as `.xyz`). Measured compile-time cost: +5 to 11% with gcc, within noise with clang
 - Swizzles of swizzles (`v.xy.yx`, `v.xyz.zx`) are opt-in (`SHADER_MATH_NESTED_SWIZZLE`): reads on 2- and 3-component swizzles (`.stpq` too when enabled). There is no nesting on a 4-component swizzle (`v.wzyx.xy`) and no writing through a nested one; write `float4(v.wzyx).xy`. The member declarations multiply, so a translation unit that only includes the library takes 3-4x the front-end time with it (`bench/compile_time.py`: gcc 3.0x, clang 4.0x); hence off by default
 - GLSL's `not()` is `not_()` (`not` is a C++ alternative token); HLSL 2021's `and()` / `or()` cannot exist for the same reason, and bool-vector `&&` / `||` are unavailable as in HLSL 2021

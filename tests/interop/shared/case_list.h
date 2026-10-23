@@ -21,6 +21,12 @@
     X(exact_nested_read, case_exact_nested_read(IN_A, IN_B))   \
     X(exact_nested_mixed, case_exact_nested_mixed(IN_A, IN_B))
 
+// Multi-element matrix accessors are opt-in too (SHADER_MATH_MATRIX_SWIZZLE):
+// kernels_matrix_swizzle.slang and a C++ twin built with the macro.
+#define SM_INTEROP_MATRIX_SWIZZLE_CASES(X)                                     \
+    X(exact_matrix_swizzle_read, case_exact_matrix_swizzle_read(IN_A, IN_B))   \
+    X(exact_matrix_swizzle_write, case_exact_matrix_swizzle_write(IN_A, IN_B))
+
 // SM_INTEROP_CASES_BASE is everything both Slang and DXC check;
 // SM_INTEROP_CASES (Slang) adds lit, which DXC's SPIR-V backend computes
 // differently (see case_near_lit).

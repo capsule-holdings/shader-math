@@ -67,6 +67,225 @@ struct SHADER_MATH_MAY_ALIAS mswz {
 #undef SM_MSWZ_COMPOUND
 };
 
+// Members shared by hlsl::matrix and, under SHADER_MATH_MATRIX_SWIZZLE, its
+// storage base: the row registers, a flat view, and the 16 single-element
+// accessors (declared for every shape; out-of-range ones fail where used).
+#define SM_HMAT_COMMON(R, C)                                                         \
+    ::shader_math::detail::fvec<C, T> row_[R];                                       \
+    T flat_[R * 4];                                                                  \
+    /* zero-based element accessors */                                               \
+    ::shader_math::detail::mswz<T, R, C, 0, 0> _m00;                                 \
+    ::shader_math::detail::mswz<T, R, C, 0, 1> _m01;                                 \
+    ::shader_math::detail::mswz<T, R, C, 0, 2> _m02;                                 \
+    ::shader_math::detail::mswz<T, R, C, 0, 3> _m03;                                 \
+    ::shader_math::detail::mswz<T, R, C, 1, 0> _m10;                                 \
+    ::shader_math::detail::mswz<T, R, C, 1, 1> _m11;                                 \
+    ::shader_math::detail::mswz<T, R, C, 1, 2> _m12;                                 \
+    ::shader_math::detail::mswz<T, R, C, 1, 3> _m13;                                 \
+    ::shader_math::detail::mswz<T, R, C, 2, 0> _m20;                                 \
+    ::shader_math::detail::mswz<T, R, C, 2, 1> _m21;                                 \
+    ::shader_math::detail::mswz<T, R, C, 2, 2> _m22;                                 \
+    ::shader_math::detail::mswz<T, R, C, 2, 3> _m23;                                 \
+    ::shader_math::detail::mswz<T, R, C, 3, 0> _m30;                                 \
+    ::shader_math::detail::mswz<T, R, C, 3, 1> _m31;                                 \
+    ::shader_math::detail::mswz<T, R, C, 3, 2> _m32;                                 \
+    ::shader_math::detail::mswz<T, R, C, 3, 3> _m33;                                 \
+    /* one-based element accessors */                                                \
+    ::shader_math::detail::mswz<T, R, C, 0, 0> _11;                                  \
+    ::shader_math::detail::mswz<T, R, C, 0, 1> _12;                                  \
+    ::shader_math::detail::mswz<T, R, C, 0, 2> _13;                                  \
+    ::shader_math::detail::mswz<T, R, C, 0, 3> _14;                                  \
+    ::shader_math::detail::mswz<T, R, C, 1, 0> _21;                                  \
+    ::shader_math::detail::mswz<T, R, C, 1, 1> _22;                                  \
+    ::shader_math::detail::mswz<T, R, C, 1, 2> _23;                                  \
+    ::shader_math::detail::mswz<T, R, C, 1, 3> _24;                                  \
+    ::shader_math::detail::mswz<T, R, C, 2, 0> _31;                                  \
+    ::shader_math::detail::mswz<T, R, C, 2, 1> _32;                                  \
+    ::shader_math::detail::mswz<T, R, C, 2, 2> _33;                                  \
+    ::shader_math::detail::mswz<T, R, C, 2, 3> _34;                                  \
+    ::shader_math::detail::mswz<T, R, C, 3, 0> _41;                                  \
+    ::shader_math::detail::mswz<T, R, C, 3, 1> _42;                                  \
+    ::shader_math::detail::mswz<T, R, C, 3, 2> _43;                                  \
+    ::shader_math::detail::mswz<T, R, C, 3, 3> _44;
+
+#if defined(SHADER_MATH_MATRIX_SWIZZLE3) && !defined(SHADER_MATH_MATRIX_SWIZZLE)
+#  define SHADER_MATH_MATRIX_SWIZZLE
+#endif
+#if defined(SHADER_MATH_MATRIX_SWIZZLE)
+// ---- multi-element accessors (_m00_m11, _11_22_33), opt-in -----------------
+// HLSL reads any list of 2 to 4 elements and writes one without repeats.
+// Here the lists are opt-in and limited to the matrix's own shape:
+// SHADER_MATH_MATRIX_SWIZZLE declares the 2-element lists (a 4x4 gets
+// 2 x 16^2 members), SHADER_MATH_MATRIX_SWIZZLE3 adds the 3-element ones
+// (2 x 16^3 more, an order of magnitude more front-end time on gcc).
+// 4-element lists would multiply that by 16 again; build those vectors from
+// rows or single elements (float4(m._m00, m._m11, m._m22, m._m33)).
+
+// F = flat register offsets (row * 4 + column) of the selected elements.
+template <class T, int R, int... F>
+struct SHADER_MATH_MAY_ALIAS mmswz {
+    static constexpr int K = static_cast<int>(sizeof...(F));
+    static constexpr bool writable = swz_unique<F...>();
+    T d[R * 4];
+
+    mmswz() = default;
+    mmswz(const mmswz&) = default;
+
+    SHADER_MATH_INLINE operator fvec<K, T>() const { return fvec<K, T>(d[F]...); }
+
+    SHADER_MATH_INLINE mmswz& operator=(const fvec<K, T>& v)
+        requires(writable)
+    {
+        int k = 0;
+        ((d[F] = v[k++]), ...);
+        return *this;
+    }
+    SHADER_MATH_INLINE mmswz& operator=(const mmswz& o)
+        requires(writable)
+    {
+        return *this = fvec<K, T>(o);
+    }
+    template <class V>
+        requires(writable && !std::is_same_v<V, mmswz> && vec_traits<V>::size == K &&
+                 std::is_same_v<typename vec_traits<V>::elem, T>)
+    SHADER_MATH_INLINE mmswz& operator=(const V& o) {
+        return *this = fvec<K, T>(vec_traits<V>::get(o));  // gather first: m._m00_m01 = m._m01_m00
+    }
+
+#  define SM_MMSWZ_COMPOUND(sym)                             \
+    template <class V>                                       \
+    SHADER_MATH_INLINE mmswz& operator sym##=(const V& v)    \
+        requires(writable)                                   \
+    {                                                        \
+        *this = fvec<K, T>(*this) sym v;                     \
+        return *this;                                        \
+    }
+    SM_MMSWZ_COMPOUND(+)
+    SM_MMSWZ_COMPOUND(-)
+    SM_MMSWZ_COMPOUND(*)
+    SM_MMSWZ_COMPOUND(/)
+#  undef SM_MMSWZ_COMPOUND
+};
+
+template <class T, int R, int... F>
+struct vec_traits<mmswz<T, R, F...>> {
+    static constexpr int size = static_cast<int>(sizeof...(F));
+    using elem = T;
+    static SHADER_MATH_INLINE fvec<size, T> get(const mmswz<T, R, F...>& s) {
+        return fvec<size, T>(s);
+    }
+};
+
+// Member generation: three nested loops over the shape's positions. A
+// position is four tokens (zero-based row and column, one-based row and
+// column); each level has its own loop macros because a macro does not
+// expand inside its own expansion.
+#  define SM_MX_RA2(R, C, F) SM_MX_CA##C(R, C, F, 0, 1) SM_MX_CA##C(R, C, F, 1, 2)
+#  define SM_MX_RA3(R, C, F) SM_MX_RA2(R, C, F) SM_MX_CA##C(R, C, F, 2, 3)
+#  define SM_MX_RA4(R, C, F) SM_MX_RA3(R, C, F) SM_MX_CA##C(R, C, F, 3, 4)
+#  define SM_MX_CA2(R, C, F, r, s) F(R, C, r, 0, s, 1) F(R, C, r, 1, s, 2)
+#  define SM_MX_CA3(R, C, F, r, s) SM_MX_CA2(R, C, F, r, s) F(R, C, r, 2, s, 3)
+#  define SM_MX_CA4(R, C, F, r, s) SM_MX_CA3(R, C, F, r, s) F(R, C, r, 3, s, 4)
+
+#  define SM_MX_RB2(R, C, F, a, b, a1, b1) \
+      SM_MX_CB##C(R, C, F, a, b, a1, b1, 0, 1) SM_MX_CB##C(R, C, F, a, b, a1, b1, 1, 2)
+#  define SM_MX_RB3(R, C, F, a, b, a1, b1) \
+      SM_MX_RB2(R, C, F, a, b, a1, b1) SM_MX_CB##C(R, C, F, a, b, a1, b1, 2, 3)
+#  define SM_MX_RB4(R, C, F, a, b, a1, b1) \
+      SM_MX_RB3(R, C, F, a, b, a1, b1) SM_MX_CB##C(R, C, F, a, b, a1, b1, 3, 4)
+#  define SM_MX_CB2(R, C, F, a, b, a1, b1, r, s) \
+      F(R, C, a, b, a1, b1, r, 0, s, 1) F(R, C, a, b, a1, b1, r, 1, s, 2)
+#  define SM_MX_CB3(R, C, F, a, b, a1, b1, r, s) \
+      SM_MX_CB2(R, C, F, a, b, a1, b1, r, s) F(R, C, a, b, a1, b1, r, 2, s, 3)
+#  define SM_MX_CB4(R, C, F, a, b, a1, b1, r, s) \
+      SM_MX_CB3(R, C, F, a, b, a1, b1, r, s) F(R, C, a, b, a1, b1, r, 3, s, 4)
+
+#  define SM_MX_RC2(R, C, F, a, b, a1, b1, e, f, e1, f1)        \
+      SM_MX_CC##C(R, C, F, a, b, a1, b1, e, f, e1, f1, 0, 1)    \
+      SM_MX_CC##C(R, C, F, a, b, a1, b1, e, f, e1, f1, 1, 2)
+#  define SM_MX_RC3(R, C, F, a, b, a1, b1, e, f, e1, f1)        \
+      SM_MX_RC2(R, C, F, a, b, a1, b1, e, f, e1, f1)            \
+      SM_MX_CC##C(R, C, F, a, b, a1, b1, e, f, e1, f1, 2, 3)
+#  define SM_MX_RC4(R, C, F, a, b, a1, b1, e, f, e1, f1)        \
+      SM_MX_RC3(R, C, F, a, b, a1, b1, e, f, e1, f1)            \
+      SM_MX_CC##C(R, C, F, a, b, a1, b1, e, f, e1, f1, 3, 4)
+#  define SM_MX_CC2(R, C, F, a, b, a1, b1, e, f, e1, f1, r, s)  \
+      F(R, C, a, b, a1, b1, e, f, e1, f1, r, 0, s, 1)           \
+      F(R, C, a, b, a1, b1, e, f, e1, f1, r, 1, s, 2)
+#  define SM_MX_CC3(R, C, F, a, b, a1, b1, e, f, e1, f1, r, s)  \
+      SM_MX_CC2(R, C, F, a, b, a1, b1, e, f, e1, f1, r, s)      \
+      F(R, C, a, b, a1, b1, e, f, e1, f1, r, 2, s, 3)
+#  define SM_MX_CC4(R, C, F, a, b, a1, b1, e, f, e1, f1, r, s)  \
+      SM_MX_CC3(R, C, F, a, b, a1, b1, e, f, e1, f1, r, s)      \
+      F(R, C, a, b, a1, b1, e, f, e1, f1, r, 3, s, 4)
+
+// level 1 picks the first element, level 2 declares the pairs (and with
+// SHADER_MATH_MATRIX_SWIZZLE3 recurses), level 3 declares the triples; each
+// list in both spellings
+#  if defined(SHADER_MATH_MATRIX_SWIZZLE3)
+#    define SM_MX_TRIPLES(R, C, a, b, a1, b1, e, f, e1, f1) \
+        SM_MX_RC##R(R, C, SM_MX_AT3, a, b, a1, b1, e, f, e1, f1)
+#  else
+#    define SM_MX_TRIPLES(R, C, a, b, a1, b1, e, f, e1, f1)
+#  endif
+#  define SM_MX_AT1(R, C, a, b, a1, b1) SM_MX_RB##R(R, C, SM_MX_AT2, a, b, a1, b1)
+#  define SM_MX_AT2(R, C, a, b, a1, b1, e, f, e1, f1)                          \
+      ::shader_math::detail::mmswz<T, R, a * 4 + b, e * 4 + f>                 \
+          _m##a##b##_m##e##f, _##a1##b1##_##e1##f1;                            \
+      SM_MX_TRIPLES(R, C, a, b, a1, b1, e, f, e1, f1)
+#  define SM_MX_AT3(R, C, a, b, a1, b1, e, f, e1, f1, g, h, g1, h1)            \
+      ::shader_math::detail::mmswz<T, R, a * 4 + b, e * 4 + f, g * 4 + h>      \
+          _m##a##b##_m##e##f##_m##g##h, _##a1##b1##_##e1##f1##_##g1##h1;
+#  define SM_MX_MULTI(R, C) SM_MX_RA##R(R, C, SM_MX_AT1)
+
+// Storage of hlsl::matrix<R, C, T> with the multi-element members of its
+// shape (the base keeps the union; the matrix names row_ / flat_ from it).
+template <int R, int C, class T>
+struct hmat_store;
+#  define SM_MX_STORE(R, C)                                \
+      template <class T>                                   \
+      struct SHADER_MATH_MAY_ALIAS hmat_store<R, C, T> {   \
+          union {                                          \
+              SM_HMAT_COMMON(R, C)                         \
+              SM_MX_MULTI(R, C)                            \
+          };                                               \
+          SHADER_MATH_INLINE hmat_store() : row_{} {}      \
+      };
+SM_MX_STORE(2, 2)
+SM_MX_STORE(2, 3)
+SM_MX_STORE(2, 4)
+SM_MX_STORE(3, 2)
+SM_MX_STORE(3, 3)
+SM_MX_STORE(3, 4)
+SM_MX_STORE(4, 2)
+SM_MX_STORE(4, 3)
+SM_MX_STORE(4, 4)
+#  undef SM_MX_STORE
+#  undef SM_MX_MULTI
+#  undef SM_MX_AT1
+#  undef SM_MX_AT2
+#  undef SM_MX_AT3
+#  undef SM_MX_TRIPLES
+#  undef SM_MX_RA2
+#  undef SM_MX_RA3
+#  undef SM_MX_RA4
+#  undef SM_MX_CA2
+#  undef SM_MX_CA3
+#  undef SM_MX_CA4
+#  undef SM_MX_RB2
+#  undef SM_MX_RB3
+#  undef SM_MX_RB4
+#  undef SM_MX_CB2
+#  undef SM_MX_CB3
+#  undef SM_MX_CB4
+#  undef SM_MX_RC2
+#  undef SM_MX_RC3
+#  undef SM_MX_RC4
+#  undef SM_MX_CC2
+#  undef SM_MX_CC3
+#  undef SM_MX_CC4
+#endif
+
 // ---- determinant / inverse cores on packed dense row-major arrays ----------
 // Templated on the element type; every operation rounds in T (true fp16 on
 // FEAT_FP16 halves, promoted-per-op elsewhere).
@@ -240,38 +459,30 @@ SHADER_MATH_INLINE void transpose_regs(const fvec<LI, T>* in, fvec<NI, T>* out) 
 namespace hlsl {
 
 template <int R, int C, class T = float>
-struct matrix {
+struct matrix
+#if defined(SHADER_MATH_MATRIX_SWIZZLE)
+    : detail::hmat_store<R, C, T>
+#endif
+{
     static_assert(R >= 2 && R <= 4 && C >= 2 && C <= 4,
                   "shader-math: matrix dimensions must be 2..4");
     static constexpr int rows_v = R;
     static constexpr int cols_v = C;
     using elem_t = T;
 
+#if defined(SHADER_MATH_MATRIX_SWIZZLE)
+    using detail::hmat_store<R, C, T>::row_;
+    using detail::hmat_store<R, C, T>::flat_;
+#  define SM_HMAT_INIT
+#else
     union {
-        detail::fvec<C, T> row_[R];
-        T flat_[R * 4];
-        // zero-based element accessors
-        detail::mswz<T, R, C, 0, 0> _m00; detail::mswz<T, R, C, 0, 1> _m01;
-        detail::mswz<T, R, C, 0, 2> _m02; detail::mswz<T, R, C, 0, 3> _m03;
-        detail::mswz<T, R, C, 1, 0> _m10; detail::mswz<T, R, C, 1, 1> _m11;
-        detail::mswz<T, R, C, 1, 2> _m12; detail::mswz<T, R, C, 1, 3> _m13;
-        detail::mswz<T, R, C, 2, 0> _m20; detail::mswz<T, R, C, 2, 1> _m21;
-        detail::mswz<T, R, C, 2, 2> _m22; detail::mswz<T, R, C, 2, 3> _m23;
-        detail::mswz<T, R, C, 3, 0> _m30; detail::mswz<T, R, C, 3, 1> _m31;
-        detail::mswz<T, R, C, 3, 2> _m32; detail::mswz<T, R, C, 3, 3> _m33;
-        // one-based element accessors
-        detail::mswz<T, R, C, 0, 0> _11; detail::mswz<T, R, C, 0, 1> _12;
-        detail::mswz<T, R, C, 0, 2> _13; detail::mswz<T, R, C, 0, 3> _14;
-        detail::mswz<T, R, C, 1, 0> _21; detail::mswz<T, R, C, 1, 1> _22;
-        detail::mswz<T, R, C, 1, 2> _23; detail::mswz<T, R, C, 1, 3> _24;
-        detail::mswz<T, R, C, 2, 0> _31; detail::mswz<T, R, C, 2, 1> _32;
-        detail::mswz<T, R, C, 2, 2> _33; detail::mswz<T, R, C, 2, 3> _34;
-        detail::mswz<T, R, C, 3, 0> _41; detail::mswz<T, R, C, 3, 1> _42;
-        detail::mswz<T, R, C, 3, 2> _43; detail::mswz<T, R, C, 3, 3> _44;
+        SM_HMAT_COMMON(R, C)
     };
+#  define SM_HMAT_INIT : row_{}
+#endif
 
-    SHADER_MATH_INLINE matrix() : row_{} {}
-    SHADER_MATH_INLINE matrix(const matrix& o) : row_{} {
+    SHADER_MATH_INLINE matrix() SM_HMAT_INIT {}
+    SHADER_MATH_INLINE matrix(const matrix& o) SM_HMAT_INIT {
         for (int r = 0; r < R; ++r) row_[r] = o.row_[r];
     }
     SHADER_MATH_INLINE matrix& operator=(const matrix& o) {
@@ -282,14 +493,14 @@ struct matrix {
     // HLSL: scalar constructs a matrix with ALL components set to s (splat).
     template <class S>
         requires detail::CvtScalar<S, T>
-    SHADER_MATH_INLINE matrix(const S& s) : row_{} {
+    SHADER_MATH_INLINE matrix(const S& s) SM_HMAT_INIT {
         for (int r = 0; r < R; ++r) row_[r] = detail::fvec<C, T>(static_cast<T>(s));
     }
 
     // R*C scalars, row-major fill (HLSL constructor order).
     template <class... S>
         requires(sizeof...(S) == R * C && R * C > 1 && (detail::CvtScalar<S, T> && ...))
-    SHADER_MATH_INLINE matrix(S... s) : row_{} {
+    SHADER_MATH_INLINE matrix(S... s) SM_HMAT_INIT {
         const T a[R * C] = {static_cast<T>(s)...};
         detail::unpack_dense<R, C>(a, row_);
     }
@@ -297,7 +508,7 @@ struct matrix {
     // R row vectors.
     template <class... V>
         requires(sizeof...(V) == R && (std::is_convertible_v<V, detail::fvec<C, T>> && ...))
-    SHADER_MATH_INLINE matrix(const V&... rows) : row_{} {
+    SHADER_MATH_INLINE matrix(const V&... rows) SM_HMAT_INIT {
         const detail::fvec<C, T> rr[R] = {detail::fvec<C, T>(rows)...};
         for (int r = 0; r < R; ++r) row_[r] = rr[r];
     }
@@ -306,7 +517,7 @@ struct matrix {
     // not provided (HLSL has no widening matrix cast).
     template <int R2, int C2>
         requires(R2 >= R && C2 >= C && !(R2 == R && C2 == C))
-    SHADER_MATH_INLINE explicit matrix(const matrix<R2, C2, T>& o) : row_{} {
+    SHADER_MATH_INLINE explicit matrix(const matrix<R2, C2, T>& o) SM_HMAT_INIT {
         for (int r = 0; r < R; ++r) {
             T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
             for (int c = 0; c < C; ++c) t[c] = o.row_[r][c];
@@ -317,7 +528,7 @@ struct matrix {
     // Explicit element-type conversion (half <-> float); no implicit mixing.
     template <class U>
         requires(!std::is_same_v<U, T>)
-    SHADER_MATH_INLINE explicit matrix(const matrix<R, C, U>& o) : row_{} {
+    SHADER_MATH_INLINE explicit matrix(const matrix<R, C, U>& o) SM_HMAT_INIT {
         for (int r = 0; r < R; ++r) row_[r] = detail::fvec<C, T>(o.row_[r]);
     }
 
@@ -414,10 +625,12 @@ struct matrix {
 // object) is exactly a register-array transpose.
 namespace hlsl {
 template <int R, int C, class T>
-SHADER_MATH_INLINE matrix<R, C, T>::matrix(const glsl::matrix<C, R, T>& g) : row_{} {
+SHADER_MATH_INLINE matrix<R, C, T>::matrix(const glsl::matrix<C, R, T>& g) SM_HMAT_INIT {
     detail::transpose_regs<C, R>(g.col_, row_);
 }
 }  // namespace hlsl
+#undef SM_HMAT_INIT
+#undef SM_HMAT_COMMON
 
 namespace glsl {
 template <int Cn, int Rn, class T>

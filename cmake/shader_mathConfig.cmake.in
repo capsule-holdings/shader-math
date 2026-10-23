@@ -35,6 +35,16 @@ if(SHADER_MATH_NESTED_SWIZZLE)
     set_property(TARGET shader_math::shader_math APPEND PROPERTY
         INTERFACE_COMPILE_DEFINITIONS SHADER_MATH_NESTED_SWIZZLE)
 endif()
+# set(SHADER_MATH_MATRIX_SWIZZLE ON) before find_package enables the HLSL
+# 2-element matrix accessors (m._m00_m11), SHADER_MATH_MATRIX_SWIZZLE3 also
+# the 3-element ones (m._m30_m31_m32), for every target linking it
+if(SHADER_MATH_MATRIX_SWIZZLE3)
+    set_property(TARGET shader_math::shader_math APPEND PROPERTY
+        INTERFACE_COMPILE_DEFINITIONS SHADER_MATH_MATRIX_SWIZZLE3)
+elseif(SHADER_MATH_MATRIX_SWIZZLE)
+    set_property(TARGET shader_math::shader_math APPEND PROPERTY
+        INTERFACE_COMPILE_DEFINITIONS SHADER_MATH_MATRIX_SWIZZLE)
+endif()
 set_property(TARGET shader_math::shader_math APPEND PROPERTY
     INTERFACE_INCLUDE_DIRECTORIES
     "${SHADER_MATH_BOOST_INCLUDE}" "${SHADER_MATH_BOOST_PREDEF_INCLUDE}")

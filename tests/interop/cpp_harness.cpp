@@ -22,14 +22,18 @@ using namespace shader_math::hlsl;
 // SM_INTEROP_ENABLE_HALF (set by CMake for the half twin) selects the half
 // list, which is checked against the SPIR-V kernel instead of Slang-CPU;
 // SM_INTEROP_NESTED (the twin also built with SHADER_MATH_NESTED_SWIZZLE)
-// selects the nested-swizzle list; SM_INTEROP_DXC the shared list plus the
-// DXC-only cases
+// selects the nested-swizzle list; SM_INTEROP_MATRIX_SWIZZLE (built with
+// SHADER_MATH_MATRIX_SWIZZLE3) the multi-element matrix accessor list;
+// SM_INTEROP_DXC the shared list plus the DXC-only cases
 #if defined(SM_INTEROP_ENABLE_HALF)
 #  define SM_HARNESS_CASES SM_INTEROP_HALF_CASES
 #elif defined(SM_INTEROP_DXC)
 #  include "dxc/dxc_cases.hlsli"
 #  include "dxc/dxc_case_list.h"
 #  define SM_HARNESS_CASES SM_DXC_CASES
+#elif defined(SM_INTEROP_MATRIX_SWIZZLE)
+#  include "shared/matrix_swizzle_cases.hlsli"
+#  define SM_HARNESS_CASES SM_INTEROP_MATRIX_SWIZZLE_CASES
 #elif defined(SM_INTEROP_NESTED)
 #  include "shared/nested_cases.hlsli"
 #  define SM_HARNESS_CASES SM_INTEROP_NESTED_CASES
