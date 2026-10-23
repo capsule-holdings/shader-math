@@ -1,4 +1,4 @@
-// Cases only DXC can check: Slang (v2026.16) returns frexp's exponent as an
+// Cases only DXC can check: Slang (v2026.20) returns frexp's exponent as an
 // int vector and its CPU prelude lacks dst. Compiled as HLSL by DXC and as
 // C++ by cpp_harness.cpp (SM_INTEROP_DXC / SM_INTEROP_DXIL).
 float4 case_exact_frexp(float4 a)

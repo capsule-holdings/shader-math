@@ -641,6 +641,7 @@ if(SHADER_MATH_INSTALL)
 
     install(TARGETS shader_math EXPORT shader_mathTargets)
     install(DIRECTORY include/shader_math DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})
     install(EXPORT shader_mathTargets
             NAMESPACE shader_math::
             DESTINATION ${SHADER_MATH_CMAKE_DIR})

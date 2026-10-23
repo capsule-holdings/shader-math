@@ -112,6 +112,8 @@ ctest --test-dir build --output-on-failure
 python3 bench/compile_time.py c++  # header front-end time per opt-in macro set
 ```
 
+Benchmark history (CI, `main` only; shared runners, so informational): <https://capsule-holdings.github.io/shader-math/bench/>
+
 `-DSHADER_MATH_WARNINGS_AS_ERRORS=ON` turns warnings into errors for this repo's own targets (CI always does).
 
 Requirements: C++20 (concepts). gcc 10+ / clang 14+ / MSVC 19.30+ / Apple Clang. gcc 10 and clang 14 are the floors CI checks; MSVC and Apple Clang are checked at the runners' default versions.
@@ -157,3 +159,7 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 - Language-compatible, not ABI-compatible: `sizeof(float3) == 16`, unrelated to constant-buffer packing
 - Component access and swizzles rely on union type punning, which ISO C++ leaves undefined; it holds on gcc / clang / MSVC as CI checks, and it rules out `constexpr` ([CONTEXT.md](CONTEXT.md), Japanese)
 - Lanes past N of an N < 4 vector (and of matrix rows / columns) are unspecified and may hold NaN / Inf; results only ever depend on the first N lanes, but a floating-point-exception trap can fire on them
+
+## License
+
+[MIT](LICENSE)
