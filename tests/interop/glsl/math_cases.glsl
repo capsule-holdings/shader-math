@@ -160,6 +160,15 @@ vec4 case_exact_classify(vec4 a)
     return r;
 }
 
+// ---- exact: mix with a bool selector, bool literals --------------------------
+vec4 case_exact_mix_bool(vec4 a, vec4 b)
+{
+    bvec4 sel = bvec4(true, false, false, true);
+    vec4 r = mix(a, b, sel) + mix(a, b, greaterThan(a, b));
+    float flags = (sel.x ? 1.0f : 0.0f) + (sel.y ? 2.0f : 0.0f) + (lessThan(a, b).w ? 4.0f : 0.0f);
+    return r + vec4(flags);
+}
+
 // ---- approx: transcendentals -------------------------------------------------
 vec4 case_approx_transcend(vec4 a, vec4 b)
 {
@@ -168,5 +177,6 @@ vec4 case_approx_transcend(vec4 a, vec4 b)
     r = r + asin(s) + acos(s * 0.5f) + sin(a) * cos(b) + tan(s);
     r = r + exp2(clamp(a, -2.0f, 2.0f)) + log2(abs(b) + 1.0f) + sqrt(abs(a));
     r = r + sinh(s) + cosh(s) * 0.5f + tanh(b) + exp(s) + log(abs(b) + 1.0f);
+    r = r + asinh(a) + acosh(abs(a) + 1.0f) + atanh(s * 0.5f);
     return r + pow(abs(b) + 0.5f, vec4(1.5f)) + radians(a * 10.0f) + degrees(s) * 0.01f;
 }
