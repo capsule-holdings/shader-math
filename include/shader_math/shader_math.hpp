@@ -6,6 +6,7 @@
 // Never import both namespaces into the same scope.
 #pragma once
 
+#include "version.hpp"
 #include "glsl.hpp"
 #include "hlsl.hpp"
 
