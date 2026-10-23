@@ -45,8 +45,9 @@
 - **`frexp` の指数の型**: HLSL（DXC）と shader-math は指数を float で返すが、Slang（v2026.16）は int
   ベクトルで返す（`out` 引数の型が違うので共有ファイルでは呼べない）。`ldexp` も Slang は int の指数を
   取る（float は暗黙変換）ので、共有ケースでは整数値の指数だけを渡す
-- **`dst`**: Slang（v2026.16）の CPU ターゲットの C++ prelude に実装が無く、生成コードがコンパイル
-  できない。共有ファイルには書かない（shader-math 側は単体テストのみ）
+- **`dst`**: Slang（v2026.16）では CPU ターゲットの C++ prelude に実装が無く、`-target spirv` でも
+  コア側の組み込みコードの解析に失敗する（`snippet parsing failed`）。共有ファイルには書かない
+  （shader-math 側は単体テストのみ）。`frexp` も SPIR-V 経由で同じく int の指数を取る
 
 - **half/float の暗黙混合**: Slang（HLSL 規則）は暗黙昇格を許すが、shader-math は
   コンパイルエラーにする。共有ファイルでは**明示変換必須**（`half4(f4)` / `float4(h4)`）。

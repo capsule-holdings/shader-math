@@ -348,6 +348,39 @@ if(SHADER_MATH_BUILD_TESTS)
                              $<TARGET_FILE:shader_math_glsl_interop_cpp_half>
                              vulkan ${SM_GLSL_HALF_SPV} --f16)
             set_tests_properties(glsl_interop_half_check PROPERTIES SKIP_RETURN_CODE 77)
+
+            # opt-in .stpq swizzles: a harness built with SHADER_MATH_GLSL_STPQ
+            # (its own executable: the macro changes the vector class)
+            set(SM_GLSL_STPQ_SPV ${CMAKE_CURRENT_BINARY_DIR}/glsl_kernels_stpq.spv)
+            add_custom_command(
+                OUTPUT ${SM_GLSL_STPQ_SPV}
+                COMMAND ${GLSLANG_VALIDATOR} -V --target-env vulkan1.1
+                        -o ${SM_GLSL_STPQ_SPV} ${SM_GLSL_DIR}/kernels_stpq.comp
+                DEPENDS ${SM_GLSL_DIR}/kernels_stpq.comp ${SM_GLSL_DIR}/stpq_cases.glsl
+                        ${SM_GLSL_DIR}/stpq_case_list.h ${SM_GLSL_DIR}/math_cases.glsl
+                COMMENT "glslang: compiling kernels_stpq.comp to SPIR-V"
+                VERBATIM)
+            add_custom_target(glsl_interop_stpq_spv ALL DEPENDS ${SM_GLSL_STPQ_SPV})
+
+            add_executable(glsl_vk_runner_stpq ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop/vk_runner.cpp)
+            target_include_directories(glsl_vk_runner_stpq PRIVATE ${SM_GLSL_DIR})
+            target_compile_definitions(glsl_vk_runner_stpq PRIVATE
+                "SM_VK_CASES_HEADER=\"stpq_case_list.h\"" SM_VK_CASES=SM_GLSL_STPQ_CASES)
+            target_link_libraries(glsl_vk_runner_stpq PRIVATE Vulkan::Vulkan)
+            shader_math_warnings(glsl_vk_runner_stpq)
+
+            add_executable(shader_math_glsl_interop_cpp_stpq ${SM_GLSL_DIR}/cpp_harness.cpp)
+            target_compile_definitions(shader_math_glsl_interop_cpp_stpq PRIVATE
+                SM_GLSL_STPQ SHADER_MATH_GLSL_STPQ)
+            target_link_libraries(shader_math_glsl_interop_cpp_stpq PRIVATE shader_math)
+            shader_math_warnings(shader_math_glsl_interop_cpp_stpq)
+
+            add_test(NAME glsl_interop_stpq_check
+                     COMMAND ${Python3_EXECUTABLE}
+                             ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop/compare.py
+                             $<TARGET_FILE:glsl_vk_runner_stpq>
+                             $<TARGET_FILE:shader_math_glsl_interop_cpp_stpq>
+                             vulkan ${SM_GLSL_STPQ_SPV})
         else()
             message(WARNING "SHADER_MATH_INTEROP_GLSL=ON but glslangValidator, Vulkan "
                             "or python3 was not found; skipping the GLSL cross-check")
