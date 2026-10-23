@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cmath>
+#include <initializer_list>
 #include <limits>
 #include <type_traits>
 #include <utility>
@@ -927,15 +928,54 @@ SHADER_MATH_INLINE auto faceforward(const A& n0, const B& i, const C& nref) {
 // No arithmetic and no implicit bool conversion; reduce with all()/any().
 // Shared by float and half comparisons (half comparisons widen to f32, which
 // is exact for every pair of half values).
+// Read-only single-component accessor (b.x, b.a) overlaying the mask
+// register, like the float swizzle proxies; out-of-range lanes fail at use.
+template <int N, int I>
+struct bswz {
+    mreg d;
+    SHADER_MATH_INLINE operator bool() const {
+        static_assert(I < N, "shader-math: bool vector component out of range");
+        return ops::lane_b(d, I);
+    }
+};
+
 template <int N>
 struct bvec {
     static_assert(N >= 2 && N <= 4);
     static constexpr int size_v = N;
-    mreg m_;
+    union {
+        mreg m_;
+        bswz<N, 0> x, r;
+        bswz<N, 1> y, g;
+        bswz<N, 2> z, b;
+        bswz<N, 3> w, a;
+    };
 
     SHADER_MATH_INLINE bvec() : m_() {}
     SHADER_MATH_INLINE explicit bvec(mreg m) : m_(m) {}
+    // bool3(true, false, true) / bool3(true): exactly bool arguments, so an
+    // int or a float does not silently become a mask
+    template <class... Bs>
+        requires(sizeof...(Bs) == N && (std::is_same_v<Bs, bool> && ...))
+    SHADER_MATH_INLINE bvec(Bs... bs) : m_(from_bools({bs...})) {}
+    template <class B>
+        requires std::is_same_v<B, bool>
+    SHADER_MATH_INLINE explicit bvec(B s) : m_(from_bools({s, s, s, s})) {}
+    SHADER_MATH_INLINE bvec(const bvec& o) : m_(o.m_) {}
+    SHADER_MATH_INLINE bvec& operator=(const bvec& o) {
+        m_ = o.m_;
+        return *this;
+    }
+
     SHADER_MATH_INLINE bool operator[](int i) const { return ops::lane_b(m_, i); }
+
+private:
+    static SHADER_MATH_INLINE mreg from_bools(std::initializer_list<bool> bs) {
+        float t[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        int i = 0;
+        for (bool v : bs) t[i++] = v ? 1.0f : 0.0f;
+        return ops::cmp_ne(ops::load4(t), ops::zero());
+    }
 };
 
 template <int N>
