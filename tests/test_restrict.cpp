@@ -49,6 +49,11 @@ concept can_write_xy = requires(h::float3 v, const V2& u) { v.xy = u; };
 static_assert(!can_write_xx<h::float2>);
 static_assert(can_write_xy<h::float2>);
 
+// ---- swizzles of swizzles are opt-in (SHADER_MATH_NESTED_SWIZZLE) -------------
+template <class V>
+concept can_nest = requires(V v) { v.xy.yx; };
+static_assert(!can_nest<h::float4>);
+
 // ---- comparison operator return types differ per language -----------------------
 static_assert(std::is_same_v<decltype(h::operator==(std::declval<h::float3>(),
                                                     std::declval<h::float3>())),

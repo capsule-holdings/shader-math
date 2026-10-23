@@ -67,16 +67,157 @@ constexpr bool swz_unique() {
     return true;
 }
 
+// ---- swizzles of swizzles (v.xy.yx), opt-in -------------------------------
+// GLSL / HLSL read any swizzle of a swizzle. Here the nested members exist
+// only under SHADER_MATH_NESTED_SWIZZLE, and only on 2- and 3-component
+// swizzles: they multiply the member count of every vector type (about 3x the
+// front-end time of a TU that includes the library), and on 4-component ones
+// another order of magnitude. Write vec4(v.wzyx).xy there.
+#if defined(SHADER_MATH_NESTED_SWIZZLE)
+
+// Read-only proxy for a nested swizzle; Js are lanes of the original
+// register, already composed. Assignment is deleted: a trivial copy would
+// overwrite the whole register.
+template <class T, int N, int... Js>
+struct SHADER_MATH_MAY_ALIAS nswz {
+    static constexpr int K = static_cast<int>(sizeof...(Js));
+    T d[4];
+
+    nswz() = default;
+    nswz(const nswz&) = default;
+    nswz& operator=(const nswz&) = delete;
+
+    SHADER_MATH_INLINE operator T() const
+        requires(K == 1)
+    {
+        constexpr int j[] = {Js...};
+        return d[j[0]];
+    }
+    SHADER_MATH_INLINE operator fvec<(K >= 2 ? K : 2), T>() const
+        requires(K >= 2)
+    {
+        return fvec<(K >= 2 ? K : 2), T>(d[Js]...);
+    }
+};
+
+// Storage of a swizzle proxy: the register bytes it overlays, plus the nested
+// members of 2- and 3-component swizzles. L_[i] = register lane of the
+// enclosing swizzle's lane i.
+template <int M, class T, int N, int... Is>
+struct SHADER_MATH_MAY_ALIAS swz_store {
+    T d[4];
+};
+
+#  define SM_NW1(name, i0) ::shader_math::detail::nswz<T, N, L_[i0]> name;
+#  define SM_NW2(name, i0, i1) ::shader_math::detail::nswz<T, N, L_[i0], L_[i1]> name;
+#  define SM_NW3(name, i0, i1, i2) \
+      ::shader_math::detail::nswz<T, N, L_[i0], L_[i1], L_[i2]> name;
+#  define SM_NW4(name, i0, i1, i2, i3) \
+      ::shader_math::detail::nswz<T, N, L_[i0], L_[i1], L_[i2], L_[i3]> name;
+// two-letter set (L0, L1); the parameters never share a spelling with the
+// pasted letters, which arrive as arguments
+#  define SM_NA2_2(pre, i0, L0, L1) SM_NW2(pre##L0, i0, 0) SM_NW2(pre##L1, i0, 1)
+#  define SM_NA2_3(pre, i0, i1, L0, L1) SM_NW3(pre##L0, i0, i1, 0) SM_NW3(pre##L1, i0, i1, 1)
+#  define SM_NA2_P3(pre, i0, L0, L1) \
+      SM_NA2_3(pre##L0, i0, 0, L0, L1) SM_NA2_3(pre##L1, i0, 1, L0, L1)
+#  define SM_NA2_4(pre, i0, i1, i2, L0, L1) \
+      SM_NW4(pre##L0, i0, i1, i2, 0) SM_NW4(pre##L1, i0, i1, i2, 1)
+#  define SM_NA2_P4(pre, i0, i1, L0, L1) \
+      SM_NA2_4(pre##L0, i0, i1, 0, L0, L1) SM_NA2_4(pre##L1, i0, i1, 1, L0, L1)
+#  define SM_NA2_C4(pre, i0, L0, L1) \
+      SM_NA2_P4(pre##L0, i0, 0, L0, L1) SM_NA2_P4(pre##L1, i0, 1, L0, L1)
+#  define SM_NGEN2(L0, L1)                                \
+      SM_NW1(L0, 0) SM_NW1(L1, 1)                         \
+      SM_NA2_2(L0, 0, L0, L1) SM_NA2_2(L1, 1, L0, L1)     \
+      SM_NA2_P3(L0, 0, L0, L1) SM_NA2_P3(L1, 1, L0, L1)   \
+      SM_NA2_C4(L0, 0, L0, L1) SM_NA2_C4(L1, 1, L0, L1)
+// three-letter set (L0, L1, L2)
+#  define SM_NA3_2(pre, i0, L0, L1, L2) \
+      SM_NW2(pre##L0, i0, 0) SM_NW2(pre##L1, i0, 1) SM_NW2(pre##L2, i0, 2)
+#  define SM_NA3_3(pre, i0, i1, L0, L1, L2) \
+      SM_NW3(pre##L0, i0, i1, 0) SM_NW3(pre##L1, i0, i1, 1) SM_NW3(pre##L2, i0, i1, 2)
+#  define SM_NA3_P3(pre, i0, L0, L1, L2)                                        \
+      SM_NA3_3(pre##L0, i0, 0, L0, L1, L2) SM_NA3_3(pre##L1, i0, 1, L0, L1, L2) \
+      SM_NA3_3(pre##L2, i0, 2, L0, L1, L2)
+#  define SM_NA3_4(pre, i0, i1, i2, L0, L1, L2)                     \
+      SM_NW4(pre##L0, i0, i1, i2, 0) SM_NW4(pre##L1, i0, i1, i2, 1) \
+      SM_NW4(pre##L2, i0, i1, i2, 2)
+#  define SM_NA3_P4(pre, i0, i1, L0, L1, L2)                                            \
+      SM_NA3_4(pre##L0, i0, i1, 0, L0, L1, L2) SM_NA3_4(pre##L1, i0, i1, 1, L0, L1, L2) \
+      SM_NA3_4(pre##L2, i0, i1, 2, L0, L1, L2)
+#  define SM_NA3_C4(pre, i0, L0, L1, L2)                                          \
+      SM_NA3_P4(pre##L0, i0, 0, L0, L1, L2) SM_NA3_P4(pre##L1, i0, 1, L0, L1, L2) \
+      SM_NA3_P4(pre##L2, i0, 2, L0, L1, L2)
+#  define SM_NGEN3(L0, L1, L2)                                                             \
+      SM_NW1(L0, 0) SM_NW1(L1, 1) SM_NW1(L2, 2)                                            \
+      SM_NA3_2(L0, 0, L0, L1, L2) SM_NA3_2(L1, 1, L0, L1, L2) SM_NA3_2(L2, 2, L0, L1, L2)  \
+      SM_NA3_P3(L0, 0, L0, L1, L2) SM_NA3_P3(L1, 1, L0, L1, L2)                            \
+      SM_NA3_P3(L2, 2, L0, L1, L2)                                                         \
+      SM_NA3_C4(L0, 0, L0, L1, L2) SM_NA3_C4(L1, 1, L0, L1, L2)                            \
+      SM_NA3_C4(L2, 2, L0, L1, L2)
+#  if defined(SHADER_MATH_GLSL_STPQ)
+#    define SM_NGEN2_STPQ SM_NGEN2(s, t)
+#    define SM_NGEN3_STPQ SM_NGEN3(s, t, p)
+#  else
+#    define SM_NGEN2_STPQ
+#    define SM_NGEN3_STPQ
+#  endif
+
+template <class T, int N, int... Is>
+struct SHADER_MATH_MAY_ALIAS swz_store<2, T, N, Is...> {
+    static constexpr int L_[2] = {Is...};
+    union {
+        T d[4];
+        SM_NGEN2(x, y) SM_NGEN2(r, g) SM_NGEN2_STPQ
+    };
+};
+template <class T, int N, int... Is>
+struct SHADER_MATH_MAY_ALIAS swz_store<3, T, N, Is...> {
+    static constexpr int L_[3] = {Is...};
+    union {
+        T d[4];
+        SM_NGEN3(x, y, z) SM_NGEN3(r, g, b) SM_NGEN3_STPQ
+    };
+};
+#  undef SM_NW1
+#  undef SM_NW2
+#  undef SM_NW3
+#  undef SM_NW4
+#  undef SM_NA2_2
+#  undef SM_NA2_3
+#  undef SM_NA2_P3
+#  undef SM_NA2_4
+#  undef SM_NA2_P4
+#  undef SM_NA2_C4
+#  undef SM_NGEN2
+#  undef SM_NA3_2
+#  undef SM_NA3_3
+#  undef SM_NA3_P3
+#  undef SM_NA3_4
+#  undef SM_NA3_P4
+#  undef SM_NA3_C4
+#  undef SM_NGEN3
+#  undef SM_NGEN2_STPQ
+#  undef SM_NGEN3_STPQ
+#endif
+
 // Swizzle proxy. Lives inside fvec's union; d overlays the register storage.
 // T = element type, N = parent vector width, Is... = selected component indices.
 template <class T, int N, int... Is>
-struct SHADER_MATH_MAY_ALIAS swz {
+struct SHADER_MATH_MAY_ALIAS swz
+#if defined(SHADER_MATH_NESTED_SWIZZLE)
+    : swz_store<static_cast<int>(sizeof...(Is)), T, N, Is...>
+#endif
+{
     static constexpr int M = static_cast<int>(sizeof...(Is));
     static constexpr int idx[M] = {Is...};
     static constexpr bool in_range = ((Is >= 0 && Is < N) && ...);
     static constexpr bool writable = in_range && swz_unique<Is...>();
-
+#if defined(SHADER_MATH_NESTED_SWIZZLE)
+    using swz_store<M, T, N, Is...>::d;
+#else
     T d[4];
+#endif
 
     // Trivial copy (a proxy passed by value, e.g. float3(v.x, v.y, v.z)) is
     // declared explicitly because the copy assignment below is user-defined.
@@ -398,6 +539,17 @@ struct vec_traits<swz<T, N, Is...>> {
         return fvec<size, T>(s);
     }
 };
+#if defined(SHADER_MATH_NESTED_SWIZZLE)
+template <class T, int N, int... Is>
+    requires(sizeof...(Is) >= 2)
+struct vec_traits<nswz<T, N, Is...>> {
+    static constexpr int size = static_cast<int>(sizeof...(Is));
+    using elem = T;
+    static SHADER_MATH_INLINE fvec<size, T> get(const nswz<T, N, Is...>& s) {
+        return fvec<size, T>(s);
+    }
+};
+#endif
 
 template <class V>
 inline constexpr int vec_size_v = vec_traits<std::remove_cvref_t<V>>::size;
@@ -424,6 +576,12 @@ template <class T, int N, int I>
 struct swz_elem<swz<T, N, I>> {
     using type = T;
 };
+#if defined(SHADER_MATH_NESTED_SWIZZLE)
+template <class T, int N, int J>
+struct swz_elem<nswz<T, N, J>> {
+    using type = T;
+};
+#endif
 template <class S, class T>
 concept ScalarFor =
     std::is_same_v<std::remove_cvref_t<S>, T> ||

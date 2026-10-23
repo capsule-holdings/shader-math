@@ -55,6 +55,7 @@ Never import both namespaces into the same scope (`mul`, `transpose` and others 
 | `<` `>` `<=` `>=` | component-wise bool | not on vectors (`lessThan()` and friends) |
 | element access | `m[row][col]`, `_m00`, `_11` | `m[col][row]` |
 | swizzles | every `.xyzw` / `.rgba` combination, read and write | same; `.stpq` is opt-in (below) |
+| swizzle of a swizzle (`v.xy.yx`) | opt-in (below) | same |
 
 `transpose`, `determinant`, `inverse`, `dot`, `cross`, `length`, `normalize`, `all` and `any` exist in both (`inverse` is official GLSL and an extension on the HLSL side).
 
@@ -135,7 +136,7 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 - As a subproject it builds no tests, examples or install rules (override with `SHADER_MATH_BUILD_TESTS` / `SHADER_MATH_INSTALL`)
 - Boost is not bundled: `find_package` looks for it on the consumer side; set `SHADER_MATH_BOOST_INCLUDE` (and `SHADER_MATH_BOOST_PREDEF_INCLUDE` if Predef lives elsewhere) when it is not found
 - 0.x versions are compatible within the same minor version only
-- Force the scalar backend with `-DSHADER_MATH_FORCE_SCALAR=ON` (subproject) or `set(SHADER_MATH_FORCE_SCALAR ON)` before `find_package`; enable the GLSL `.stpq` swizzles the same way with `SHADER_MATH_GLSL_STPQ`. Both land on `shader_math::shader_math`, so every translation unit agrees (mixing them would break the ODR)
+- Force the scalar backend with `-DSHADER_MATH_FORCE_SCALAR=ON` (subproject) or `set(SHADER_MATH_FORCE_SCALAR ON)` before `find_package`; enable the GLSL `.stpq` swizzles and swizzles of swizzles the same way with `SHADER_MATH_GLSL_STPQ` / `SHADER_MATH_NESTED_SWIZZLE`. All land on `shader_math::shader_math`, so every translation unit agrees (mixing them would break the ODR)
 - pkg-config: `<prefix>/share/pkgconfig/shader_math.pc` (`pkg-config --cflags shader_math`); Boost is listed only when a system Boost was used at install time
 
 ## Cross-checked against real compilers
@@ -148,6 +149,7 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 
 - Multi-component matrix swizzles (`_m00_m11`) are not implemented; every single-component accessor is
 - GLSL `.stpq` swizzles are opt-in (`SHADER_MATH_GLSL_STPQ`): the vector type is shared with `hlsl`, which has no stpq, so enabling them lets HLSL code accept `.stp` too (same lanes as `.xyz`). Measured compile-time cost: +5 to 11% with gcc, within noise with clang
+- Swizzles of swizzles (`v.xy.yx`, `v.xyz.zx`) are opt-in (`SHADER_MATH_NESTED_SWIZZLE`): reads on 2- and 3-component swizzles (`.stpq` too when enabled). There is no nesting on a 4-component swizzle (`v.wzyx.xy`) and no writing through a nested one; write `float4(v.wzyx).xy`. The member declarations multiply, so a translation unit that only includes the library takes about 3x the front-end time with it (clang, measured 0.35 -> 1.03 s); hence off by default
 - GLSL's `not()` is `not_()` (`not` is a C++ alternative token); HLSL 2021's `and()` / `or()` cannot exist for the same reason, and bool-vector `&&` / `||` are unavailable as in HLSL 2021
 - `v.x` is a proxy type: pass `float(v.x)` to varargs
 - float and half only: no `int` / `double`, no `1xN` matrices, no GPU-only features (textures, derivatives, atomics)
