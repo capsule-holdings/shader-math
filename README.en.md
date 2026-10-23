@@ -112,6 +112,8 @@ ctest --test-dir build --output-on-failure
 python3 bench/compile_time.py c++  # header front-end time per opt-in macro set
 ```
 
+Benchmark history (CI, `main` only; shared runners, so informational): <https://capsule-holdings.github.io/shader-math/bench/>
+
 `-DSHADER_MATH_WARNINGS_AS_ERRORS=ON` turns warnings into errors for this repo's own targets (CI always does).
 
 Requirements: C++20 (concepts). gcc 10+ / clang 14+ / MSVC 19.30+ / Apple Clang. gcc 10 and clang 14 are the floors CI checks; MSVC and Apple Clang are checked at the runners' default versions.
