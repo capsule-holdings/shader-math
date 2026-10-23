@@ -157,8 +157,9 @@ Blacksmith ランナー（GitHub-hosted ではない）。`fail-fast: false`:
   言語別名: HLSL `lerp`/`frac`/`rcp`/`rsqrt`/`saturate` ⇔ GLSL `mix`/`fract`/`inversesqrt`。
   超越関数は per-lane libm、丸めは SSE2 のみ per-lane、他 backend はネイティブ）。
   2 行レジスタ詰め込み最適化（AVX1+FMA3 の 4x4）。
-- **未実装**: RVV バックエンド。行列への成分ごと intrinsic（HLSL の `abs(m)` 等）。
-  純スカラーへの intrinsic（`std::` を使う）。
+- **実装済み**: 行列への成分ごと intrinsic（HLSL のみ。`abs(m)` `lerp(a, b, t)` `isnan(m)` 等。
+  各行にベクトル版を適用）。GLSL の汎用関数は genType のみなので `glsl` 側には置かない。
+- **未実装**: RVV バックエンド。純スカラーへの intrinsic（`std::` を使う）。
 
 ## Slang 相互検証ハーネス（2026-08-20 追加）
 

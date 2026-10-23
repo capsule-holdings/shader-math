@@ -388,5 +388,157 @@ SHADER_MATH_INLINE matrix<R, C, T> inverse(const matrix<R, C, T>& m) {
     return o;
 }
 
+// ---- component-wise intrinsics on matrices ----------------------------------
+// HLSL applies its component-wise intrinsics to matrices too; GLSL's generic
+// functions take genType (scalars / vectors) only, so these exist in hlsl
+// alone. Each row goes through the vector intrinsic of the same name.
+#define SM_HLSL_MAT_UNARY(name)                                                       \
+    template <int R, int C, class T>                                                  \
+    SHADER_MATH_INLINE matrix<R, C, T> name(const matrix<R, C, T>& m) {               \
+        matrix<R, C, T> o;                                                            \
+        for (int r = 0; r < R; ++r) o.row_[r] = name(m.row_[r]);                      \
+        return o;                                                                     \
+    }
+SM_HLSL_MAT_UNARY(abs)
+SM_HLSL_MAT_UNARY(sign)
+SM_HLSL_MAT_UNARY(floor)
+SM_HLSL_MAT_UNARY(ceil)
+SM_HLSL_MAT_UNARY(trunc)
+SM_HLSL_MAT_UNARY(round)
+SM_HLSL_MAT_UNARY(frac)
+SM_HLSL_MAT_UNARY(saturate)
+SM_HLSL_MAT_UNARY(sqrt)
+SM_HLSL_MAT_UNARY(rsqrt)
+SM_HLSL_MAT_UNARY(rcp)
+SM_HLSL_MAT_UNARY(exp)
+SM_HLSL_MAT_UNARY(exp2)
+SM_HLSL_MAT_UNARY(log)
+SM_HLSL_MAT_UNARY(log2)
+SM_HLSL_MAT_UNARY(sin)
+SM_HLSL_MAT_UNARY(cos)
+SM_HLSL_MAT_UNARY(tan)
+SM_HLSL_MAT_UNARY(asin)
+SM_HLSL_MAT_UNARY(acos)
+SM_HLSL_MAT_UNARY(atan)
+SM_HLSL_MAT_UNARY(sinh)
+SM_HLSL_MAT_UNARY(cosh)
+SM_HLSL_MAT_UNARY(tanh)
+SM_HLSL_MAT_UNARY(radians)
+SM_HLSL_MAT_UNARY(degrees)
+#undef SM_HLSL_MAT_UNARY
+
+// matrix (op) matrix of the same shape, and matrix (op) scalar
+#define SM_HLSL_MAT_BINARY(name)                                                      \
+    template <int R, int C, class T>                                                  \
+    SHADER_MATH_INLINE matrix<R, C, T> name(const matrix<R, C, T>& a,                 \
+                                            const matrix<R, C, T>& b) {               \
+        matrix<R, C, T> o;                                                            \
+        for (int r = 0; r < R; ++r) o.row_[r] = name(a.row_[r], b.row_[r]);           \
+        return o;                                                                     \
+    }                                                                                 \
+    template <int R, int C, class T, class S>                                         \
+        requires detail::ScalarFor<S, T>                                              \
+    SHADER_MATH_INLINE matrix<R, C, T> name(const matrix<R, C, T>& a, const S& s) {   \
+        matrix<R, C, T> o;                                                            \
+        for (int r = 0; r < R; ++r) o.row_[r] = name(a.row_[r], s);                   \
+        return o;                                                                     \
+    }
+SM_HLSL_MAT_BINARY(min)
+SM_HLSL_MAT_BINARY(max)
+SM_HLSL_MAT_BINARY(pow)
+SM_HLSL_MAT_BINARY(fmod)
+#undef SM_HLSL_MAT_BINARY
+
+template <int R, int C, class T>
+SHADER_MATH_INLINE matrix<R, C, T> atan2(const matrix<R, C, T>& y, const matrix<R, C, T>& x) {
+    matrix<R, C, T> o;
+    for (int r = 0; r < R; ++r) o.row_[r] = atan2(y.row_[r], x.row_[r]);
+    return o;
+}
+
+// step(edge, x): edge-first, so the scalar form is (scalar, matrix)
+template <int R, int C, class T>
+SHADER_MATH_INLINE matrix<R, C, T> step(const matrix<R, C, T>& edge, const matrix<R, C, T>& x) {
+    matrix<R, C, T> o;
+    for (int r = 0; r < R; ++r) o.row_[r] = step(edge.row_[r], x.row_[r]);
+    return o;
+}
+template <int R, int C, class T, class S>
+    requires detail::ScalarFor<S, T>
+SHADER_MATH_INLINE matrix<R, C, T> step(const S& edge, const matrix<R, C, T>& x) {
+    matrix<R, C, T> o;
+    for (int r = 0; r < R; ++r) o.row_[r] = step(edge, x.row_[r]);
+    return o;
+}
+
+template <int R, int C, class T>
+SHADER_MATH_INLINE matrix<R, C, T> lerp(const matrix<R, C, T>& a, const matrix<R, C, T>& b,
+                                        const matrix<R, C, T>& t) {
+    matrix<R, C, T> o;
+    for (int r = 0; r < R; ++r) o.row_[r] = lerp(a.row_[r], b.row_[r], t.row_[r]);
+    return o;
+}
+template <int R, int C, class T, class S>
+    requires detail::ScalarFor<S, T>
+SHADER_MATH_INLINE matrix<R, C, T> lerp(const matrix<R, C, T>& a, const matrix<R, C, T>& b,
+                                        const S& t) {
+    matrix<R, C, T> o;
+    for (int r = 0; r < R; ++r) o.row_[r] = lerp(a.row_[r], b.row_[r], t);
+    return o;
+}
+
+template <int R, int C, class T>
+SHADER_MATH_INLINE matrix<R, C, T> clamp(const matrix<R, C, T>& x, const matrix<R, C, T>& lo,
+                                         const matrix<R, C, T>& hi) {
+    matrix<R, C, T> o;
+    for (int r = 0; r < R; ++r) o.row_[r] = clamp(x.row_[r], lo.row_[r], hi.row_[r]);
+    return o;
+}
+template <int R, int C, class T, class SL, class SH>
+    requires(detail::ScalarFor<SL, T> && detail::ScalarFor<SH, T>)
+SHADER_MATH_INLINE matrix<R, C, T> clamp(const matrix<R, C, T>& x, const SL& lo, const SH& hi) {
+    matrix<R, C, T> o;
+    for (int r = 0; r < R; ++r) o.row_[r] = clamp(x.row_[r], lo, hi);
+    return o;
+}
+
+template <int R, int C, class T>
+SHADER_MATH_INLINE matrix<R, C, T> smoothstep(const matrix<R, C, T>& lo,
+                                              const matrix<R, C, T>& hi,
+                                              const matrix<R, C, T>& x) {
+    matrix<R, C, T> o;
+    for (int r = 0; r < R; ++r) o.row_[r] = smoothstep(lo.row_[r], hi.row_[r], x.row_[r]);
+    return o;
+}
+template <int R, int C, class T, class SL, class SH>
+    requires(detail::ScalarFor<SL, T> && detail::ScalarFor<SH, T>)
+SHADER_MATH_INLINE matrix<R, C, T> smoothstep(const SL& lo, const SH& hi,
+                                              const matrix<R, C, T>& x) {
+    matrix<R, C, T> o;
+    for (int r = 0; r < R; ++r) o.row_[r] = smoothstep(lo, hi, x.row_[r]);
+    return o;
+}
+
+template <int R, int C, class T>
+SHADER_MATH_INLINE matrix<R, C, T> mad(const matrix<R, C, T>& a, const matrix<R, C, T>& b,
+                                       const matrix<R, C, T>& c) {
+    matrix<R, C, T> o;
+    for (int r = 0; r < R; ++r) o.row_[r] = mad(a.row_[r], b.row_[r], c.row_[r]);
+    return o;
+}
+
+// classification -> boolRxC
+#define SM_HLSL_MAT_CLASSIFY(name)                                                    \
+    template <int R, int C, class T>                                                  \
+    SHADER_MATH_INLINE detail::bmat<R, C> name(const matrix<R, C, T>& m) {            \
+        detail::bmat<R, C> o;                                                         \
+        for (int r = 0; r < R; ++r) o.row_[r] = name(m.row_[r]);                      \
+        return o;                                                                     \
+    }
+SM_HLSL_MAT_CLASSIFY(isnan)
+SM_HLSL_MAT_CLASSIFY(isinf)
+SM_HLSL_MAT_CLASSIFY(isfinite)
+#undef SM_HLSL_MAT_CLASSIFY
+
 }  // namespace hlsl
 }  // namespace shader_math
