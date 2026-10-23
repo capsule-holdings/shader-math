@@ -96,6 +96,8 @@ option(SHADER_MATH_BUILD_TESTS "Build shader-math tests and examples" ${SHADER_M
 option(SHADER_MATH_INSTALL "Generate the install / find_package rules" ${SHADER_MATH_IS_TOP_LEVEL})
 option(SHADER_MATH_INTEROP_SLANG
        "Build the Slang cross-compilation check (needs slangc + python3)" OFF)
+option(SHADER_MATH_INTEROP_DXC
+       "Build the DXC cross-check (needs dxc, Vulkan, python3; set SHADER_MATH_DXC_DIR)" OFF)
 option(SHADER_MATH_INTEROP_GLSL
        "Build the GLSL cross-check (needs glslangValidator, Vulkan, python3)" OFF)
 option(SHADER_MATH_WARNINGS_AS_ERRORS
@@ -331,6 +333,80 @@ if(SHADER_MATH_BUILD_TESTS)
             message(WARNING "SHADER_MATH_INTEROP_SLANG=ON but slangc or python3 "
                             "was not found (set SHADER_MATH_SLANG_DIR); skipping "
                             "the interop check")
+        endif()
+    endif()
+
+    # DXC cross-check: the shared HLSL cases (plus DXC-only ones) compiled by
+    # the official HLSL compiler to SPIR-V and run on Vulkan (lavapipe in CI);
+    # half with -enable-16bit-types (otherwise DXC treats half as float).
+    if(SHADER_MATH_INTEROP_DXC)
+        find_program(DXC_EXECUTABLE dxc HINTS ${SHADER_MATH_DXC_DIR}/bin NO_DEFAULT_PATH)
+        find_program(DXC_EXECUTABLE dxc)
+        find_package(Vulkan)
+        find_package(Python3 COMPONENTS Interpreter)
+        if(DXC_EXECUTABLE AND Vulkan_FOUND AND Python3_FOUND)
+            get_filename_component(SM_DXC_ROOT ${DXC_EXECUTABLE} DIRECTORY)
+            get_filename_component(SM_DXC_ROOT ${SM_DXC_ROOT} DIRECTORY)
+            set(SM_INTEROP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop)
+            set(SM_DXC_DEPS ${SM_INTEROP_DIR}/dxc/kernels.hlsl ${SM_INTEROP_DIR}/dxc/dxc_cases.hlsli
+                            ${SM_INTEROP_DIR}/dxc/dxc_case_list.h
+                            ${SM_INTEROP_DIR}/shared/math_cases.hlsli ${SM_INTEROP_DIR}/shared/case_list.h)
+            set(SM_DXC_RUN ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=${SM_DXC_ROOT}/lib ${DXC_EXECUTABLE}
+                           -spirv -T cs_6_2 -E main -HV 2021 -fspv-target-env=vulkan1.1
+                           -I ${SM_INTEROP_DIR})
+            set(SM_DXC_SPV ${CMAKE_CURRENT_BINARY_DIR}/dxc_kernels.spv)
+            set(SM_DXC_HALF_SPV ${CMAKE_CURRENT_BINARY_DIR}/dxc_kernels_half.spv)
+            add_custom_command(
+                OUTPUT ${SM_DXC_SPV}
+                COMMAND ${SM_DXC_RUN} -Fo ${SM_DXC_SPV} ${SM_INTEROP_DIR}/dxc/kernels.hlsl
+                DEPENDS ${SM_DXC_DEPS}
+                COMMENT "dxc: compiling the HLSL cases to SPIR-V"
+                VERBATIM)
+            add_custom_command(
+                OUTPUT ${SM_DXC_HALF_SPV}
+                COMMAND ${SM_DXC_RUN} -enable-16bit-types -D SM_INTEROP_ENABLE_HALF=1
+                        -Fo ${SM_DXC_HALF_SPV} ${SM_INTEROP_DIR}/dxc/kernels.hlsl
+                DEPENDS ${SM_DXC_DEPS}
+                COMMENT "dxc: compiling the half cases to SPIR-V (-enable-16bit-types)"
+                VERBATIM)
+            add_custom_target(dxc_interop_spv ALL DEPENDS ${SM_DXC_SPV} ${SM_DXC_HALF_SPV})
+
+            add_executable(dxc_vk_runner ${SM_INTEROP_DIR}/vk_runner.cpp)
+            target_include_directories(dxc_vk_runner PRIVATE ${SM_INTEROP_DIR})
+            target_compile_definitions(dxc_vk_runner PRIVATE
+                "SM_VK_CASES_HEADER=\"dxc/dxc_case_list.h\"" SM_VK_CASES=SM_DXC_CASES)
+            target_link_libraries(dxc_vk_runner PRIVATE Vulkan::Vulkan)
+            shader_math_warnings(dxc_vk_runner)
+            add_executable(dxc_vk_runner_half ${SM_INTEROP_DIR}/vk_runner.cpp)
+            target_include_directories(dxc_vk_runner_half PRIVATE ${SM_INTEROP_DIR})
+            target_compile_definitions(dxc_vk_runner_half PRIVATE
+                "SM_VK_CASES_HEADER=\"shared/case_list.h\"" SM_VK_CASES=SM_INTEROP_HALF_CASES)
+            target_link_libraries(dxc_vk_runner_half PRIVATE Vulkan::Vulkan)
+            shader_math_warnings(dxc_vk_runner_half)
+
+            add_executable(shader_math_dxc_cpp ${SM_INTEROP_DIR}/cpp_harness.cpp)
+            target_compile_definitions(shader_math_dxc_cpp PRIVATE SM_INTEROP_DXC)
+            target_include_directories(shader_math_dxc_cpp PRIVATE ${SM_INTEROP_DIR})
+            target_link_libraries(shader_math_dxc_cpp PRIVATE shader_math)
+            shader_math_warnings(shader_math_dxc_cpp)
+            add_executable(shader_math_dxc_cpp_half ${SM_INTEROP_DIR}/cpp_harness.cpp)
+            target_compile_definitions(shader_math_dxc_cpp_half PRIVATE SM_INTEROP_ENABLE_HALF)
+            target_link_libraries(shader_math_dxc_cpp_half PRIVATE shader_math)
+            shader_math_warnings(shader_math_dxc_cpp_half)
+
+            add_test(NAME dxc_interop_check
+                     COMMAND ${Python3_EXECUTABLE} ${SM_INTEROP_DIR}/compare.py
+                             $<TARGET_FILE:dxc_vk_runner> $<TARGET_FILE:shader_math_dxc_cpp>
+                             dxc ${SM_DXC_SPV})
+            add_test(NAME dxc_interop_half_check
+                     COMMAND ${Python3_EXECUTABLE} ${SM_INTEROP_DIR}/compare.py
+                             $<TARGET_FILE:dxc_vk_runner_half> $<TARGET_FILE:shader_math_dxc_cpp_half>
+                             dxc ${SM_DXC_HALF_SPV} --f16)
+            set_tests_properties(dxc_interop_check dxc_interop_half_check PROPERTIES
+                                 SKIP_RETURN_CODE 77)
+        else()
+            message(WARNING "SHADER_MATH_INTEROP_DXC=ON but dxc (set SHADER_MATH_DXC_DIR), "
+                            "Vulkan or python3 was not found; skipping the DXC cross-check")
         endif()
     endif()
 

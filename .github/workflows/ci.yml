@@ -5,6 +5,7 @@
 # GitHub-hosted), plus FORCE_SCALAR builds on both Linux architectures, and
 # one Slang cross-compilation job (pinned Slang release, see docs/slang_compat.md),
 # one GLSL cross-check job (glslang -> SPIR-V -> lavapipe, see docs/glsl_interop.md),
+# one DXC cross-check job (DXC -> SPIR-V -> lavapipe, see docs/slang_compat.md),
 # macOS arm64 (Apple Clang), the README's minimum compiler versions, and one
 # Debug ASan/UBSan job, a coverage job, and the SDL_GPU demo rendered headless
 # on lavapipe.
@@ -144,6 +145,16 @@ jobs:
             cxx: g++
             packages: glslang-tools libvulkan-dev mesa-vulkan-drivers
             cmake_extra: -DSHADER_MATH_INTEROP_GLSL=ON
+          # HLSL against the official compiler: DXC -> SPIR-V -> lavapipe
+          - name: linux-x64-dxc-interop
+            runner: blacksmith-2vcpu-ubuntu-2404
+            cxx: g++
+            dxc_version: "1.9.2609"
+            dxc_asset: linux_dxc_2026_09_28.x86_x64.tar.gz
+            # sha256 of dxc_asset (the release asset digest); update together
+            dxc_sha256: 96faadc7f5c282d2ffda49804beb4c3ee38127bc252b723234e3c5cdf7aa39a1
+            packages: libvulkan-dev mesa-vulkan-drivers
+            cmake_extra: -DSHADER_MATH_INTEROP_DXC=ON -DSHADER_MATH_DXC_DIR=/tmp/dxc
           - name: linux-x64-slang-interop
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
@@ -180,6 +191,16 @@ jobs:
         run: |
           bash examples/sdl_gpu_skinning/build_shaders.sh /tmp/slang/bin/slangc
           git diff --exit-code -- examples/sdl_gpu_skinning/
+
+      - name: Install DXC (dxc interop job only)
+        if: matrix.dxc_version != ''
+        run: |
+          curl -fsSL -o /tmp/dxc.tar.gz \
+            https://github.com/microsoft/DirectXShaderCompiler/releases/download/v${{ matrix.dxc_version }}/${{ matrix.dxc_asset }}
+          echo "${{ matrix.dxc_sha256 }}  /tmp/dxc.tar.gz" | sha256sum -c -
+          mkdir -p /tmp/dxc
+          tar -xzf /tmp/dxc.tar.gz -C /tmp/dxc
+          LD_LIBRARY_PATH=/tmp/dxc/lib /tmp/dxc/bin/dxc --version
 
       - name: Configure (Linux / macOS)
         if: runner.os != 'Windows'

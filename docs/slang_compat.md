@@ -64,3 +64,29 @@
   近似命令になりうる（CPU 照合では一致、SPIR-V フェーズでは許容緩和が必要）。
 - **メモリレイアウト**: 言語互換であって ABI 互換ではない（`sizeof(float3) == 16`、
   cbuffer パッキング等）。本検証の対象外。
+
+## DXC（公式 HLSL コンパイラ）との照合
+
+同じ共有ケースを DXC（v1.9.2609、Linux 版）で SPIR-V にし、Vulkan（lavapipe）で実行して照合する
+（`dxc_interop_check`、half は `-enable-16bit-types` 付きで `dxc_interop_half_check`）。
+Slang では照合できない `frexp` / `dst` は `tests/interop/dxc/dxc_cases.hlsli` で照合する。
+
+```bash
+# DXC の Linux リリースを展開して（x86_64 のみ）
+cmake -S . -B build-dxc -DCMAKE_BUILD_TYPE=Release \
+  -DSHADER_MATH_INTEROP_DXC=ON -DSHADER_MATH_DXC_DIR=<dxc 展開先>
+cmake --build build-dxc
+ctest --test-dir build-dxc -R dxc_interop --output-on-failure
+```
+
+DXC で分かった差:
+
+- **スカラー 1 つの行列 ctor**: DXC は `float3x3(0.25f)` を「要素が足りない」とエラーにする。HLSL で
+  全成分に広げる綴りはキャスト `(float3x3)0.25f` か代入 `float3x3 m = 0.25f;`。Slang と shader-math は
+  ctor の綴りも受け付ける（共有ケースはキャストで書く）
+- **`lit` の鏡面項**: Microsoft の `lit` のドキュメントは `(n·h)^m`、Slang と shader-math も累乗だが、
+  DXC v1.9.2609 の SPIR-V 出力（`SpirvEmitter::processIntrinsicLit`）は `(n·h) * m`。DXC の照合からは
+  `lit` のケース（`case_near_lit`）を外している
+- half: `-enable-16bit-types` を付けないと DXC の `half` は 32 ビット float（min precision）になる
+- DXC は手動更新（`ci.yml` の `dxc_version` / `dxc_asset` / `dxc_sha256` を一緒に変える）
+
