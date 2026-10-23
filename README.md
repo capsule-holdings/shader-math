@@ -201,9 +201,11 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 - バージョンは 0.x の間は同一マイナーのみ互換（`SameMinorVersion`）
 
 ベンチマーク: `./build/shader_math_bench`（SIMD）と `./build/shader_math_bench_scalar`
-（scalar 強制）で主要カーネルの ns / 要素を比較できる（`--markdown` で表形式）。
-CI では `linux-x64-gcc` / `linux-x64-gcc-v3` / `linux-arm-gcc` で実行し、ジョブサマリーに出す
-（共有ランナーの値なので参考値。合否判定はしない）。
+（scalar 強制）で主要カーネルの ns / 要素を比較できる（`--markdown` で表形式、`--json` で
+github-action-benchmark の形式）。CI では `linux-x64-gcc` / `linux-x64-gcc-v3` / `linux-arm-gcc` で
+実行し、ジョブサマリーに出す。`main` への push ごとの値は `gh-pages` ブランチに積み、推移のグラフを
+<https://capsule-holdings.github.io/shader-math/bench/> で公開する（共有ランナーの値なので参考値。
+合否判定はしない）。
 ヘッダのコンパイル時間: `python3 bench/compile_time.py <コンパイラ> [--markdown]` で、ライブラリを
 include するだけの翻訳単位のフロントエンド時間を既定とオプトインのマクロごとに測る。CI では
 `linux-x64-gcc` / `linux-x64-clang` で実行し、ジョブサマリーに出す（同じく参考値）。
@@ -254,8 +256,9 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
 
 ## DXC との相互検証
 
-HLSL 面は Slang に加えて、公式の HLSL コンパイラ DXC でも照合している（DXC で SPIR-V にして lavapipe で
-実行）。Slang では照合できない `frexp` / `dst` もここで照合する。詳細は [docs/slang_compat.md](docs/slang_compat.md) の DXC 節。
+HLSL 面は Slang に加えて、公式の HLSL コンパイラ DXC でも照合している。DXC で SPIR-V にして lavapipe で
+実行するものと、Windows で DXIL にして D3D12 の WARP で実行するものの 2 通り。Slang では照合できない
+`frexp` / `dst` もここで照合する。詳細は [docs/slang_compat.md](docs/slang_compat.md) の DXC 節。
 
 ## Slang との相互検証
 
@@ -269,3 +272,7 @@ cmake -S . -B build-interop -DCMAKE_BUILD_TYPE=Release \
 cmake --build build-interop
 ctest --test-dir build-interop -R slang_interop --output-on-failure
 ```
+
+## ライセンス
+
+[MIT](LICENSE)

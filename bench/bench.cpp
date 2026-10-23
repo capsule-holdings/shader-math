@@ -6,7 +6,15 @@
 // twice (shader_math_bench / shader_math_bench_scalar) so the SIMD backend
 // can be compared with the scalar reference.
 //
-//   shader_math_bench [--markdown]
+// The array loops measure throughput, and in the scalar twin the compiler
+// may vectorize such a loop across elements (gcc -O3 does for inverse and
+// normalize), which the SIMD backend's 4-lane code cannot get. The "latency"
+// rows feed each result into the next call, so neither build can batch.
+//
+//   shader_math_bench [--markdown | --json]
+//
+// --json prints the github-action-benchmark "customSmallerIsBetter" array;
+// each name carries the backend so the SIMD and scalar runs can share a chart.
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -73,6 +81,7 @@ float seed_value(int i) { return static_cast<float>((i * 37) % 101) * 0.03125f -
 
 int main(int argc, char** argv) {
     const bool markdown = argc > 1 && std::strcmp(argv[1], "--markdown") == 0;
+    const bool json = argc > 1 && std::strcmp(argv[1], "--json") == 0;
     namespace h = shader_math::hlsl;
     namespace g = shader_math::glsl;
 
@@ -119,6 +128,11 @@ int main(int argc, char** argv) {
                         for (int i = 0; i < kCount; ++i) mo[i] = h::inverse(m[i]);
                         keep(mo[0]);
                     })});
+    h::float4x4 chain_m = m[7];
+    rows.push_back({"hlsl inverse(float4x4) latency", best_ns_per_elem([&] {
+                        for (int i = 0; i < kCount; ++i) chain_m = h::inverse(chain_m);
+                        keep(chain_m);
+                    })});
     rows.push_back({"dot(float4, float4)", best_ns_per_elem([&] {
                         for (int i = 0; i < kCount; ++i) s[i] = h::dot(v[i], v[(i + 1) % kCount]);
                         keep(s[0]);
@@ -126,6 +140,12 @@ int main(int argc, char** argv) {
     rows.push_back({"normalize(float3)", best_ns_per_elem([&] {
                         for (int i = 0; i < kCount; ++i) out[i].xyz = h::normalize(v[i].xyz);
                         keep(out[0]);
+                    })});
+    h::float3 chain_v(0.3f, -0.4f, 0.5f);
+    const h::float3 nudge(0.125f, 0.25f, -0.0625f);
+    rows.push_back({"normalize(float3) latency", best_ns_per_elem([&] {
+                        for (int i = 0; i < kCount; ++i) chain_v = h::normalize(chain_v + nudge);
+                        keep(chain_v);
                     })});
     rows.push_back({"floor(float4)", best_ns_per_elem([&] {
                         for (int i = 0; i < kCount; ++i) out[i] = h::floor(v[i]);
@@ -151,7 +171,13 @@ int main(int argc, char** argv) {
                     })});
 #endif
 
-    if (markdown) {
+    if (json) {
+        std::printf("[\n");
+        for (std::size_t i = 0; i < rows.size(); ++i)
+            std::printf("  {\"name\": \"%s [%s]\", \"unit\": \"ns/elem\", \"value\": %.3f}%s\n",
+                        rows[i].name, backend(), rows[i].ns, i + 1 < rows.size() ? "," : "");
+        std::printf("]\n");
+    } else if (markdown) {
         std::printf("| kernel (%s) | ns / element |\n| --- | ---: |\n", backend());
         for (const Row& r : rows) std::printf("| %s | %.2f |\n", r.name, r.ns);
     } else {

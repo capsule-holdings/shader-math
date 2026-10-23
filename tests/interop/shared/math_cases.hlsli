@@ -211,8 +211,8 @@ float4 case_near_log10_ldexp(float4 a, float4 b)
 }
 
 // lit's specular term is (n.h)^m (Microsoft's lit documentation, Slang,
-// shader-math); DXC's SPIR-V backend emits (n.h) * m, so the DXC check
-// leaves this case out (dxc/dxc_case_list.h)
+// DXC's DXIL backend, shader-math); DXC's SPIR-V backend emits (n.h) * m,
+// so only its SPIR-V check leaves this case out (dxc/dxc_case_list.h)
 float4 case_near_lit()
 {
     // scalar arguments are literals: no intrinsics on scalars in the shared
@@ -221,7 +221,7 @@ float4 case_near_lit()
 }
 
 // ---- half tier --------------------------------------------------------------
-// The Slang CPU target's C++ prelude (v2026.16) does not implement half vector
+// The Slang CPU target's C++ prelude (v2026.20) does not implement half vector
 // arithmetic, so these cases run through kernels_half.slang compiled to SPIR-V
 // on Vulkan (lavapipe) instead (SM_INTEROP_HALF_CASES); guarded so the CPU
 // build never sees them.
@@ -244,6 +244,6 @@ float4 case_half_products(float4 af, float4 bf)
     half4 m = max(a, b) - clamp(b, half(-1.0f), half(1.0f));
     half2x2 hm = half2x2(a.x, a.y, a.z, a.w);
     half2 v = mul(b.xy, hm);
-    return float4(float(d), float(l.y + m.z), float(v.x), float(v.y));
+    return float4(float(d), float(l.y + m.z), float(half(v.x)), float(half(v.y)));
 }
 #endif

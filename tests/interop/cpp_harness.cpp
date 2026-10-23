@@ -24,9 +24,14 @@ using namespace shader_math::hlsl;
 // SM_INTEROP_NESTED (the twin also built with SHADER_MATH_NESTED_SWIZZLE)
 // selects the nested-swizzle list; SM_INTEROP_MATRIX_SWIZZLE (built with
 // SHADER_MATH_MATRIX_SWIZZLE3) the multi-element matrix accessor list;
-// SM_INTEROP_DXC the shared list plus the DXC-only cases
+// SM_INTEROP_DXC the shared list plus the DXC-only cases; SM_INTEROP_DXIL
+// those plus lit
 #if defined(SM_INTEROP_ENABLE_HALF)
 #  define SM_HARNESS_CASES SM_INTEROP_HALF_CASES
+#elif defined(SM_INTEROP_DXIL)
+#  include "dxc/dxc_cases.hlsli"
+#  include "dxc/dxc_case_list.h"
+#  define SM_HARNESS_CASES SM_DXIL_CASES
 #elif defined(SM_INTEROP_DXC)
 #  include "dxc/dxc_cases.hlsli"
 #  include "dxc/dxc_case_list.h"

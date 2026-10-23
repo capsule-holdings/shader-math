@@ -6,7 +6,7 @@
 // Every case returns a float4 = 4 output slots. Tolerances are chosen from
 // the name prefix by compare.py (exact_ / near_ / half_).
 
-// Half cases are a separate list: the Slang CPU target's C++ prelude (v2026.16)
+// Half cases are a separate list: the Slang CPU target's C++ prelude (v2026.20)
 // does not implement half vector arithmetic, so SM_INTEROP_HALF_CASES runs
 // through kernels_half.slang -> SPIR-V on Vulkan (lavapipe) instead; see
 // docs/slang_compat.md.
@@ -27,9 +27,9 @@
     X(exact_matrix_swizzle_read, case_exact_matrix_swizzle_read(IN_A, IN_B))   \
     X(exact_matrix_swizzle_write, case_exact_matrix_swizzle_write(IN_A, IN_B))
 
-// SM_INTEROP_CASES_BASE is everything both Slang and DXC check;
+// SM_INTEROP_CASES_BASE is everything Slang and both DXC backends check;
 // SM_INTEROP_CASES (Slang) adds lit, which DXC's SPIR-V backend computes
-// differently (see case_near_lit).
+// differently (see case_near_lit; the DXIL list adds it as well).
 #define SM_INTEROP_CASES(X)                                    \
     SM_INTEROP_CASES_BASE(X)                                   \
     X(near_lit, case_near_lit())

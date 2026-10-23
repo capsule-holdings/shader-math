@@ -29,13 +29,16 @@
 - 通常ビルド + テスト: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest --test-dir build --output-on-failure`
 - アプリ実行: `./build/sandbox`
 - scalar 強制ビルド: `cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON`
-- Slang 相互検証（任意、slangc が必要）: Slang リリース（v2026.16 で検証済み）を展開して
+- Slang 相互検証（任意、slangc が必要）: Slang リリース（v2026.20 で検証済み）を展開して
   `cmake -S . -B build-interop -DCMAKE_BUILD_TYPE=Release -DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=<展開先>`
   → build 後 `ctest --test-dir build-interop -R slang_interop --output-on-failure`。
   サブセット定義は `docs/slang_compat.md`、ケース本体は `tests/interop/shared/math_cases.hlsli`。
 - GLSL 相互検証（任意、glslang-tools / libvulkan-dev / mesa-vulkan-drivers が必要）:
   `-DSHADER_MATH_INTEROP_GLSL=ON` → `ctest -R glsl_interop`。ケースは `tests/interop/glsl/math_cases.glsl`、
   詳細は `docs/glsl_interop.md`。
+- DXC 相互検証（任意）: SPIR-V 版は Linux で `-DSHADER_MATH_INTEROP_DXC=ON`（`ctest -R dxc_interop`）、
+  DXIL 版は Windows で `-DSHADER_MATH_INTEROP_DXIL=ON`（`ctest -R dxil_interop`、D3D12 WARP で実行）。
+  どちらも `-DSHADER_MATH_DXC_DIR=<DXC リリースの展開先>`。詳細は `docs/slang_compat.md` の DXC 節。
 - テストバイナリを直接実行するとバックエンド名（例: `SSE2+FMA`、`NEON+FP16`）と
   `N checks, 0 failures` を出力する。件数はテスト追加で増えるので固定値で比べないこと。
 - 既定ビルドの `ctest` は 5 件: SIMD 版と scalar twin（`shader_math_tests_scalar`）、

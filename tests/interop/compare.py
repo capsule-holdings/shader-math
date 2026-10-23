@@ -3,6 +3,7 @@
 harness, compare outputs.
 
   compare.py <reference_runner> <cpp_harness> [label] [runner args...]
+             [--tol=<case>:<relative>...]
 
 Line format from both binaries:  name[i] 0xBITS
 Tolerance is chosen from the case-name prefix:
@@ -10,6 +11,8 @@ Tolerance is chosen from the case-name prefix:
   near_   relative 1e-5 (inner products, divisions, transcendentals)
   approx_ relative 1e-4 (GPU transcendentals with relaxed GLSL precision)
   half_   relative 2e-3 (binary16 ulp + promoted-path rounding)
+--tol=<case>:<relative> overrides that for one case of this run (the shared
+case names are fixed across references, a looser device is not).
 NaN == NaN is accepted (bit pattern may differ).
 
 Exit codes: 0 = match, 1 = mismatch/error.
@@ -49,7 +52,10 @@ def as_float(bits):
     return struct.unpack("<f", struct.pack("<I", bits))[0]
 
 
-def tolerance(key):
+def tolerance(key, overrides):
+    case = key.split("[", 1)[0]
+    if case in overrides:
+        return overrides[case]
     if key.startswith("exact_"):
         return 0.0
     if key.startswith("half_"):
@@ -60,11 +66,25 @@ def tolerance(key):
 
 
 def main():
-    if len(sys.argv) < 3:
-        raise SystemExit("usage: compare.py <reference_runner> <cpp_harness> [label] [runner args...]")
-    label = sys.argv[3] if len(sys.argv) > 3 else "slang"
-    slang = run(sys.argv[1], *sys.argv[4:])
-    cpp = run(sys.argv[2])
+    overrides = {}
+    args = []
+    for a in sys.argv[1:]:
+        if a.startswith("--tol="):
+            case, rel = a[len("--tol="):].rsplit(":", 1)
+            overrides[case] = float(rel)
+        else:
+            args.append(a)
+    if len(args) < 2:
+        raise SystemExit(
+            "usage: compare.py <reference_runner> <cpp_harness> [label] [runner args...] "
+            "[--tol=<case>:<relative>...]"
+        )
+    label = args[2] if len(args) > 2 else "slang"
+    slang = run(args[0], *args[3:])
+    cpp = run(args[1])
+    unknown = set(overrides) - {k.split("[", 1)[0] for k in slang}
+    if unknown:
+        raise SystemExit(f"--tol names unknown cases: {sorted(unknown)}")
     if slang.keys() != cpp.keys():
         raise SystemExit(
             f"case sets differ: only-slang={sorted(slang.keys() - cpp.keys())} "
@@ -75,7 +95,7 @@ def main():
     for key in sorted(slang):
         sb, cb = slang[key], cpp[key]
         sf, cf = as_float(sb), as_float(cb)
-        tol = tolerance(key)
+        tol = tolerance(key, overrides)
         if math.isnan(sf) or math.isnan(cf):
             ok = math.isnan(sf) and math.isnan(cf)
         elif tol == 0.0:
