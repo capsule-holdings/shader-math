@@ -408,7 +408,8 @@ if(SHADER_MATH_BUILD_TESTS)
             set(SM_INTEROP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests/interop)
             set(SM_DXC_DEPS ${SM_INTEROP_DIR}/dxc/kernels.hlsl ${SM_INTEROP_DIR}/dxc/dxc_cases.hlsli
                             ${SM_INTEROP_DIR}/dxc/dxc_case_list.h
-                            ${SM_INTEROP_DIR}/shared/math_cases.hlsli ${SM_INTEROP_DIR}/shared/case_list.h)
+                            ${SM_INTEROP_DIR}/shared/math_cases.hlsli ${SM_INTEROP_DIR}/shared/case_list.h
+                            ${SM_INTEROP_DIR}/shared/matrix_swizzle_cases.hlsli)
             set(SM_DXC_RUN ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=${SM_DXC_ROOT}/lib ${DXC_EXECUTABLE}
                            -spirv -T cs_6_2 -E main -HV 2021 -fspv-target-env=vulkan1.1
                            -I ${SM_INTEROP_DIR})
@@ -427,7 +428,16 @@ if(SHADER_MATH_BUILD_TESTS)
                 DEPENDS ${SM_DXC_DEPS}
                 COMMENT "dxc: compiling the half cases to SPIR-V (-enable-16bit-types)"
                 VERBATIM)
-            add_custom_target(dxc_interop_spv ALL DEPENDS ${SM_DXC_SPV} ${SM_DXC_HALF_SPV})
+            set(SM_DXC_MATRIX_SWIZZLE_SPV ${CMAKE_CURRENT_BINARY_DIR}/dxc_kernels_matrix_swizzle.spv)
+            add_custom_command(
+                OUTPUT ${SM_DXC_MATRIX_SWIZZLE_SPV}
+                COMMAND ${SM_DXC_RUN} -D SM_INTEROP_MATRIX_SWIZZLE=1
+                        -Fo ${SM_DXC_MATRIX_SWIZZLE_SPV} ${SM_INTEROP_DIR}/dxc/kernels.hlsl
+                DEPENDS ${SM_DXC_DEPS}
+                COMMENT "dxc: compiling the matrix accessor cases to SPIR-V"
+                VERBATIM)
+            add_custom_target(dxc_interop_spv ALL
+                DEPENDS ${SM_DXC_SPV} ${SM_DXC_HALF_SPV} ${SM_DXC_MATRIX_SWIZZLE_SPV})
 
             add_executable(dxc_vk_runner ${SM_INTEROP_DIR}/vk_runner.cpp)
             target_include_directories(dxc_vk_runner PRIVATE ${SM_INTEROP_DIR})
@@ -441,6 +451,12 @@ if(SHADER_MATH_BUILD_TESTS)
                 "SM_VK_CASES_HEADER=\"shared/case_list.h\"" SM_VK_CASES=SM_INTEROP_HALF_CASES)
             target_link_libraries(dxc_vk_runner_half PRIVATE Vulkan::Vulkan)
             shader_math_warnings(dxc_vk_runner_half)
+            add_executable(dxc_vk_runner_matrix_swizzle ${SM_INTEROP_DIR}/vk_runner.cpp)
+            target_include_directories(dxc_vk_runner_matrix_swizzle PRIVATE ${SM_INTEROP_DIR})
+            target_compile_definitions(dxc_vk_runner_matrix_swizzle PRIVATE
+                "SM_VK_CASES_HEADER=\"shared/case_list.h\"" SM_VK_CASES=SM_INTEROP_MATRIX_SWIZZLE_CASES)
+            target_link_libraries(dxc_vk_runner_matrix_swizzle PRIVATE Vulkan::Vulkan)
+            shader_math_warnings(dxc_vk_runner_matrix_swizzle)
 
             add_executable(shader_math_dxc_cpp ${SM_INTEROP_DIR}/cpp_harness.cpp)
             target_compile_definitions(shader_math_dxc_cpp PRIVATE SM_INTEROP_DXC)
@@ -451,6 +467,11 @@ if(SHADER_MATH_BUILD_TESTS)
             target_compile_definitions(shader_math_dxc_cpp_half PRIVATE SM_INTEROP_ENABLE_HALF)
             target_link_libraries(shader_math_dxc_cpp_half PRIVATE shader_math)
             shader_math_warnings(shader_math_dxc_cpp_half)
+            add_executable(shader_math_dxc_cpp_matrix_swizzle ${SM_INTEROP_DIR}/cpp_harness.cpp)
+            target_compile_definitions(shader_math_dxc_cpp_matrix_swizzle PRIVATE
+                SM_INTEROP_MATRIX_SWIZZLE SHADER_MATH_MATRIX_SWIZZLE3)
+            target_link_libraries(shader_math_dxc_cpp_matrix_swizzle PRIVATE shader_math)
+            shader_math_warnings(shader_math_dxc_cpp_matrix_swizzle)
 
             add_test(NAME dxc_interop_check
                      COMMAND ${Python3_EXECUTABLE} ${SM_INTEROP_DIR}/compare.py
@@ -460,7 +481,13 @@ if(SHADER_MATH_BUILD_TESTS)
                      COMMAND ${Python3_EXECUTABLE} ${SM_INTEROP_DIR}/compare.py
                              $<TARGET_FILE:dxc_vk_runner_half> $<TARGET_FILE:shader_math_dxc_cpp_half>
                              dxc ${SM_DXC_HALF_SPV} --f16)
-            set_tests_properties(dxc_interop_check dxc_interop_half_check PROPERTIES
+            add_test(NAME dxc_interop_matrix_swizzle_check
+                     COMMAND ${Python3_EXECUTABLE} ${SM_INTEROP_DIR}/compare.py
+                             $<TARGET_FILE:dxc_vk_runner_matrix_swizzle>
+                             $<TARGET_FILE:shader_math_dxc_cpp_matrix_swizzle>
+                             dxc ${SM_DXC_MATRIX_SWIZZLE_SPV})
+            set_tests_properties(dxc_interop_check dxc_interop_half_check
+                                 dxc_interop_matrix_swizzle_check PROPERTIES
                                  SKIP_RETURN_CODE 77)
         else()
             message(WARNING "SHADER_MATH_INTEROP_DXC=ON but dxc (set SHADER_MATH_DXC_DIR), "

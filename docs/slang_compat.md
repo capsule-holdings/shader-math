@@ -71,6 +71,8 @@
 同じ共有ケースを DXC（v1.9.2609、Linux 版）で SPIR-V にし、Vulkan（lavapipe）で実行して照合する
 （`dxc_interop_check`、half は `-enable-16bit-types` 付きで `dxc_interop_half_check`）。
 Slang では照合できない `frexp` / `dst` は `tests/interop/dxc/dxc_cases.hlsli` で照合する。
+オプトインの行列の複数成分アクセスも、`SM_INTEROP_MATRIX_SWIZZLE` 付きで `shared/matrix_swizzle_cases.hlsli`
+を DXC で SPIR-V にして照合する（`dxc_interop_matrix_swizzle_check`）。
 
 ```bash
 # DXC の Linux リリースを展開して（x86_64 のみ）
