@@ -1,0 +1,27 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+// GLSL side of the half cross-check (needs the shaderFloat16 device feature).
+layout(local_size_x = 1) in;
+layout(std430, binding = 0) buffer Out { float o[]; };
+
+#define SM_NOT not
+#include "math_cases.glsl"
+#include "half_cases.glsl"
+#include "half_case_list.h"
+
+void main()
+{
+    int slot = 0;
+#define X(name, expr)      \
+    {                      \
+        vec4 r = (expr);   \
+        o[slot] = r.x;     \
+        o[slot + 1] = r.y; \
+        o[slot + 2] = r.z; \
+        o[slot + 3] = r.w; \
+        slot += 4;         \
+    }
+    SM_GLSL_HALF_CASES(X)
+#undef X
+}

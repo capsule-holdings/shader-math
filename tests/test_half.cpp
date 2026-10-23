@@ -71,6 +71,14 @@ static_assert(!can_hlsl_mul<h::half3x3, h::float3>);  // element types must matc
 static_assert(!can_hlsl_mul<h::float3x3, h::half3>);
 
 static void test_half_hlsl() {
+    {
+        const h::float4 f(1.0f, 2.0f, 3.0f, 4.0f);
+        const h::half4 r(f.wzyx);  // element-type conversion from a swizzle
+        CHECK_EQF(static_cast<float>(r[0]), 4.0f);
+        CHECK_EQF(static_cast<float>(r[3]), 1.0f);
+        const h::float3 back(h::half4(f).zyx);
+        CHECK_EQF(back[0], 3.0f);
+    }
     using namespace shader_math::hlsl;
 
     // ctors and lanes: exact (small integers are exact in binary16)

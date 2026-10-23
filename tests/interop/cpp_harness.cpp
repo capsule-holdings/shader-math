@@ -19,6 +19,14 @@ using namespace shader_math::hlsl;
 
 #include "shared/case_list.h"
 
+// SM_INTEROP_ENABLE_HALF (set by CMake for the half twin) selects the half
+// list, which is checked against the SPIR-V kernel instead of Slang-CPU
+#if defined(SM_INTEROP_ENABLE_HALF)
+#  define SM_HARNESS_CASES SM_INTEROP_HALF_CASES
+#else
+#  define SM_HARNESS_CASES SM_INTEROP_CASES
+#endif
+
 inline int run_cases(float* out) {
     int slot = 0;
 #define X(name, expr)                    \
@@ -29,7 +37,7 @@ inline int run_cases(float* out) {
         out[slot++] = r[2];              \
         out[slot++] = r[3];              \
     }
-    SM_INTEROP_CASES(X)
+    SM_HARNESS_CASES(X)
 #undef X
     return slot;
 }
@@ -37,7 +45,7 @@ inline int run_cases(float* out) {
 inline const char* const* case_names(int* count) {
     static const char* names[] = {
 #define X(name, expr) #name,
-        SM_INTEROP_CASES(X)
+        SM_HARNESS_CASES(X)
 #undef X
     };
     *count = static_cast<int>(sizeof(names) / sizeof(names[0]));

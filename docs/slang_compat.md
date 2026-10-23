@@ -38,7 +38,7 @@
 | `v.x` の可変長引数直渡し | shader-math の `v.x` はプロキシ型。`printf` 等には `float(v.x)`（共有数式では非該当だが注意） |
 | **スカラーへの intrinsic 適用** | HLSL/Slang は `saturate(dot(n,l))` のようにスカラーにも intrinsic が効くが、shader-math は純スカラーを意図的に非対応にして `std::` に譲る。共有ファイルでは **intrinsic はベクトル引数のみ** に使う（スカラー値は `float3(d,d,d)` のようにベクトルへ載せて計算するか、三項演算子で書く。例: `case_near_lighting`） |
 | bool ベクトルの `.xyzw` | shader-math の `boolN` は成分名アクセスを持たない（比較結果のマスク型）。`isnan(v)[2]` のように添字で読む |
-| **half（`half2/3/4`）** | **SPIR-V 実行フェーズ（lavapipe）送り**。実測（Slang v2026.16）: CPU ターゲットの C++ prelude が half ベクトル演算を未実装（`Vector<_Float16, 4>` の `operator*` 等が無い）ため、half 演算を含む生成コードがコンパイルできない。共有ファイルには `SM_INTEROP_ENABLE_HALF` ガード付きで `case_half_chain` を保持済み |
+| **half（`half2/3/4`）の CPU 実行** | Slang（v2026.16）の CPU ターゲットの C++ prelude が half ベクトル演算を未実装（`Vector<_Float16, 4>` の `operator*` 等が無い）。half のケースは `SM_INTEROP_HALF_CASES` に分け、`kernels_half.slang` を `-target spirv` で SPIR-V にして Vulkan（lavapipe）で実行し照合する（`slang_interop_half_check`、`shaderFloat16` の無いデバイスではスキップ） |
 
 ## 意味差（コンパイルは通るが結果・規則が異なりうるもの）
 
