@@ -100,6 +100,8 @@ void glsl_side() {
 - `SHADER_MATH_HAS_FP16` — ARM FEAT_FP16（`-march=armv8.2-a+fp16`）検出時、half 演算が本物の
   16-bit ベクトル ALU（`float16x4_t`、`fmla v.4h`）で実行される。
   **それ以外のホスト（x86 / scalar / 古い ARM）では half はレーンを f32 に拡げて計算して戻す**。
+  拡げる / 戻す変換は、ARMv8.0 では基本命令（`vcvt_f32_f16` / `vcvt_f16_f32`）、x86 では F16C か
+  SSE2 の整数演算で 4 レーンまとめて行う（MSVC の ARM64 と scalar はレーンごと）。
   この経路の丸めは GPU の half ALU とも ARM ネイティブとも一致しない（1 演算ごとに f32 丸めが 1 回入る）
 - 既定ベースライン（SSE2 / ARMv8.0）は上げない。**推奨**: x86 は `-march=x86-64-v3`（FMA + SSE4.1）、
   ARM で half を速くしたい場合は `-march=armv8.2-a+fp16`
@@ -175,12 +177,12 @@ cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON  # scalar 強制
 include(FetchContent)
 FetchContent_Declare(shader_math
     GIT_REPOSITORY https://github.com/capsule-holdings/shader-math.git
-    GIT_TAG v0.2.0)
+    GIT_TAG v0.3.0)
 FetchContent_MakeAvailable(shader_math)
 
 # B) インストール済みパッケージ
 #    cmake --install build --prefix <prefix> したものを CMAKE_PREFIX_PATH で指す
-find_package(shader_math 0.2 REQUIRED CONFIG)
+find_package(shader_math 0.3 REQUIRED CONFIG)
 
 target_link_libraries(app PRIVATE shader_math::shader_math)
 ```
@@ -202,6 +204,9 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 （scalar 強制）で主要カーネルの ns / 要素を比較できる（`--markdown` で表形式）。
 CI では `linux-x64-gcc` / `linux-x64-gcc-v3` / `linux-arm-gcc` で実行し、ジョブサマリーに出す
 （共有ランナーの値なので参考値。合否判定はしない）。
+ヘッダのコンパイル時間: `python3 bench/compile_time.py <コンパイラ> [--markdown]` で、ライブラリを
+include するだけの翻訳単位のフロントエンド時間を既定とオプトインのマクロごとに測る。CI では
+`linux-x64-gcc` / `linux-x64-clang` で実行し、ジョブサマリーに出す（同じく参考値）。
 
 デモ: `-DSHADER_MATH_DEMO_SDLGPU=ON` で SDL_GPU + FBX（ufbx）+ CPU スキニングの
 サンプルをビルドできる（[examples/sdl_gpu_skinning/](examples/sdl_gpu_skinning/README.md)）。
@@ -222,7 +227,7 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
   2・3 成分の swizzle に対して読み出しだけ有効（`.stpq` も有効ならそれも使える）。4 成分の swizzle からの
   重ねがけ（`v.wzyx.xy`）と重ねがけ先への書き込みは無い（`float4(v.wzyx).xy` と書く）。メンバ宣言が
   組み合わせで増えるため、有効にするとライブラリを include するだけの翻訳単位のフロントエンド時間が
-  約 3 倍になる（clang 実測 0.35 → 1.03 秒）。既定で無効なのはこのため
+  3〜4 倍になる（`bench/compile_time.py` の実測で gcc 3.0 倍、clang 4.0 倍）。既定で無効なのはこのため
 - GLSL の `not()` は C++ キーワードのため `not_()`
 - `v.x` はプロキシ型（可変長引数に直接渡すときは `float(v.x)` にする）
 - 対象は float と half（ベクトル）。`int` / `double`、`1xN` 行列、GPU 専用機能（テクスチャ・微分・atomic）は対象外

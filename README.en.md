@@ -98,7 +98,7 @@ Semantic notes:
   - SSE4.1 (`__SSE4_1__`, `-march=x86-64-v2`; MSVC `/arch:AVX`): `roundps` for the rounding functions
   - F16C (`__F16C__`, `-march=x86-64-v3`; MSVC `/arch:AVX2`): one-instruction half <-> float conversion
   - AVX1 together with FMA: the 4x4 float product packs two rows per YMM register (results unchanged)
-  - ARM FEAT_FP16 (`-march=armv8.2-a+fp16`): half math on real 16-bit lanes; elsewhere half widens to f32 per operation
+  - ARM FEAT_FP16 (`-march=armv8.2-a+fp16`): half math on real 16-bit lanes; elsewhere half widens to f32 per operation, converting four lanes at once (ARMv8.0 base `vcvt_f32_f16` / `vcvt_f16_f32`, x86 F16C or SSE2 integer ops)
 - Boost is used header-only (Config / Predef 1.60+ for ISA detection); CMake fetches it when it is not installed
 
 ## Build and test
@@ -109,6 +109,7 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ./build/sandbox                    # playground
 ./build/shader_math_bench          # micro-benchmarks (and shader_math_bench_scalar)
+python3 bench/compile_time.py c++  # header front-end time per opt-in macro set
 ```
 
 `-DSHADER_MATH_WARNINGS_AS_ERRORS=ON` turns warnings into errors for this repo's own targets (CI always does).
@@ -124,11 +125,11 @@ The target is `shader_math::shader_math` either way.
 include(FetchContent)
 FetchContent_Declare(shader_math
     GIT_REPOSITORY https://github.com/capsule-holdings/shader-math.git
-    GIT_TAG v0.2.0)
+    GIT_TAG v0.3.0)
 FetchContent_MakeAvailable(shader_math)
 
 # B) an installed package (cmake --install build --prefix <prefix>)
-find_package(shader_math 0.2 REQUIRED CONFIG)
+find_package(shader_math 0.3 REQUIRED CONFIG)
 
 target_link_libraries(app PRIVATE shader_math::shader_math)
 ```
@@ -149,7 +150,7 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 
 - Multi-component matrix swizzles (`_m00_m11`) are not implemented; every single-component accessor is
 - GLSL `.stpq` swizzles are opt-in (`SHADER_MATH_GLSL_STPQ`): the vector type is shared with `hlsl`, which has no stpq, so enabling them lets HLSL code accept `.stp` too (same lanes as `.xyz`). Measured compile-time cost: +5 to 11% with gcc, within noise with clang
-- Swizzles of swizzles (`v.xy.yx`, `v.xyz.zx`) are opt-in (`SHADER_MATH_NESTED_SWIZZLE`): reads on 2- and 3-component swizzles (`.stpq` too when enabled). There is no nesting on a 4-component swizzle (`v.wzyx.xy`) and no writing through a nested one; write `float4(v.wzyx).xy`. The member declarations multiply, so a translation unit that only includes the library takes about 3x the front-end time with it (clang, measured 0.35 -> 1.03 s); hence off by default
+- Swizzles of swizzles (`v.xy.yx`, `v.xyz.zx`) are opt-in (`SHADER_MATH_NESTED_SWIZZLE`): reads on 2- and 3-component swizzles (`.stpq` too when enabled). There is no nesting on a 4-component swizzle (`v.wzyx.xy`) and no writing through a nested one; write `float4(v.wzyx).xy`. The member declarations multiply, so a translation unit that only includes the library takes 3-4x the front-end time with it (`bench/compile_time.py`: gcc 3.0x, clang 4.0x); hence off by default
 - GLSL's `not()` is `not_()` (`not` is a C++ alternative token); HLSL 2021's `and()` / `or()` cannot exist for the same reason, and bool-vector `&&` / `||` are unavailable as in HLSL 2021
 - `v.x` is a proxy type: pass `float(v.x)` to varargs
 - float and half only: no `int` / `double`, no `1xN` matrices, no GPU-only features (textures, derivatives, atomics)
