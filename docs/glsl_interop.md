@@ -38,6 +38,11 @@ CI は `linux-x64-glsl-interop` ジョブで実行する。
 （`glsl_interop_half_check`）。デバイスの `shaderFloat16` が必要で、無ければスキップ（終了コード 77）。
 共有ファイルでは `float16_t` を書かない（ARM では `arm_neon.h` のグローバル `float16_t` と曖昧になる）。
 
+## `.stpq`（オプトイン）
+
+`.stpq` は shader-math では `SHADER_MATH_GLSL_STPQ` を定義したときだけ有効なので、`stpq_cases.glsl`
+（`kernels_stpq.comp`）を、マクロ付きでビルドした専用の C++ 側と照合する（`glsl_interop_stpq_check`）。
+
 ## 許容誤差（名前の接頭辞で決まる）
 
 - `exact_`: ビット一致。1 回丸めの演算だけを置く（GLSL コンパイラは `a * b + c` を融合してよく、
