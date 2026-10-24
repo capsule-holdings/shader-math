@@ -70,7 +70,7 @@ constexpr bool swz_unique() {
 // ---- swizzles of swizzles (v.xy.yx), opt-in -------------------------------
 // GLSL / HLSL read any swizzle of a swizzle. Here the nested members exist
 // only under SHADER_MATH_NESTED_SWIZZLE, and only on 2- and 3-component
-// swizzles: they multiply the member count of every vector type (about 3x the
+// swizzles: they multiply the member count of every vector type (about 2x the
 // front-end time of a TU that includes the library), and on 4-component ones
 // another order of magnitude. Write vec4(v.wzyx).xy there.
 #if defined(SHADER_MATH_NESTED_SWIZZLE)
@@ -101,19 +101,21 @@ struct SHADER_MATH_MAY_ALIAS nswz {
 };
 
 // Storage of a swizzle proxy: the register bytes it overlays, plus the nested
-// members of 2- and 3-component swizzles. L_[i] = register lane of the
-// enclosing swizzle's lane i.
+// members of 2- and 3-component swizzles. I0, I1 (, I2) are the register
+// lanes of the enclosing swizzle; the members name them directly, since an
+// array lookup there costs a constant evaluation per member (tens of
+// thousands per TU).
 template <int M, class T, int N, int... Is>
 struct SHADER_MATH_MAY_ALIAS swz_store {
     T d[4];
 };
 
-#  define SM_NW1(name, i0) ::shader_math::detail::nswz<T, N, L_[i0]> name;
-#  define SM_NW2(name, i0, i1) ::shader_math::detail::nswz<T, N, L_[i0], L_[i1]> name;
+#  define SM_NW1(name, i0) ::shader_math::detail::nswz<T, N, I##i0> name;
+#  define SM_NW2(name, i0, i1) ::shader_math::detail::nswz<T, N, I##i0, I##i1> name;
 #  define SM_NW3(name, i0, i1, i2) \
-      ::shader_math::detail::nswz<T, N, L_[i0], L_[i1], L_[i2]> name;
+      ::shader_math::detail::nswz<T, N, I##i0, I##i1, I##i2> name;
 #  define SM_NW4(name, i0, i1, i2, i3) \
-      ::shader_math::detail::nswz<T, N, L_[i0], L_[i1], L_[i2], L_[i3]> name;
+      ::shader_math::detail::nswz<T, N, I##i0, I##i1, I##i2, I##i3> name;
 // two-letter set (L0, L1); the parameters never share a spelling with the
 // pasted letters, which arrive as arguments
 #  define SM_NA2_2(pre, i0, L0, L1) SM_NW2(pre##L0, i0, 0) SM_NW2(pre##L1, i0, 1)
@@ -163,17 +165,15 @@ struct SHADER_MATH_MAY_ALIAS swz_store {
 #    define SM_NGEN3_STPQ
 #  endif
 
-template <class T, int N, int... Is>
-struct SHADER_MATH_MAY_ALIAS swz_store<2, T, N, Is...> {
-    static constexpr int L_[2] = {Is...};
+template <class T, int N, int I0, int I1>
+struct SHADER_MATH_MAY_ALIAS swz_store<2, T, N, I0, I1> {
     union {
         T d[4];
         SM_NGEN2(x, y) SM_NGEN2(r, g) SM_NGEN2_STPQ
     };
 };
-template <class T, int N, int... Is>
-struct SHADER_MATH_MAY_ALIAS swz_store<3, T, N, Is...> {
-    static constexpr int L_[3] = {Is...};
+template <class T, int N, int I0, int I1, int I2>
+struct SHADER_MATH_MAY_ALIAS swz_store<3, T, N, I0, I1, I2> {
     union {
         T d[4];
         SM_NGEN3(x, y, z) SM_NGEN3(r, g, b) SM_NGEN3_STPQ

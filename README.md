@@ -234,7 +234,7 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
   2・3 成分の swizzle に対して読み出しだけ有効（`.stpq` も有効ならそれも使える）。4 成分の swizzle からの
   重ねがけ（`v.wzyx.xy`）と重ねがけ先への書き込みは無い（`float4(v.wzyx).xy` と書く）。メンバ宣言が
   組み合わせで増えるため、有効にするとライブラリを include するだけの翻訳単位のフロントエンド時間が
-  3〜4 倍になる（`bench/compile_time.py` の実測で gcc 3.0 倍、clang 4.0 倍）。既定で無効なのはこのため
+  約 2 倍になる（`bench/compile_time.py` の実測で gcc 2.0 倍、clang 2.4 倍）。既定で無効なのはこのため
 - GLSL の `not()` は C++ キーワードのため `not_()`
 - `v.x` はプロキシ型（可変長引数に直接渡すときは `float(v.x)` にする）
 - 対象は float と half（ベクトル）。`int` / `double`、`1xN` 行列、GPU 専用機能（テクスチャ・微分・atomic）は対象外
