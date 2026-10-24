@@ -62,7 +62,9 @@ def first_error(text):
     for line in text.splitlines():
         m = re.search(r"error\W*(.*)", line, re.IGNORECASE)
         if m:
-            return " ".join(m.group(1).split())[:120]
+            # drop the temporary directory, so the message is stable
+            msg = re.sub(r"\S*/(?=[hg]_\w+\.(?:comp|hlsl|cpp)\b)", "", m.group(1))
+            return " ".join(msg.split())[:120]
     return ""
 
 

@@ -41,8 +41,10 @@
   どちらも `-DSHADER_MATH_DXC_DIR=<DXC リリースの展開先>`。詳細は `docs/slang_compat.md` の DXC 節。
 - テストバイナリを直接実行するとバックエンド名（例: `SSE2+FMA`、`NEON+FP16`）と
   `N checks, 0 failures` を出力する。件数はテスト追加で増えるので固定値で比べないこと。
-- 既定ビルドの `ctest` は 5 件: SIMD 版と scalar twin（`shader_math_tests_scalar`）、
-  codegen チェック（Release かつ非 MSVC のみ。objdump が無ければ skip）、`sandbox`、`skin_batch_check`。
+- 既定ビルドの `ctest` は 8 件: SIMD 版と scalar twin（`shader_math_tests_scalar`）、
+  codegen チェック（Release かつ非 MSVC のみ。objdump が無ければ skip）、`sandbox`、`skin_batch_check`、
+  オプトインのマクロ付きでビルドした `shader_math_tests_nested` / `shader_math_tests_matrix_swizzle` /
+  `shader_math_tests_matrix_swizzle3`。
 - CI は全ジョブ `-DSHADER_MATH_WARNINGS_AS_ERRORS=ON`（gcc/clang は `-Wall -Wextra -Wpedantic -Werror`、
   MSVC は `/W4 /WX`）。手元でも付けて確認すること。
 - ベンチマーク: `./build/shader_math_bench` と `./build/shader_math_bench_scalar`（`--markdown` で表）。

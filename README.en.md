@@ -29,7 +29,7 @@ void glsl_side() {
 ```
 
 Never import both namespaces into the same scope (`mul`, `transpose` and others collide).
-Operators and each language's functions (`frac`, `mix`, ...) are found on that language's types without a `using` (ADL).
+Operators and each language's functions (`frac`, `mix`, ...) are found on that language's types without a `using` (ADL). That is what the language tags `hlsl::lang_tag` / `glsl::lang_tag` are for; a `using namespace` brings the name into scope.
 
 ## Types
 
@@ -44,6 +44,8 @@ Operators and each language's functions (`frac`, `mix`, ...) are found on that l
 - On ARM, `arm_neon.h` declares a global `float16_t`, so an unqualified `float16_t` under `using namespace glsl` is ambiguous; write `glsl::float16_t` or `hlsl::half`
 
 ## Language semantics
+
+The main differences only; the full HLSL / GLSL / shader-math mapping (types, constructors, component access, operators, intrinsics, what is not supported and why) is in [docs/compat_mapping.md](docs/compat_mapping.md) (Japanese).
 
 | | `hlsl::` | `glsl::` |
 | --- | --- | --- |
