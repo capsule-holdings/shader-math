@@ -57,9 +57,9 @@
   ハーネスは Slang 生成コードを `-ffp-contract=off` でビルドし、`near_` 階層は
   相対 1e-5 で吸収する（`compare.py` の階層許容誤差: `exact_` = ビット一致、
   `near_` = 相対 1e-5、`half_` = 相対 2e-3）。
-- **`round` の半端値（.5）**: shader-math は half-away-from-zero（`std::round` 同等）。
-  GPU / Slang ターゲットは RNE のことが多く、正確な .5 の丸めは共有サブセットで
-  当てにしない（共有ケースでは .5 ちょうどを避ける入力にする）。
+- **`round` の半端値（.5）**: HLSL の `round` は .5 を偶数へ丸める（DXC は DXIL で `Round_ne`、SPIR-V で
+  `RoundEven`）。shader-math も同じ。Slang の CPU ターゲットは `::roundf`（0 から遠い方へ）なので、
+  共有ケースでは .5 ちょうどを避け、.5 は DXC 専用の `case_exact_round_ties` で照合する。
 - **`rcp` / `rsqrt`**: shader-math は近似命令を使わない正確版。GPU 実行では
   近似命令になりうる（CPU 照合では一致、SPIR-V フェーズでは許容緩和が必要）。
 - **メモリレイアウト**: 言語互換であって ABI 互換ではない（`sizeof(float3) == 16`、
@@ -76,7 +76,7 @@
   DXC は DXIL の生成時に定数入力の組み込み関数を畳み込むので、入力を出力バッファ（0 初期化）の
   ビットと XOR してコンパイル時には分からない値にしている（`SM_INTEROP_OPAQUE_INPUTS`）
 
-Slang では照合できない `frexp` / `dst` は `tests/interop/dxc/dxc_cases.hlsli` で照合する。
+Slang では照合できない `frexp` / `dst` / `round` の .5 は `tests/interop/dxc/dxc_cases.hlsli` で照合する。
 オプトインの行列の複数成分アクセスも、`SM_INTEROP_MATRIX_SWIZZLE` 付きで `shared/matrix_swizzle_cases.hlsli`
 を DXC で SPIR-V にして照合する（`dxc_interop_matrix_swizzle_check`）。
 
