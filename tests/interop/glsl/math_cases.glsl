@@ -180,3 +180,12 @@ vec4 case_approx_transcend(vec4 a, vec4 b)
     r = r + asinh(a) + acosh(abs(a) + 1.0f) + atanh(s * 0.5f);
     return r + pow(abs(b) + 0.5f, vec4(1.5f)) + radians(a * 10.0f) + degrees(s) * 0.01f;
 }
+
+// ---- exact: mix at its ends -------------------------------------------------
+// mix is x * (1 - a) + y * a: exact at a = 0 and a = 1 however far apart x
+// and y are (x + a * (y - x) would lose y next to a large x)
+vec4 case_exact_mix_ends(vec4 a, vec4 b)
+{
+    vec4 big = a * 1.0e8f;
+    return mix(big, b, 1.0f) + mix(b, big, vec4(0.0f));
+}

@@ -25,6 +25,7 @@ CI は `linux-x64-glsl-interop` ジョブで実行する。
 | `exact_componentwise` | `matrixCompMult`、非正方の `transpose`、`outerProduct`、成分ごとの関数 |
 | `exact_rounding` | `roundEven`（.5 は偶数へ）、`trunc` `ceil` `min` `max` `clamp` `step` |
 | `exact_compare` | ベクトル / 行列の `==` `!=` はスカラー bool、`lessThan` `equal` `greaterThanEqual` + `all` `any` |
+| `exact_mix_ends` | `mix` は `x*(1 - a) + y*a`（GLSL の定義式）なので `a = 0` / `a = 1` で x / y がそのまま返る（x が y より桁違いに大きくても） |
 | `near_matrix_product` | `*` は行列積、`v * m` は行ベクトル形、非正方の積（`mat3x2 * mat2x3`） |
 | `near_inverse` | `inverse`、`determinant` |
 | `near_mod` | `mod` は floor 基準で y の符号（HLSL の `fmod` と逆）、`mix`、`modf`、`fma` |

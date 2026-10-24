@@ -781,7 +781,8 @@ SHADER_MATH_INLINE auto saturate_impl(const A& a) {
                                    vops<T>::splat(T(1.0f))));
 }
 
-// hlsl::lerp / glsl::mix: a + t*(b - a), fmadd path (rounding differs with FMA)
+// hlsl::lerp: a + t*(b - a), the form DXC emits for DXIL; fmadd path (rounding
+// differs with FMA)
 template <class A, class B, class C>
     requires(SameVec<A, B> && SameVec<A, C>)
 SHADER_MATH_INLINE auto lerp_impl(const A& a, const B& b, const C& t) {
@@ -798,6 +799,27 @@ SHADER_MATH_INLINE auto lerp_impl(const A& a, const B& b, const S& t) {
     const auto av = to_vec(a).q_;
     return fvec<n, T>(vops<T>::fmadd(vops<T>::splat(static_cast<T>(t)),
                                      vops<T>::sub(to_vec(b).q_, av), av));
+}
+
+// glsl::mix: x * (1 - a) + y * a, the formula GLSL defines mix by. Exact at
+// both ends (mix(x, y, 1) = y even when |x| is much larger than |y|).
+template <class T>
+SHADER_MATH_INLINE vreg<T> mix_core(vreg<T> x, vreg<T> y, vreg<T> a) {
+    return vops<T>::add(vops<T>::mul(x, vops<T>::sub(vops<T>::splat(T(1.0f)), a)),
+                        vops<T>::mul(y, a));
+}
+template <class A, class B, class C>
+    requires(SameVec<A, B> && SameVec<A, C>)
+SHADER_MATH_INLINE auto mix_impl(const A& x, const B& y, const C& a) {
+    using T = vec_elem_t<A>;
+    return fvec<vec_size_v<A>, T>(mix_core<T>(to_vec(x).q_, to_vec(y).q_, to_vec(a).q_));
+}
+template <class A, class B, class S>
+    requires(SameVec<A, B> && ScalarFor<S, vec_elem_t<A>>)
+SHADER_MATH_INLINE auto mix_impl(const A& x, const B& y, const S& a) {
+    using T = vec_elem_t<A>;
+    return fvec<vec_size_v<A>, T>(
+        mix_core<T>(to_vec(x).q_, to_vec(y).q_, vops<T>::splat(static_cast<T>(a))));
 }
 
 // step(edge, x): x >= edge ? 1 : 0 (note the edge-first argument order)
