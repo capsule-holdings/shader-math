@@ -190,7 +190,10 @@ macOS と Windows ARM64 は Blacksmith に無いので GitHub-hosted（公開リ
   2 行レジスタ詰め込み最適化（AVX1+FMA3 の 4x4）。
 - **実装済み**: 行列への成分ごと intrinsic（HLSL のみ。`abs(m)` `lerp(a, b, t)` `isnan(m)` 等。
   各行にベクトル版を適用）。GLSL の汎用関数は genType のみなので `glsl` 側には置かない。
-- **未実装**: RVV バックエンド。純スカラーへの intrinsic（`std::` を使う）。
+- **実装済み**: スカラーへの intrinsic（`max(dot(n, l), 0.0)`）。ベクトル引数が無く float / half / 1 成分の
+  swizzle を含む呼び出しを、ベクトル版を 1 レーンで実行して返す（`detail::ScalarCall`）。制約付きテンプレート
+  なので、`using namespace hlsl` の下で見える C の同名関数と衝突せず、`abs(-2.5f)` が C の int `abs` に化けない。
+- **未実装**: RVV バックエンド。
 
 ## Slang 相互検証ハーネス（2026-08-20 追加）
 

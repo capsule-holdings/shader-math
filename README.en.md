@@ -71,7 +71,7 @@ Never import both namespaces into the same scope (`mul`, `transpose` and others 
 
 ## Component-wise functions
 
-Vector (float / half) arguments; scalar second / third arguments follow the operator rules (float vectors accept any arithmetic scalar, half vectors only `half`). Pure scalars are left to `std::`.
+Vector (float / half) arguments; scalar second / third arguments follow the operator rules (float vectors accept any arithmetic scalar, half vectors only `half`). They also take scalars (`max(dot(n, l), 0.0)`, `saturate(v.x)`): a call with no vector argument and at least one float / half / one-component swizzle / matrix element runs the vector function on one lane, so the rounding and edge cases match (a call with only `2.0`-style double literals is not covered; write `2.0f`). Scalar `dot` / `length` / `distance`, `modf` / `frexp` / `sincos`, `select(bool, a, b)` and `mix(x, y, bool)` exist too; `isnan` / `isinf` / `isfinite` and the geometric functions have no scalar forms. Scalar `round` alone is ambiguous when unqualified on libc++ / MSVC, which declare a global `::round(float)` (halves away from zero); write `hlsl::round(x)`.
 
 - Both languages: `abs` `sign` `min` `max` `clamp` `step` `smoothstep` `floor` `ceil` `trunc` `round` `sqrt` `exp` `exp2` `log` `log2` `pow` `sin` `cos` `tan` `asin` `acos` `atan` `sinh` `cosh` `tanh` `radians` `degrees` `modf` `isnan` `isinf`
 - Geometry (both): `dot` `cross` `length` `normalize` `distance` `reflect` `refract` `faceforward`
@@ -82,7 +82,7 @@ Vector (float / half) arguments; scalar second / third arguments follow the oper
 Semantic notes:
 
 - `hlsl::fmod` and `glsl::mod` **differ**: `fmod` truncates and keeps the sign of x (`fmod(-7, 3) = -1`), `mod` floors and keeps the sign of y (`mod(-7, 3) = 2`)
-- `round` rounds halves away from zero (like `std::round`); GPUs often round to even, so use `glsl::roundEven` when that matters
+- `round` sends halves to even (`round(2.5) = 2`), as DXC compiles HLSL `round` (`Round_ne` in DXIL, `RoundEven` in SPIR-V); GLSL leaves the halfway direction to the implementation, so `glsl::round` matches `roundEven`
 - `sign` returns the vector type in both languages (HLSL's int result is not replicated)
 - `rcp` / `rsqrt` / `inversesqrt` are exact (no `rcpps` / `rsqrtps` approximations); transcendentals call libm per lane
 - `mad` / `fma` fuse when the backend has FMA (neither language guarantees fusion unless `precise`)

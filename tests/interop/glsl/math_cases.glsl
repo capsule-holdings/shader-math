@@ -8,8 +8,6 @@
 //   - no function parameters declared `out` / `inout` (C++ has no such
 //     keyword); calling built-ins with out parameters (modf) is fine
 //   - inputs avoid denormals (the Vulkan implementation may flush them)
-//   - built-in functions take vector arguments only (shader-math leaves pure
-//     scalars to std::), so apply them to a vector and pick a component
 //
 // Case naming drives the comparison tolerance (compare.py):
 //   exact_  : bit-identical. Single-rounding operations only: a GLSL
@@ -179,6 +177,17 @@ vec4 case_approx_transcend(vec4 a, vec4 b)
     r = r + sinh(s) + cosh(s) * 0.5f + tanh(b) + exp(s) + log(abs(b) + 1.0f);
     r = r + asinh(a) + acosh(abs(a) + 1.0f) + atanh(s * 0.5f);
     return r + pow(abs(b) + 0.5f, vec4(1.5f)) + radians(a * 10.0f) + degrees(s) * 0.01f;
+}
+
+// ---- approx: built-in functions on scalars -----------------------------------
+// floats and one-component swizzles, f-suffixed literals next to them
+vec4 case_approx_scalar(vec4 a, vec4 b)
+{
+    float d = max(dot(a.xyz, b.xyz), 0.0f);
+    float s = clamp(a.w, 0.0f, 1.0f) + mix(a.x, b.x, 0.25f);
+    float p = pow(abs(a.y), 1.5f) + min(b.z, 0.2f);
+    float t = smoothstep(0.0f, 2.0f, a.x) + fract(b.w) + inversesqrt(abs(a.z) + 1.0f);
+    return vec4(d + s, p, t, sign(b.x) * step(0.5f, a.w));
 }
 
 // ---- exact: mix at its ends -------------------------------------------------
