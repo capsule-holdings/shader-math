@@ -83,6 +83,7 @@ Semantic notes:
 
 - `hlsl::fmod` and `glsl::mod` **differ**: `fmod` truncates and keeps the sign of x (`fmod(-7, 3) = -1`), `mod` floors and keeps the sign of y (`mod(-7, 3) = 2`)
 - `round` rounds halves away from zero (like `std::round`); GPUs often round to even, so use `glsl::roundEven` when that matters
+- `min` / `max` ignore a NaN operand (IEEE minNum / maxNum, D3D's rule), so `saturate(NaN) = 0` and `clamp(NaN, lo, hi) = lo` on every backend (GLSL leaves it undefined, which this satisfies)
 - `sign` returns the vector type in both languages (HLSL's int result is not replicated)
 - `rcp` / `rsqrt` / `inversesqrt` are exact (no `rcpps` / `rsqrtps` approximations); transcendentals call libm per lane
 - `mad` / `fma` fuse when the backend has FMA (neither language guarantees fusion unless `precise`)

@@ -59,8 +59,9 @@ struct hops {
     static SHADER_MATH_INLINE hreg fmadd(hreg a, hreg b, hreg c) { return vfma_f16(c, a, b); }
 
     static SHADER_MATH_INLINE hreg abs(hreg a) { return vabs_f16(a); }
-    static SHADER_MATH_INLINE hreg min(hreg a, hreg b) { return vmin_f16(a, b); }
-    static SHADER_MATH_INLINE hreg max(hreg a, hreg b) { return vmax_f16(a, b); }
+    // minNum / maxNum, like the float backend
+    static SHADER_MATH_INLINE hreg min(hreg a, hreg b) { return vminnm_f16(a, b); }
+    static SHADER_MATH_INLINE hreg max(hreg a, hreg b) { return vmaxnm_f16(a, b); }
     static SHADER_MATH_INLINE hreg sqrt(hreg a) { return vsqrt_f16(a); }
 
     static SHADER_MATH_INLINE hreg rnd_floor(hreg v) { return vrndm_f16(v); }

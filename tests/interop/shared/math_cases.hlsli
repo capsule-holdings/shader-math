@@ -210,6 +210,18 @@ float4 case_near_log10_ldexp(float4 a, float4 b)
     return log10(abs(a) + 1.0f) + ldexp(b, float4(1.0f, -2.0f, 3.0f, 0.0f));
 }
 
+// D3D's NaN rules: min / max ignore a NaN operand, saturate(NaN) = 0 and
+// clamp(NaN, lo, hi) = lo. Not in the DXIL check: DXC compiles DXIL with
+// fast-math flags, which assume no NaN
+float4 case_exact_nan_rules(float4 a, float4 b)
+{
+    float4 z = a - a;
+    float4 q = z / z;
+    float4 m = min(q, b) + max(a, q) + min(b, q);
+    float4 s = saturate(q) + clamp(q, -1.0f, 1.0f);
+    return m + s;
+}
+
 // lit's specular term is (n.h)^m (Microsoft's lit documentation, Slang,
 // DXC's DXIL backend, shader-math); DXC's SPIR-V backend emits (n.h) * m,
 // so only its SPIR-V check leaves this case out (dxc/dxc_case_list.h)
