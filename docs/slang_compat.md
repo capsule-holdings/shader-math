@@ -17,6 +17,7 @@
 | 成分ごと演算子 | `+` `-` `*` `/`（ベクトル同士、ベクトル×スカラー） |
 | swizzle | `.xyzw` の読み書き（重複書き込みは両方でエラー） |
 | swizzle の重ねがけ | 2・3 成分の swizzle に対する読み出し（`a.zw.yx`、`b.bgr.rrgb`）。shader-math ではオプトインなので、`shared/nested_cases.hlsli` を `kernels_nested.slang` と `SHADER_MATH_NESTED_SWIZZLE` 付きの C++ 側で照合する（`slang_interop_nested_check`） |
+| 行列の複数成分アクセス | `m._m30_m31_m32`、`m._11_22_33`、`m._m00_m11` の読み出しと書き込み（重複無し）。shader-math ではオプトインなので、`shared/matrix_swizzle_cases.hlsli` を `kernels_matrix_swizzle.slang` と `SHADER_MATH_MATRIX_SWIZZLE3` 付きの C++ 側で照合する（`slang_interop_matrix_swizzle_check`） |
 | 行列 | `floatRxC`（R,C ∈ {2,3,4}）、行優先 ctor、Hadamard `*` |
 | 行列演算 | `mul` 全形（vec×mat / mat×vec / mat×mat）、`transpose`、`determinant` |
 | ベクトル演算 | `dot` / `cross` / `length` / `normalize` |
@@ -77,6 +78,8 @@
   ビットと XOR してコンパイル時には分からない値にしている（`SM_INTEROP_OPAQUE_INPUTS`）
 
 Slang では照合できない `frexp` / `dst` は `tests/interop/dxc/dxc_cases.hlsli` で照合する。
+オプトインの行列の複数成分アクセスも、`SM_INTEROP_MATRIX_SWIZZLE` 付きで `shared/matrix_swizzle_cases.hlsli`
+を DXC で SPIR-V にして照合する（`dxc_interop_matrix_swizzle_check`）。
 
 ```bash
 # SPIR-V: DXC の Linux リリースを展開して（x86_64 のみ）
