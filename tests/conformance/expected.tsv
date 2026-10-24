@@ -1,0 +1,480 @@
+# verdicts of libdxcompiler.so: 1.9(5512-01b62ad4)(1.9.2609.5) (-HV 2021 -enable-16bit-types) and Glslang Version: 11:15.1.0
+h_ctor_scalars	ok	
+h_ctor_int_args	ok	
+h_ctor_vec_scalar	ok	
+h_ctor_scalar_vec	ok	
+h_ctor_vec_vec	ok	
+h_ctor_scalar_vec_scalar	ok	
+h_ctor_single_scalar	err	too few elements in vector initialization (expected 3 elements, have 1)
+h_ctor_too_many	err	too many elements in vector initialization (expected 3 elements, have 4)
+h_ctor_too_few	err	too few elements in vector initialization (expected 3 elements, have 2)
+h_ctor_from_wider	err	too many elements in vector initialization (expected 3 elements, have 4)
+h_implicit_splat_var	ok	
+h_implicit_splat_lit	ok	
+h_assign_splat	ok	
+h_brace_init	ok	
+h_brace_init_flatten	ok	
+h_implicit_trunc_init	ok	
+h_implicit_widen	err	cannot initialize a variable of type 'vector<float, 4>' with an lvalue of type 'vector<float, 3>'
+h_cast_trunc	ok	
+h_cast_splat	ok	
+h_vector_template	ok	
+h_vector_bare	ok	
+h_matrix_template	ok	
+h_float1	ok	
+h_half_explicit	ok	
+h_half_implicit_from_float	ok	
+h_half_times_float	ok	
+h_half_times_lit	ok	
+h_half_cast_lit	ok	
+h_float_from_half_explicit	ok	
+h_float_from_half_implicit	ok	
+h_bool_from_float_explicit	ok	
+h_bool_from_float_implicit	ok	
+h_float_from_bool_explicit	ok	
+h_float_from_bool_implicit	ok	
+h_bool_ctor	ok	
+h_bool_splat_init	ok	
+h_mat_ctor_scalars	ok	
+h_mat_ctor_rows	ok	
+h_mat_ctor_mixed	ok	
+h_mat_ctor_single_scalar	err	too few elements in vector initialization (expected 9 elements, have 1)
+h_mat_ctor_two_scalars	err	too few elements in vector initialization (expected 4 elements, have 2)
+h_mat_implicit_splat	ok	
+h_mat_cast_trunc	ok	
+h_mat_ctor_trunc	err	too many elements in vector initialization (expected 4 elements, have 9)
+h_mat_implicit_trunc	ok	
+h_mat_cast_widen	err	cannot convert from 'float3x3' to 'float4x4'
+h_mat_brace	ok	
+h_half_mat	ok	
+h_swz_xy	ok	
+h_swz_zyx	ok	
+h_swz_rgb	ok	
+h_swz_dup	ok	
+h_swz_mixed_sets	err	vector component names cannot mix 'xyzw' and 'rgba'
+h_swz_stpq	err	invalid format for vector swizzle 'st'
+h_swz_out_of_range	err	vector swizzle 'z' is out of bounds
+h_swz_write	ok	
+h_swz_write_dup	err	vector is not assignable (contains duplicate components)
+h_swz_write_scalar	ok	
+h_swz_compound	ok	
+h_swz_write_vec	ok	
+h_swz_on_scalar	ok	
+h_swz_nested	ok	
+h_swz_of_expr	ok	
+h_swz_component_arg	ok	
+h_index_read	ok	
+h_index_write	ok	
+h_mat_row	ok	
+h_mat_elem	ok	
+h_mat_row_swz	ok	
+h_mat_m00	ok	
+h_mat_11	ok	
+h_mat_multi_elem	ok	
+h_mat_write_elem	ok	
+h_mat_write_row	ok	
+h_bool_component	ok	
+h_bool_index	ok	
+h_add	ok	
+h_sub	ok	
+h_mul	ok	
+h_div	ok	
+h_vec_times_scalar	ok	
+h_scalar_times_vec	ok	
+h_vec_times_int	ok	
+h_vec_plus_lit	ok	
+h_neg	ok	
+h_unary_plus	ok	
+h_mod_vec	ok	
+h_mod_scalar	ok	
+h_size_mismatch_trunc	ok	
+h_size_mismatch_2_3	ok	
+h_cmp_eq	ok	
+h_cmp_lt	ok	
+h_cmp_scalar	ok	
+h_if_vector_cond	err	if statement conditional expressions must evaluate to a scalar
+h_if_all	ok	
+h_logical_and_vec	err	operands for short-circuiting logical binary operator must be scalar, for non-scalar types use 'and'
+h_logical_not_vec	ok	
+h_bool_eq	ok	
+h_ternary_scalar_cond	ok	
+h_ternary_vector_cond	err	condition for short-circuiting ternary operator must be scalar, for non-scalar types use 'select'
+h_compound_add	ok	
+h_compound_mul_scalar	ok	
+h_compound_div	ok	
+h_compound_mod	ok	
+h_increment	ok	
+h_mat_hadamard	ok	
+h_mat_add	ok	
+h_mat_scalar	ok	
+h_scalar_mat	ok	
+h_mat_neg	ok	
+h_mat_div	ok	
+h_mat_cmp	ok	
+h_mat_mod	ok	
+h_mat_times_vec_star	err	cannot convert from 'float3' to 'float3x3'
+h_mat_shape_mismatch_star	err	cannot convert from 'float3x2' to 'float2x3'
+h_mul_mm	ok	
+h_mul_vm	ok	
+h_mul_mv	ok	
+h_mul_sm	ok	
+h_mul_ms	ok	
+h_mul_vv	ok	
+h_mul_sv	ok	
+h_mul_ss	ok	
+h_mul_nonsquare	ok	
+h_mul_shape_mismatch	ok	
+h_mul_vec_size_mismatch	ok	
+h_mat_compound	ok	
+h_v_abs	ok	
+h_v_acos	ok	
+h_v_asin	ok	
+h_v_atan	ok	
+h_v_ceil	ok	
+h_v_cos	ok	
+h_v_cosh	ok	
+h_v_degrees	ok	
+h_v_exp	ok	
+h_v_exp2	ok	
+h_v_floor	ok	
+h_v_frac	ok	
+h_v_log	ok	
+h_v_log10	ok	
+h_v_log2	ok	
+h_v_normalize	ok	
+h_v_radians	ok	
+h_v_rcp	ok	
+h_v_round	ok	
+h_v_rsqrt	ok	
+h_v_saturate	ok	
+h_v_sign	ok	
+h_v_sin	ok	
+h_v_sinh	ok	
+h_v_sqrt	ok	
+h_v_tan	ok	
+h_v_tanh	ok	
+h_v_trunc	ok	
+h_v_atan2	ok	
+h_v_clamp	ok	
+h_v_clamp_scalar	ok	
+h_v_cross	ok	
+h_v_distance	ok	
+h_v_dot	ok	
+h_v_dst	ok	
+h_v_faceforward	ok	
+h_v_fmod	ok	
+h_v_frexp	ok	
+h_v_isfinite	ok	
+h_v_isinf	ok	
+h_v_isnan	ok	
+h_v_ldexp	ok	
+h_v_length	ok	
+h_v_lerp	ok	
+h_v_lerp_scalar_t	ok	
+h_v_lit	ok	
+h_v_mad	ok	
+h_v_max	ok	
+h_v_max_scalar	ok	
+h_v_min	ok	
+h_v_modf	ok	
+h_v_pow	ok	
+h_v_pow_scalar	ok	
+h_v_reflect	ok	
+h_v_refract	ok	
+h_v_select	ok	
+h_v_select_scalar_cond	ok	
+h_v_sincos	ok	
+h_v_smoothstep	ok	
+h_v_smoothstep_scalar	ok	
+h_v_step	ok	
+h_v_step_scalar	ok	
+h_v_all_numeric	ok	
+h_v_any_numeric	ok	
+h_v_all_bool	ok	
+h_v_any_bool	ok	
+h_v_fma_float	err	no matching function for call to 'fma'
+h_v_noise	err	use of undeclared identifier 'noise'
+h_g_mix	err	use of undeclared identifier 'mix'
+h_g_fract	err	use of undeclared identifier 'fract'
+h_g_mod	err	use of undeclared identifier 'mod'
+h_g_inversesqrt	err	use of undeclared identifier 'inversesqrt'
+h_g_roundEven	err	use of undeclared identifier 'roundEven'
+h_g_lessThan	err	use of undeclared identifier 'lessThan'
+h_g_atan_yx	err	use of undeclared identifier 'atan'
+h_half_lerp	ok	
+h_half_sqrt	ok	
+h_half_dot	ok	
+h_s_abs	ok	
+h_s_sqrt	ok	
+h_s_max	ok	
+h_s_max_lit	ok	
+h_s_clamp	ok	
+h_s_lerp	ok	
+h_s_saturate	ok	
+h_s_frac	ok	
+h_s_pow	ok	
+h_s_sign	ok	
+h_s_step	ok	
+h_s_smoothstep	ok	
+h_s_round	ok	
+h_s_isnan	ok	
+h_s_isfinite	ok	
+h_s_dot	ok	
+h_s_length	ok	
+h_s_atan2	ok	
+h_s_fmod	ok	
+h_s_rsqrt	ok	
+h_s_select	ok	
+h_s_all	ok	
+h_s_sincos	ok	
+h_s_modf	ok	
+h_s_component	ok	
+h_s_mat_elem	ok	
+h_s_double_lit_max	ok	
+h_s_normalize	ok	
+h_m_transpose	ok	
+h_m_transpose_nonsquare	ok	
+h_m_determinant	ok	
+h_m_inverse	err	use of undeclared identifier 'inverse'
+h_m_abs	ok	
+h_m_sin	ok	
+h_m_lerp	ok	
+h_m_max	ok	
+h_m_clamp_scalar	ok	
+h_m_saturate	ok	
+h_m_isnan	ok	
+h_m_all	ok	
+h_m_any_cmp	ok	
+h_m_dot_err	err	no matching function for call to 'dot'
+h_m_length_err	err	no matching function for call to 'length'
+h_oos_int3	ok	
+h_oos_uint	ok	
+h_oos_asuint	ok	
+h_oos_asfloat	ok	
+h_oos_f32tof16	ok	
+h_oos_double	ok	
+h_oos_countbits	ok	
+h_oos_sign_int	ok	
+h_oos_ddx	ok	
+g_ctor_scalars	ok	
+g_ctor_int_args	ok	
+g_ctor_vec_scalar	ok	
+g_ctor_scalar_vec	ok	
+g_ctor_vec_vec	ok	
+g_ctor_scalar_vec_scalar	ok	
+g_ctor_single_scalar	ok	
+g_ctor_too_many	ok	
+g_ctor_too_few	err	tmp/tmpldjf0ne5/g_ctor_too_few.comp:4: 'constructor' : not enough data provided for construction
+g_ctor_from_wider	ok	
+g_implicit_splat_var	err	tmp/tmpldjf0ne5/g_implicit_splat_var.comp:4: '=' : cannot convert from ' in highp float' to ' temp highp 3-component vec
+g_implicit_splat_lit	err	tmp/tmpldjf0ne5/g_implicit_splat_lit.comp:4: '=' : cannot convert from ' const float' to ' temp highp 3-component vector
+g_assign_splat	err	tmp/tmpldjf0ne5/g_assign_splat.comp:4: 'assign' : cannot convert from ' const float' to ' temp highp 3-component vector 
+g_brace_init	ok	
+g_implicit_trunc_init	err	tmp/tmpldjf0ne5/g_implicit_trunc_init.comp:4: '=' : cannot convert from ' in highp 4-component vector of float' to ' tem
+g_implicit_widen	err	tmp/tmpldjf0ne5/g_implicit_widen.comp:4: '=' : cannot convert from ' in highp 3-component vector of float' to ' temp hig
+g_int_lit_suffix_f	ok	
+g_half_explicit	ok	
+g_half_implicit_from_float	err	tmp/tmpldjf0ne5/g_half_implicit_from_float.comp:4: '=' : cannot convert from ' in highp 3-component vector of float' to 
+g_float_from_half_implicit	ok	
+g_half_times_float	ok	
+g_bvec_from_vec	ok	
+g_vec_from_bvec	ok	
+g_vec_from_bvec_implicit	err	tmp/tmpldjf0ne5/g_vec_from_bvec_implicit.comp:4: '=' : cannot convert from ' in 3-component vector of bool' to ' temp hi
+g_bvec_ctor	ok	
+g_mat_ctor_scalars	ok	
+g_mat_ctor_cols	ok	
+g_mat_ctor_mixed	ok	
+g_mat_ctor_single_scalar	ok	
+g_mat_ctor_two_scalars	err	tmp/tmpldjf0ne5/g_mat_ctor_two_scalars.comp:4: 'constructor' : not enough data provided for construction
+g_mat_implicit_splat	err	tmp/tmpldjf0ne5/g_mat_implicit_splat.comp:4: '=' : cannot convert from ' in highp float' to ' temp highp 3X3 matrix of f
+g_mat_from_bigger	ok	
+g_mat_from_smaller	ok	
+g_mat_implicit_trunc	err	tmp/tmpldjf0ne5/g_mat_implicit_trunc.comp:4: '=' : cannot convert from ' in highp 3X3 matrix of float' to ' temp highp 2
+g_mat_from_vec4	ok	
+g_mat_nonsquare_ctor	ok	
+g_half_mat	ok	
+g_cast_c_style	err	tmp/tmpldjf0ne5/g_cast_c_style.comp:4: '' : syntax error, unexpected RIGHT_PAREN, expecting LEFT_PAREN
+g_swz_xy	ok	
+g_swz_zyx	ok	
+g_swz_rgb	ok	
+g_swz_stp	ok	
+g_swz_dup	ok	
+g_swz_mixed_sets	err	tmp/tmpldjf0ne5/g_swz_mixed_sets.comp:4: 'xg' : vector swizzle selectors not from the same set
+g_swz_out_of_range	err	tmp/tmpldjf0ne5/g_swz_out_of_range.comp:4: 'z' : vector swizzle selection out of range
+g_swz_write	ok	
+g_swz_write_dup	err	tmp/tmpldjf0ne5/g_swz_write_dup.comp:4: 'assign' : l-value of swizzle cannot have duplicate components
+g_swz_write_stpq	ok	
+g_swz_compound	ok	
+g_swz_on_scalar	ok	
+g_swz_nested	ok	
+g_swz_of_expr	ok	
+g_swz_component_arg	ok	
+g_index_read	ok	
+g_index_write	ok	
+g_length_method	ok	
+g_mat_length_method	ok	
+g_mat_col	ok	
+g_mat_elem	ok	
+g_mat_col_swz	ok	
+g_mat_write_col	ok	
+g_mat_hlsl_elem	err	tmp/tmpldjf0ne5/g_mat_hlsl_elem.comp:4: '_m00' : does not apply to this type: in highp 3X3 matrix of float
+g_bvec_component	ok	
+g_bvec_index	ok	
+g_add	ok	
+g_sub	ok	
+g_mul	ok	
+g_div	ok	
+g_vec_times_scalar	ok	
+g_scalar_times_vec	ok	
+g_vec_times_int	ok	
+g_vec_plus_lit	ok	
+g_neg	ok	
+g_unary_plus	ok	
+g_mod_op	err	tmp/tmpldjf0ne5/g_mod_op.comp:4: '%' : wrong operand types: no operation '%' exists that takes a left-hand operand of ty
+g_size_mismatch	err	tmp/tmpldjf0ne5/g_size_mismatch.comp:4: '+' : wrong operand types: no operation '+' exists that takes a left-hand operan
+g_cmp_eq	ok	
+g_cmp_ne	ok	
+g_cmp_lt	err	tmp/tmpldjf0ne5/g_cmp_lt.comp:4: '<' : wrong operand types: no operation '<' exists that takes a left-hand operand of ty
+g_if_vector_eq	ok	
+g_bvec_eq	ok	
+g_logical_not_bvec	err	tmp/tmpldjf0ne5/g_logical_not_bvec.comp:4: '!' : wrong operand type no operation '!' exists that takes an operand of typ
+g_logical_and_bvec	err	tmp/tmpldjf0ne5/g_logical_and_bvec.comp:4: '&&' : wrong operand types: no operation '&&' exists that takes a left-hand o
+g_ternary_scalar_cond	ok	
+g_ternary_bvec_cond	err	tmp/tmpldjf0ne5/g_ternary_bvec_cond.comp:4: '' : boolean expression expected
+g_compound_add	ok	
+g_compound_mul_scalar	ok	
+g_increment	ok	
+g_mat_mul	ok	
+g_mat_vec	ok	
+g_vec_mat	ok	
+g_mat_add	ok	
+g_mat_scalar	ok	
+g_scalar_mat	ok	
+g_mat_neg	ok	
+g_mat_div	ok	
+g_mat_eq	ok	
+g_mat_lt	ok	
+g_mat_nonsquare_mul	ok	
+g_mat_shape_mismatch	err	tmp/tmpldjf0ne5/g_mat_shape_mismatch.comp:4: '=' : cannot convert from ' temp highp 2X3 matrix of float' to ' temp highp
+g_mat_compound_mul	ok	
+g_vec_compound_mat	ok	
+g_mat_vec_size_mismatch	err	tmp/tmpldjf0ne5/g_mat_vec_size_mismatch.comp:4: '*' : wrong operand types: no operation '*' exists that takes a left-han
+g_v_abs	ok	
+g_v_acos	ok	
+g_v_acosh	ok	
+g_v_asin	ok	
+g_v_asinh	ok	
+g_v_atan	ok	
+g_v_atanh	ok	
+g_v_ceil	ok	
+g_v_cos	ok	
+g_v_cosh	ok	
+g_v_degrees	ok	
+g_v_exp	ok	
+g_v_exp2	ok	
+g_v_floor	ok	
+g_v_fract	ok	
+g_v_inversesqrt	ok	
+g_v_log	ok	
+g_v_log2	ok	
+g_v_normalize	ok	
+g_v_radians	ok	
+g_v_round	ok	
+g_v_roundEven	ok	
+g_v_sign	ok	
+g_v_sin	ok	
+g_v_sinh	ok	
+g_v_sqrt	ok	
+g_v_tan	ok	
+g_v_tanh	ok	
+g_v_trunc	ok	
+g_v_atan_yx	ok	
+g_v_clamp	ok	
+g_v_clamp_scalar	ok	
+g_v_cross	ok	
+g_v_distance	ok	
+g_v_dot	ok	
+g_v_faceforward	ok	
+g_v_fma	ok	
+g_v_isinf	ok	
+g_v_isnan	ok	
+g_v_length	ok	
+g_v_max	ok	
+g_v_max_scalar	ok	
+g_v_min	ok	
+g_v_mix	ok	
+g_v_mix_scalar	ok	
+g_v_mix_bvec	ok	
+g_v_mod	ok	
+g_v_mod_scalar	ok	
+g_v_modf	ok	
+g_v_pow	ok	
+g_v_reflect	ok	
+g_v_refract	ok	
+g_v_smoothstep	ok	
+g_v_smoothstep_scalar	ok	
+g_v_step	ok	
+g_v_step_scalar	ok	
+g_v_lessThan	ok	
+g_v_lessThanEqual	ok	
+g_v_greaterThan	ok	
+g_v_greaterThanEqual	ok	
+g_v_equal	ok	
+g_v_notEqual	ok	
+g_v_any	ok	
+g_v_all	ok	
+g_v_not	ok	
+g_v_all_numeric	err	tmp/tmpldjf0ne5/g_v_all_numeric.comp:4: 'all' : no matching overloaded function found
+g_v_frexp	ok	
+g_v_ldexp	ok	
+g_h_lerp	err	tmp/tmpldjf0ne5/g_h_lerp.comp:4: 'lerp' : no matching overloaded function found
+g_h_frac	err	tmp/tmpldjf0ne5/g_h_frac.comp:4: 'frac' : no matching overloaded function found
+g_h_saturate	err	tmp/tmpldjf0ne5/g_h_saturate.comp:4: 'saturate' : no matching overloaded function found
+g_h_rsqrt	err	tmp/tmpldjf0ne5/g_h_rsqrt.comp:4: 'rsqrt' : no matching overloaded function found
+g_h_fmod	err	tmp/tmpldjf0ne5/g_h_fmod.comp:4: 'fmod' : no matching overloaded function found
+g_h_atan2	err	tmp/tmpldjf0ne5/g_h_atan2.comp:4: 'atan2' : no matching overloaded function found
+g_h_mul	err	tmp/tmpldjf0ne5/g_h_mul.comp:4: 'mul' : no matching overloaded function found
+g_h_isfinite	err	tmp/tmpldjf0ne5/g_h_isfinite.comp:4: 'isfinite' : no matching overloaded function found
+g_half_mix	ok	
+g_half_sqrt	ok	
+g_half_dot	ok	
+g_s_abs	ok	
+g_s_sqrt	ok	
+g_s_max	ok	
+g_s_max_lit	ok	
+g_s_clamp	ok	
+g_s_mix	ok	
+g_s_mix_bool	ok	
+g_s_fract	ok	
+g_s_pow	ok	
+g_s_sign	ok	
+g_s_step	ok	
+g_s_smoothstep	ok	
+g_s_round	ok	
+g_s_isnan	ok	
+g_s_dot	ok	
+g_s_length	ok	
+g_s_atan_yx	ok	
+g_s_mod	ok	
+g_s_inversesqrt	ok	
+g_s_modf	ok	
+g_s_normalize	ok	
+g_s_component	ok	
+g_s_double_lit_max	ok	
+g_m_transpose	ok	
+g_m_transpose_nonsquare	ok	
+g_m_determinant	ok	
+g_m_inverse	ok	
+g_m_compmult	ok	
+g_m_outer	ok	
+g_m_outer_nonsquare	ok	
+g_m_abs_err	err	tmp/tmpldjf0ne5/g_m_abs_err.comp:4: 'abs' : no matching overloaded function found
+g_m_sin_err	err	tmp/tmpldjf0ne5/g_m_sin_err.comp:4: 'sin' : no matching overloaded function found
+g_m_max_err	err	tmp/tmpldjf0ne5/g_m_max_err.comp:4: 'max' : no matching overloaded function found
+g_oos_ivec3	ok	
+g_oos_uint	ok	
+g_oos_floatBitsToInt	ok	
+g_oos_packHalf2x16	ok	
+g_oos_double	ok	
+g_oos_dvec3	ok	
+g_oos_bitCount	ok	
