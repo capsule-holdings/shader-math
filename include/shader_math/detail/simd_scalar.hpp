@@ -100,7 +100,6 @@ struct ops {
     SHADER_MATH_SCALAR_MAP1(rnd_ceil, std::ceil(x))
     SHADER_MATH_SCALAR_MAP1(rnd_trunc, std::trunc(x))
     SHADER_MATH_SCALAR_MAP1(rnd_even, std::nearbyint(x))  // assumes default FE_TONEAREST
-    SHADER_MATH_SCALAR_MAP1(rnd_away, std::round(x))
 #undef SHADER_MATH_SCALAR_MAP1
 
     // min / max ignore a NaN operand (IEEE minNum / maxNum), as D3D defines them

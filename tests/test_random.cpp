@@ -114,7 +114,7 @@ void test_vector_exact() {
                  same_bits(mul[i], a[i] * b[i]) && same_bits(div[i], a[i] / b[i]) &&
                  same_bits(sq[i], std::sqrt(std::fabs(a[i]))) &&
                  same_bits(fl[i], std::floor(a[i])) && same_bits(ce[i], std::ceil(a[i])) &&
-                 same_bits(tr[i], std::trunc(a[i])) && same_bits(ro[i], std::round(a[i])) &&
+                 same_bits(tr[i], std::trunc(a[i])) && same_bits(ro[i], std::nearbyint(a[i])) &&
                  mn[i] == (b[i] < a[i] ? b[i] : a[i]) && mx[i] == (a[i] < b[i] ? b[i] : a[i]) &&
                  lt[i] == (a[i] < b[i]) && eq[i];
         }

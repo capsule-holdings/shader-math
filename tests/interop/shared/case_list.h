@@ -55,4 +55,5 @@
     X(exact_ctor_access, case_exact_ctor_access(IN_A, IN_B))   \
     X(near_misc, case_near_misc(IN_A, IN_B))                   \
     X(exact_select_bool, case_exact_select_bool(IN_A, IN_B))   \
-    X(near_log10_ldexp, case_near_log10_ldexp(IN_A, IN_B))
+    X(near_log10_ldexp, case_near_log10_ldexp(IN_A, IN_B))     \
+    X(near_scalar, case_near_scalar(IN_A, IN_B))

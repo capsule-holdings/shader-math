@@ -117,15 +117,6 @@ struct ops {
     static SHADER_MATH_INLINE freg rnd_even(freg v) {
         return _mm_round_ps(v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
     }
-    // Half away from zero (std::round): x - trunc(x) is exact, so the
-    // |frac| >= 0.5 test has no rounding error (unlike trunc(x + 0.5)).
-    // Selecting instead of adding keeps -0 for -0.4 (trunc gives -0).
-    static SHADER_MATH_INLINE freg rnd_away(freg v) {
-        const freg t = rnd_trunc(v);
-        const freg sign = _mm_and_ps(v, _mm_set1_ps(-0.0f));
-        const mreg up = _mm_cmpge_ps(abs(_mm_sub_ps(v, t)), _mm_set1_ps(0.5f));
-        return sel(up, _mm_add_ps(t, _mm_or_ps(_mm_set1_ps(1.0f), sign)), t);
-    }
 #else
     // Rounding: the SSE2 baseline has no packed rounding instruction
     // (roundps is SSE4.1), so these are per-lane libm. Correctness over
@@ -140,7 +131,6 @@ struct ops {
     SHADER_MATH_SSE2_RND(rnd_ceil, std::ceil)
     SHADER_MATH_SSE2_RND(rnd_trunc, std::trunc)
     SHADER_MATH_SSE2_RND(rnd_even, std::nearbyint)  // assumes default FE_TONEAREST
-    SHADER_MATH_SSE2_RND(rnd_away, std::round)
 #undef SHADER_MATH_SSE2_RND
 #endif
 
