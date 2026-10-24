@@ -49,7 +49,8 @@ void glsl_side() {
   （GLSL には無い。HLSL の暗黙変換は意図して入れていない）
 - `hlsl::vector<T, N>`（`vector<float, 3>` = `float3`）。`using namespace std` と `using namespace hlsl` を同じスコープで
   使うと `vector` が曖昧になるので、`std::vector` と修飾する
-  `bool3(true, false, true)` / `bool3(true)` で作れる（引数は bool のみ。int や float からは作れない）。
+  `bool3(true, false, true)` / `bool3(true)` で作れる（引数は bool のみ。int や float からは作れない。
+  HLSL は `bool3 b = true;` も可）。
   成分は `b[i]` と単成分の `.x` 〜 `.w` / `.r` 〜 `.a` で**読み出しのみ**（複数成分の swizzle と書き込みは無し）
 - Slang / HLSL と共有できる型・演算のサブセットは [docs/slang_compat.md](docs/slang_compat.md) 参照
   （Slang との相互コンパイル検証ハーネスで CI 照合済み）
@@ -71,6 +72,9 @@ void glsl_side() {
 | swizzle の重ねがけ（`v.xy.yx`） | オプトイン（下記） | 同左 |
 | スカラー → ベクトル | 暗黙に変換（`float3 v = 1.0f`） | コンストラクタのみ（`vec3(1.0)`） |
 | `.length()` | 無し | 成分数（行列は列数） |
+| ベクトル・スカラーを混ぜた ctor | 成分数ちょうど（`float2x2(v2, 3.0, 4.0)`、`float2x2 m = v4`） | 最後の引数だけ余ってよい（`vec3(v2, w2)`、`mat2(v4)`、`mat2(v3, v3)`） |
+| 単項 `+`、`++` / `--` | ベクトル・行列 | 同左 |
+| 複合代入 | `%=` も可 | `v *= m`（正方行列）も可 |
 
 `transpose` / `determinant` / `inverse` / `dot` / `cross` / `length` / `normalize` / `all` / `any` は両方にある（`inverse` は GLSL 公式・HLSL 側は拡張）。
 
@@ -150,7 +154,7 @@ shader_math::store(m, ptr);                // 行列はコンストラクタの�
 ほかの引数は上と同じ規則で変換される（`2.0` だけの呼び出しは対象外なので `2.0f` と書く）。中身はベクトル版を
 1 レーンで実行するので、丸めや境界値の扱いはベクトルと同じ。`dot` / `length` / `distance` と、
 `modf` / `frexp` / `sincos`（出力引数もスカラー）、`select(bool, a, b)`、`mix(x, y, bool)` もスカラーで使える。
-`isnan` / `isinf` / `isfinite` もスカラーで使える。幾何関数（`normalize` / `reflect` など）のスカラー版は無い。
+`isnan` / `isinf` / `isfinite`、幾何関数の `normalize` / `reflect` / `refract` / `faceforward` もスカラーで使える。
 HLSL の `all` / `any` は数値のベクトル・行列・スカラーも取る（0 以外かを調べる。NaN は 0 以外）。`select` は
 スカラーの条件でベクトルを選べる（`select(c, v, w)`）。GLSL の `all` / `any` は bool ベクトルだけ
 スカラーの `round` だけは、libc++ / MSVC がグローバルに `::round(float)`（.5 は 0 から遠い方へ）を宣言しているので、

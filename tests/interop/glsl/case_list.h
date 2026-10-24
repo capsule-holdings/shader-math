@@ -18,5 +18,6 @@
     X(near_geometry, case_near_geometry(IN_A, IN_B))                      \
     X(near_edges, case_near_edges(IN_A, IN_B))                            \
     X(exact_bool_numeric, case_exact_bool_numeric(IN_A, IN_B))            \
+    X(exact_ctor_ops, case_exact_ctor_ops(IN_A, IN_B))                    \
     X(approx_transcend, case_approx_transcend(IN_A, IN_B))                \
     X(approx_scalar, case_approx_scalar(IN_A, IN_B))

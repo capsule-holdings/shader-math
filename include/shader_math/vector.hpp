@@ -75,6 +75,69 @@ using vreg = typename vops_for<T>::reg;
 template <class S, class T>
 concept CvtScalar = requires(const S& s) { static_cast<T>(s); };
 
+// Vector-like operands (vectors and swizzles of two or more components) are
+// described by vec_traits; its specializations follow the types below.
+template <class V>
+struct vec_traits {
+    static constexpr int size = 0;
+    using lang = void;
+};
+template <class V>
+inline constexpr int vec_size_v = vec_traits<std::remove_cvref_t<V>>::size;
+template <class V>
+using vec_elem_t = typename vec_traits<std::remove_cvref_t<V>>::elem;
+template <class V>
+using vec_lang_t = typename vec_traits<std::remove_cvref_t<V>>::lang;
+
+// Component-list constructors (GLSL vec3(v2, w2) / mat2(v4), HLSL
+// float2x2(v2, 3.0, 4.0)): the components an argument contributes, -1 when it
+// is neither a scalar nor a vector of element type T in language Lg
+template <class T, class Lg, class A>
+constexpr int ctor_arg_size() {
+    if constexpr (vec_size_v<A> >= 2) {
+        return std::is_same_v<vec_elem_t<A>, T> && std::is_same_v<vec_lang_t<A>, Lg>
+                   ? vec_size_v<A>
+                   : -1;
+    } else {
+        return CvtScalar<A, T> ? 1 : -1;
+    }
+}
+// 1: the arguments supply exactly Need components; 2: more, every argument
+// contributing and only the last one cut short (the GLSL rule); 0: neither
+template <int Need, class T, class Lg, class... As>
+constexpr int ctor_fill() {
+    if constexpr (sizeof...(As) == 0) {
+        return 0;
+    } else {
+        constexpr int sizes[] = {ctor_arg_size<T, Lg, As>()...};
+        int total = 0;
+        for (int n : sizes) {
+            if (n < 0) return 0;
+            total += n;
+        }
+        if (total == Need) return 1;
+        return total > Need && total - sizes[sizeof...(As) - 1] < Need ? 2 : 0;
+    }
+}
+// At least one vector argument (all-scalar lists have their own constructors)
+template <class... As>
+inline constexpr bool any_vector_arg = ((vec_size_v<As> >= 2) || ...);
+// The first n components of the arguments, in order
+template <class T, class A>
+SHADER_MATH_INLINE void put_components(T* out, int& k, int n, const A& a) {
+    if constexpr (vec_size_v<A> >= 2) {
+        const auto v = to_vec(a);
+        for (int i = 0; i < vec_size_v<A> && k < n; ++i) out[k++] = v[i];
+    } else if (k < n) {
+        out[k++] = static_cast<T>(a);
+    }
+}
+template <class T, class... As>
+SHADER_MATH_INLINE void gather_components(T* out, int n, const As&... as) {
+    int k = 0;
+    (put_components<T>(out, k, n, as), ...);
+}
+
 template <int... Is>
 constexpr bool swz_unique() {
     constexpr int n = static_cast<int>(sizeof...(Is));
@@ -521,6 +584,12 @@ struct fvec : fvec_store<N, T, Lg> {
     SHADER_MATH_INLINE fvec(X x, const fvec<3, T, Lg>& v)
         : store_t(ops_t::set(static_cast<T>(x), v[0], v[1], v[2])) {}
 
+    // GLSL component lists longer than N (vec3(v2, w2), vec4(s, v4)): every
+    // argument contributes, the last one may be cut short
+    template <class... As>
+        requires(is_glsl_v<Lg> && sizeof...(As) >= 2 && ctor_fill<N, T, Lg, As...>() == 2)
+    SHADER_MATH_INLINE explicit fvec(const As&... as) : store_t(gathered(as...)) {}
+
     // explicit truncation (HLSL cast / GLSL constructor shortening)
     template <int N2>
     SHADER_MATH_INLINE explicit fvec(const fvec<N2, T, Lg>& o)
@@ -563,6 +632,12 @@ struct fvec : fvec_store<N, T, Lg> {
     }
 
 private:
+    template <class... As>
+    static SHADER_MATH_INLINE reg_t gathered(const As&... as) {
+        T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
+        gather_components<T>(t, N, as...);
+        return ops_t::load4(t);
+    }
     template <class U, class Lg2>
     static SHADER_MATH_INLINE reg_t convert(const fvec<N, U, Lg2>& o) {
         if constexpr (std::is_same_v<U, T>) {
@@ -602,11 +677,6 @@ private:
 #undef SM_GEN_STPQ
 
 // ---- vec_traits / concepts -------------------------------------------------
-template <class V>
-struct vec_traits {
-    static constexpr int size = 0;
-    using lang = void;
-};
 template <int N, class T, class Lg>
 struct vec_traits<fvec<N, T, Lg>> {
     static constexpr int size = N;
@@ -637,16 +707,19 @@ struct vec_traits<nswz<T, N, Lg, Is...>> {
 };
 #endif
 
-template <class V>
-inline constexpr int vec_size_v = vec_traits<std::remove_cvref_t<V>>::size;
-template <class V>
-using vec_elem_t = typename vec_traits<std::remove_cvref_t<V>>::elem;
-template <class V>
-using vec_lang_t = typename vec_traits<std::remove_cvref_t<V>>::lang;
 // The vector type a vector-like operand (vector or swizzle) computes in;
 // M overrides the width
 template <class V, int M = vec_size_v<V>>
 using vec_t = fvec<M, vec_elem_t<V>, vec_lang_t<V>>;
+// V is a vector or swizzle computing as W (false for scalars)
+template <class V, class W>
+constexpr bool vec_is() {
+    if constexpr (vec_size_v<V> >= 2) {
+        return std::is_same_v<vec_t<V>, W>;
+    } else {
+        return false;
+    }
+}
 
 template <class V>
 concept VecLike = (vec_size_v<V> >= 2);
@@ -724,6 +797,35 @@ template <class A>
 SHADER_MATH_INLINE auto operator-(const A& a) {
     using T = vec_elem_t<A>;
     return vec_t<A>(vops<T>::neg(to_vec(a).q_));
+}
+template <class A>
+    requires VecLike<A>
+SHADER_MATH_INLINE auto operator+(const A& a) {
+    return vec_t<A>(to_vec(a));
+}
+
+// ++ / -- add or subtract 1 in every component (both languages)
+template <int N, class T, class Lg>
+SHADER_MATH_INLINE fvec<N, T, Lg>& operator++(fvec<N, T, Lg>& a) {
+    a = a + T(1.0f);
+    return a;
+}
+template <int N, class T, class Lg>
+SHADER_MATH_INLINE fvec<N, T, Lg>& operator--(fvec<N, T, Lg>& a) {
+    a = a - T(1.0f);
+    return a;
+}
+template <int N, class T, class Lg>
+SHADER_MATH_INLINE fvec<N, T, Lg> operator++(fvec<N, T, Lg>& a, int) {
+    const fvec<N, T, Lg> old = a;
+    a = a + T(1.0f);
+    return old;
+}
+template <int N, class T, class Lg>
+SHADER_MATH_INLINE fvec<N, T, Lg> operator--(fvec<N, T, Lg>& a, int) {
+    const fvec<N, T, Lg> old = a;
+    a = a - T(1.0f);
+    return old;
 }
 
 #define SM_VEC_COMPOUND(sym)                                                            \
@@ -1277,9 +1379,11 @@ struct bvec : bvec_store<N, Lg> {
     template <class... Bs>
         requires(sizeof...(Bs) == N && (std::is_same_v<Bs, bool> && ...))
     SHADER_MATH_INLINE bvec(Bs... bs) : store_t(from_bools({bs...})) {}
+    // a bool splats implicitly in HLSL (bool3 b = true), only through a
+    // constructor in GLSL (bvec3(true))
     template <class B>
         requires std::is_same_v<B, bool>
-    SHADER_MATH_INLINE explicit bvec(B s) : store_t(from_bools({s, s, s, s})) {}
+    SHADER_MATH_INLINE explicit(is_glsl_v<Lg>) bvec(B s) : store_t(from_bools({s, s, s, s})) {}
     // explicit conversion from a numeric vector or swizzle: true where the
     // component is not zero (NaN included), like HLSL bool3(v) / GLSL bvec3(v)
     template <class V>
@@ -1571,6 +1675,43 @@ template <class A, class B>
 SHADER_MATH_INLINE auto distance(const A& a, const B& b) {
     using T = scalar_call_t<A, B>;
     return abs(static_cast<T>(static_cast<T>(a) - static_cast<T>(b)));
+}
+// normalize / reflect / refract / faceforward compute in scalars: on a splat
+// lane the vector forms would count the value once per lane
+template <class A>
+    requires ScalarCall<A>
+SHADER_MATH_INLINE auto normalize(const A& a) {
+    using T = scalar_call_t<A>;
+    const T v = static_cast<T>(a);
+    return static_cast<T>(v / abs(v));
+}
+template <class A, class B>
+    requires ScalarCall<A, B>
+SHADER_MATH_INLINE auto reflect(const A& i0, const B& n0) {
+    using T = scalar_call_t<A, B>;
+    const T i = static_cast<T>(i0);
+    const T n = static_cast<T>(n0);
+    return static_cast<T>(i - n * (T(2.0f) * (n * i)));
+}
+template <class A, class B, class S>
+    requires ScalarCall<A, B, S>
+SHADER_MATH_INLINE auto refract(const A& i0, const B& n0, const S& eta0) {
+    using T = scalar_call_t<A, B, S>;
+    const T i = static_cast<T>(i0);
+    const T n = static_cast<T>(n0);
+    const T eta = static_cast<T>(eta0);
+    const T d = n * i;
+    const T k = T(1.0f) - eta * eta * (T(1.0f) - d * d);
+    if (k < T(0.0f)) return T(0.0f);
+    const T root = static_cast<T>(std::sqrt(static_cast<float>(k)));
+    return static_cast<T>(i * eta - n * (eta * d + root));
+}
+template <class A, class B, class C>
+    requires ScalarCall<A, B, C>
+SHADER_MATH_INLINE auto faceforward(const A& n0, const B& i, const C& nref) {
+    using T = scalar_call_t<A, B, C>;
+    const T n = static_cast<T>(n0);
+    return static_cast<T>(static_cast<T>(nref) * static_cast<T>(i) < T(0.0f) ? n : -n);
 }
 // modf(x, out ip)
 template <class A, class T>
