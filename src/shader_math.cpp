@@ -4,12 +4,18 @@
 
 namespace shader_math {
 namespace detail {
-template struct fvec<2>;
-template struct fvec<3>;
-template struct fvec<4>;
-template struct bvec<2>;
-template struct bvec<3>;
-template struct bvec<4>;
+template struct fvec<2, float, hlsl::lang_tag>;
+template struct fvec<3, float, hlsl::lang_tag>;
+template struct fvec<4, float, hlsl::lang_tag>;
+template struct fvec<2, float, glsl::lang_tag>;
+template struct fvec<3, float, glsl::lang_tag>;
+template struct fvec<4, float, glsl::lang_tag>;
+template struct bvec<2, hlsl::lang_tag>;
+template struct bvec<3, hlsl::lang_tag>;
+template struct bvec<4, hlsl::lang_tag>;
+template struct bvec<2, glsl::lang_tag>;
+template struct bvec<3, glsl::lang_tag>;
+template struct bvec<4, glsl::lang_tag>;
 }  // namespace detail
 
 namespace hlsl {

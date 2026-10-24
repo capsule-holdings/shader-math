@@ -13,12 +13,12 @@ namespace shader_math {
 namespace glsl {
 
 // ---- type aliases -----------------------------------------------------------
-using vec2 = detail::fvec<2>;
-using vec3 = detail::fvec<3>;
-using vec4 = detail::fvec<4>;
-using bvec2 = detail::bvec<2>;
-using bvec3 = detail::bvec<3>;
-using bvec4 = detail::bvec<4>;
+using vec2 = detail::gvec<2>;
+using vec3 = detail::gvec<3>;
+using vec4 = detail::gvec<4>;
+using bvec2 = detail::bvec<2, lang_tag>;
+using bvec3 = detail::bvec<3, lang_tag>;
+using bvec4 = detail::bvec<4, lang_tag>;
 
 // Half vectors (GLSL GL_EXT_shader_explicit_arithmetic_types float16_t /
 // f16vecN). Language-level packing: sizeof(f16vec3) == 8 (4 x binary16),
@@ -26,9 +26,9 @@ using bvec4 = detail::bvec<4>;
 // without a half scalar type.
 #if defined(SHADER_MATH_HAS_HALF)
 using float16_t = detail::half_t;
-using f16vec2 = detail::fvec<2, detail::half_t>;
-using f16vec3 = detail::fvec<3, detail::half_t>;
-using f16vec4 = detail::fvec<4, detail::half_t>;
+using f16vec2 = detail::gvec<2, detail::half_t>;
+using f16vec3 = detail::gvec<3, detail::half_t>;
+using f16vec4 = detail::gvec<4, detail::half_t>;
 #endif
 
 using mat2 = matrix<2, 2>;
@@ -107,63 +107,67 @@ using detail::tan;
 using detail::trunc;
 
 // GLSL-only spellings (defined here, not in detail, so they never leak into
-// hlsl via ADL on the shared vector type)
+// hlsl; the language tag makes ADL find them on glsl vectors)
 template <class... As>
-    requires requires(const As&... as) { detail::mix_impl(as...); }
+    requires(detail::ArgsOf<lang_tag, As...> &&
+             requires(const As&... as) { detail::mix_impl(as...); })
 SHADER_MATH_INLINE auto mix(const As&... as) {
     return detail::mix_impl(as...);
 }
 template <class A>
-    requires detail::VecLike<A>
+    requires detail::VecOf<A, lang_tag>
 SHADER_MATH_INLINE auto fract(const A& a) {
     return detail::fract_impl(a);
 }
 template <class A>
-    requires detail::VecLike<A>
+    requires detail::VecOf<A, lang_tag>
 SHADER_MATH_INLINE auto inversesqrt(const A& a) {
     return detail::rsqrt_impl(a);
 }
 template <class A>
-    requires detail::VecLike<A>
+    requires detail::VecOf<A, lang_tag>
 SHADER_MATH_INLINE auto roundEven(const A& a) {
     return detail::round_even_impl(a);
 }
 template <class A>
-    requires detail::VecLike<A>
+    requires detail::VecOf<A, lang_tag>
 SHADER_MATH_INLINE auto asinh(const A& a) {
     return detail::asinh_impl(a);
 }
 template <class A>
-    requires detail::VecLike<A>
+    requires detail::VecOf<A, lang_tag>
 SHADER_MATH_INLINE auto acosh(const A& a) {
     return detail::acosh_impl(a);
 }
 template <class A>
-    requires detail::VecLike<A>
+    requires detail::VecOf<A, lang_tag>
 SHADER_MATH_INLINE auto atanh(const A& a) {
     return detail::atanh_impl(a);
 }
 // mix(x, y, bvec): y where the selector is true, else x (no blending)
 template <class A, class B, int N>
-    requires requires(const A& x, const B& y, const detail::bvec<N>& c) {
+    requires requires(const A& x, const B& y, const detail::bvec<N, lang_tag>& c) {
         detail::select_impl(c, y, x);
     }
-SHADER_MATH_INLINE auto mix(const A& x, const B& y, const detail::bvec<N>& c) {
+SHADER_MATH_INLINE auto mix(const A& x, const B& y, const detail::bvec<N, lang_tag>& c) {
     return detail::select_impl(c, y, x);
 }
 // atan(y, x): GLSL spells the two-argument arctangent as an atan overload
 template <class A, class B>
-    requires requires(const A& y, const B& x) { detail::atan2_impl(y, x); }
+    requires(detail::ArgsOf<lang_tag, A, B> &&
+             requires(const A& y, const B& x) { detail::atan2_impl(y, x); })
 SHADER_MATH_INLINE auto atan(const A& y, const B& x) {
     return detail::atan2_impl(y, x);
 }
 template <class A, class B>
-    requires requires(const A& a, const B& b) { detail::mod_impl(a, b); }
+    requires(detail::ArgsOf<lang_tag, A, B> &&
+             requires(const A& a, const B& b) { detail::mod_impl(a, b); })
 SHADER_MATH_INLINE auto mod(const A& a, const B& b) {
     return detail::mod_impl(a, b);
 }
 template <class A, class B, class C>
-    requires requires(const A& a, const B& b, const C& c) { detail::mad_impl(a, b, c); }
+    requires(detail::ArgsOf<lang_tag, A, B, C> &&
+             requires(const A& a, const B& b, const C& c) { detail::mad_impl(a, b, c); })
 SHADER_MATH_INLINE auto fma(const A& a, const B& b, const C& c) {
     return detail::mad_impl(a, b, c);
 }
@@ -237,7 +241,7 @@ SHADER_MATH_INLINE matrix<C2, R1, T> operator*(const matrix<C1, R1, T>& a,
                                                const matrix<C2, C1, T>& b) {
     matrix<C2, R1, T> o;
     for (int j = 0; j < C2; ++j)
-        o.col_[j] = detail::fvec<R1, T>(detail::mad_accum<C1>(b.col_[j].q_, a.col_));
+        o.col_[j] = detail::gvec<R1, T>(detail::mad_accum<C1>(b.col_[j].q_, a.col_));
     return o;
 }
 
@@ -254,20 +258,20 @@ SHADER_MATH_INLINE matrix<4, 4> operator*(const matrix<4, 4>& a, const matrix<4,
 
 // matrix * column vector
 template <int Cn, int Rn, class T, class V>
-    requires(detail::vec_size_v<V> == Cn && std::is_same_v<detail::vec_elem_t<V>, T>)
-SHADER_MATH_INLINE detail::fvec<Rn, T> operator*(const matrix<Cn, Rn, T>& m, const V& v0) {
-    const detail::fvec<Cn, T> v = detail::to_vec(v0);
-    return detail::fvec<Rn, T>(detail::mad_accum<Cn>(v.q_, m.col_));
+    requires std::is_same_v<detail::vec_t<V>, detail::gvec<Cn, T>>
+SHADER_MATH_INLINE detail::gvec<Rn, T> operator*(const matrix<Cn, Rn, T>& m, const V& v0) {
+    const detail::gvec<Cn, T> v = detail::to_vec(v0);
+    return detail::gvec<Rn, T>(detail::mad_accum<Cn>(v.q_, m.col_));
 }
 
 // row vector * matrix
 template <class V, int Cn, int Rn, class T>
-    requires(detail::vec_size_v<V> == Rn && std::is_same_v<detail::vec_elem_t<V>, T>)
-SHADER_MATH_INLINE detail::fvec<Cn, T> operator*(const V& v0, const matrix<Cn, Rn, T>& m) {
-    const detail::fvec<Rn, T> v = detail::to_vec(v0);
+    requires std::is_same_v<detail::vec_t<V>, detail::gvec<Rn, T>>
+SHADER_MATH_INLINE detail::gvec<Cn, T> operator*(const V& v0, const matrix<Cn, Rn, T>& m) {
+    const detail::gvec<Rn, T> v = detail::to_vec(v0);
     T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
     for (int c = 0; c < Cn; ++c) t[c] = detail::dot(v, m.col_[c]);
-    return detail::fvec<Cn, T>(detail::vops<T>::load4(t));
+    return detail::gvec<Cn, T>(detail::vops<T>::load4(t));
 }
 
 // scalar scaling
@@ -338,7 +342,7 @@ SHADER_MATH_INLINE matrix<Cn, Rn, T>& operator/=(matrix<Cn, Rn, T>& a, const S& 
 
 // ---- == / != : single bool (GLSL semantics) ----------------------------------
 template <class A, class B>
-    requires detail::SameVec<A, B>
+    requires(detail::SameVec<A, B> && detail::VecOf<A, lang_tag>)
 SHADER_MATH_INLINE bool operator==(const A& a, const B& b) {
     constexpr int n = detail::vec_size_v<A>;
     using T = detail::vec_elem_t<A>;
@@ -346,7 +350,7 @@ SHADER_MATH_INLINE bool operator==(const A& a, const B& b) {
                               n);
 }
 template <class A, class B>
-    requires detail::SameVec<A, B>
+    requires(detail::SameVec<A, B> && detail::VecOf<A, lang_tag>)
 SHADER_MATH_INLINE bool operator!=(const A& a, const B& b) {
     return !(a == b);
 }
@@ -362,24 +366,27 @@ SHADER_MATH_INLINE bool operator!=(const matrix<Cn, Rn, T>& a, const matrix<Cn, 
     return !(a == b);
 }
 template <int N>
-SHADER_MATH_INLINE bool operator==(const detail::bvec<N>& a, const detail::bvec<N>& b) {
+SHADER_MATH_INLINE bool operator==(const detail::bvec<N, lang_tag>& a,
+                                   const detail::bvec<N, lang_tag>& b) {
     for (int i = 0; i < N; ++i)
         if (a[i] != b[i]) return false;
     return true;
 }
 template <int N>
-SHADER_MATH_INLINE bool operator!=(const detail::bvec<N>& a, const detail::bvec<N>& b) {
+SHADER_MATH_INLINE bool operator!=(const detail::bvec<N, lang_tag>& a,
+                                   const detail::bvec<N, lang_tag>& b) {
     return !(a == b);
 }
 
 // ---- per-component comparison functions (GLSL 8.7) ---------------------------
 #define SM_GLSL_CMP_FN(name, fn)                                                         \
     template <class A, class B>                                                          \
-        requires detail::SameVec<A, B>                                                   \
+        requires(detail::SameVec<A, B> && detail::VecOf<A, lang_tag>)                    \
     SHADER_MATH_INLINE auto name(const A& a, const B& b) {                               \
         constexpr int n = detail::vec_size_v<A>;                                         \
         using T = detail::vec_elem_t<A>;                                                 \
-        return detail::bvec<n>(detail::vops<T>::fn(detail::to_vec(a).q_, detail::to_vec(b).q_)); \
+        return detail::bvec<n, lang_tag>(                                                \
+            detail::vops<T>::fn(detail::to_vec(a).q_, detail::to_vec(b).q_));            \
     }
 
 SM_GLSL_CMP_FN(equal, cmp_eq)
@@ -392,8 +399,8 @@ SM_GLSL_CMP_FN(greaterThanEqual, cmp_ge)
 
 // GLSL not(bvec). `not` is a C++ keyword, hence the trailing underscore.
 template <int N>
-SHADER_MATH_INLINE detail::bvec<N> not_(const detail::bvec<N>& a) {
-    return detail::bvec<N>(detail::ops::m_not(a.m_));
+SHADER_MATH_INLINE detail::bvec<N, lang_tag> not_(const detail::bvec<N, lang_tag>& a) {
+    return detail::bvec<N, lang_tag>(detail::ops::m_not(a.m_));
 }
 
 // ---- matrix functions (GLSL 8.6) ----------------------------------------------
@@ -408,15 +415,15 @@ SHADER_MATH_INLINE matrix<Cn, Rn, T> matrixCompMult(const matrix<Cn, Rn, T>& a,
 
 // outerProduct(c, r): c is a column (Rx1), r is a row (1xC) -> matCxR
 template <class A, class B>
-    requires(detail::VecLike<A> && detail::VecLike<B> &&
+    requires(detail::VecOf<A, lang_tag> && detail::VecOf<B, lang_tag> &&
              std::is_same_v<detail::vec_elem_t<A>, detail::vec_elem_t<B>>)
 SHADER_MATH_INLINE matrix<detail::vec_size_v<B>, detail::vec_size_v<A>, detail::vec_elem_t<A>>
 outerProduct(const A& c0, const B& r0) {
     constexpr int RR = detail::vec_size_v<A>;
     constexpr int CC = detail::vec_size_v<B>;
     using T = detail::vec_elem_t<A>;
-    const detail::fvec<RR, T> c = detail::to_vec(c0);
-    const detail::fvec<CC, T> r = detail::to_vec(r0);
+    const detail::gvec<RR, T> c = detail::to_vec(c0);
+    const detail::gvec<CC, T> r = detail::to_vec(r0);
     matrix<CC, RR, T> o;
     detail::regs_fill<CC>(o.col_, [&](int j) {
         return detail::vops<T>::mul(c.q_, detail::vops<T>::splat(r[j]));

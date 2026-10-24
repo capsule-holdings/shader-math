@@ -2,8 +2,8 @@
 // language-specific name isolation, and the ScalarFor operand rules.
 //
 // NOTE at namespace scope: no using-directives here (like test_restrict.cpp);
-// the unqualified concepts below resolve through ADL only, which is exactly
-// what must NOT find the language-specific spellings.
+// the unqualified concepts below resolve through ADL only, which must find a
+// language's own spellings on its vectors and never the other language's.
 #include <cmath>
 #include <concepts>
 #include <limits>
@@ -16,8 +16,8 @@ namespace h = shader_math::hlsl;
 namespace g = shader_math::glsl;
 
 // ---- language isolation: HLSL-only / GLSL-only spellings must not leak ------
-// The cores live in detail as *_impl, so ADL on the shared vector type finds
-// nothing under the user-facing names.
+// The language tag of a vector makes its language namespace an associated
+// namespace, so ADL finds that language's names and nothing of the other.
 template <class... As>
 concept adl_lerp = requires(const As&... as) { lerp(as...); };
 template <class A>
@@ -37,15 +37,23 @@ concept adl_inversesqrt = requires(const A& a) { inversesqrt(a); };
 template <class A>
 concept adl_roundEven = requires(const A& a) { roundEven(a); };
 
-static_assert(!adl_lerp<h::float3, h::float3, h::float3>);
-static_assert(!adl_saturate<h::float3>);
-static_assert(!adl_frac<h::float3>);
-static_assert(!adl_rcp<h::float3>);
-static_assert(!adl_rsqrt<h::float3>);
-static_assert(!adl_mix<g::vec3, g::vec3, g::vec3>);
-static_assert(!adl_fract<g::vec3>);
-static_assert(!adl_inversesqrt<g::vec3>);
-static_assert(!adl_roundEven<g::vec3>);
+static_assert(adl_lerp<h::float3, h::float3, h::float3>);
+static_assert(adl_saturate<h::float3> && adl_frac<h::float3>);
+static_assert(adl_rcp<h::float3> && adl_rsqrt<h::float3>);
+static_assert(!adl_lerp<g::vec3, g::vec3, g::vec3>);
+static_assert(!adl_saturate<g::vec3> && !adl_frac<g::vec3>);
+static_assert(!adl_rcp<g::vec3> && !adl_rsqrt<g::vec3>);
+static_assert(adl_mix<g::vec3, g::vec3, g::vec3>);
+static_assert(adl_fract<g::vec3> && adl_inversesqrt<g::vec3> && adl_roundEven<g::vec3>);
+static_assert(!adl_mix<h::float3, h::float3, h::float3>);
+static_assert(!adl_fract<h::float3> && !adl_inversesqrt<h::float3> && !adl_roundEven<h::float3>);
+// a qualified call does not accept the other language's vectors either
+template <class A>
+concept hlsl_frac = requires(const A& a) { shader_math::hlsl::frac(a); };
+template <class A>
+concept glsl_fract = requires(const A& a) { shader_math::glsl::fract(a); };
+static_assert(hlsl_frac<h::float3> && !hlsl_frac<g::vec3>);
+static_assert(glsl_fract<g::vec3> && !glsl_fract<h::float3>);
 
 // positive: the qualified language-specific names exist
 static_assert(requires(const h::float3& v) { shader_math::hlsl::lerp(v, v, v); });
@@ -73,17 +81,17 @@ concept adl_fma = requires(const A& a) { fma(a, a, a); };
 // visible here too; what must not be reachable is a bool-vector overload
 template <class A>
 concept adl_isfinite = requires(const A& a) {
-    { isfinite(a) } -> std::same_as<shader_math::detail::bvec<A::size_v>>;
+    { isfinite(a) } -> std::same_as<shader_math::detail::bvec<A::size_v, typename A::lang_t>>;
 };
 template <class A>
 concept adl_atan_yx = requires(const A& a) { atan(a, a); };
-static_assert(!adl_atan2<h::float3>);
-static_assert(!adl_fmod<h::float3>);
-static_assert(!adl_mod<g::vec3>);
-static_assert(!adl_mad<h::float3>);
-static_assert(!adl_fma<g::vec3>);
-static_assert(!adl_isfinite<h::float3>);
-static_assert(!adl_atan_yx<g::vec3>);  // the shared detail::atan is unary only
+static_assert(adl_atan2<h::float3> && !adl_atan2<g::vec3>);
+static_assert(adl_fmod<h::float3> && !adl_fmod<g::vec3>);
+static_assert(adl_mod<g::vec3> && !adl_mod<h::float3>);
+static_assert(adl_mad<h::float3> && !adl_mad<g::vec3>);
+static_assert(adl_fma<g::vec3> && !adl_fma<h::float3>);
+static_assert(adl_isfinite<h::float3> && !adl_isfinite<g::vec3>);
+static_assert(adl_atan_yx<g::vec3> && !adl_atan_yx<h::float3>);
 
 // each language sees only its own spelling
 namespace hlsl_scope {
@@ -104,7 +112,7 @@ concept has_fma = requires(const A& a) { fma(a, a, a); };
 // scope, so "has isfinite" means an overload returning the bool vector
 template <class A>
 concept has_isfinite = requires(const A& a) {
-    { isfinite(a) } -> std::same_as<shader_math::detail::bvec<A::size_v>>;
+    { isfinite(a) } -> std::same_as<shader_math::detail::bvec<A::size_v, typename A::lang_t>>;
 };
 template <class A>
 concept has_sincos = requires(const A& a, A& s, A& c) { sincos(a, s, c); };
@@ -150,7 +158,7 @@ template <class A>
 concept has_fma = requires(const A& a) { fma(a, a, a); };
 template <class A>
 concept has_isfinite = requires(const A& a) {
-    { isfinite(a) } -> std::same_as<shader_math::detail::bvec<A::size_v>>;
+    { isfinite(a) } -> std::same_as<shader_math::detail::bvec<A::size_v, typename A::lang_t>>;
 };
 template <class A>
 concept has_sincos = requires(const A& a, A& s, A& c) { sincos(a, s, c); };

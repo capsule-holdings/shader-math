@@ -76,16 +76,17 @@ concept has_matrix_swizzle = requires(M m) { m._m00_m11; };
 static_assert(!has_matrix_swizzle<h::float4x4>);
 
 // ---- comparison operator return types differ per language -----------------------
-static_assert(std::is_same_v<decltype(h::operator==(std::declval<h::float3>(),
-                                                    std::declval<h::float3>())),
+// found by ADL on each language's vectors, with no using-directive
+static_assert(std::is_same_v<decltype(std::declval<h::float3>() == std::declval<h::float3>()),
                              h::bool3>);
-static_assert(std::is_same_v<decltype(g::operator==(std::declval<g::vec3>(),
-                                                    std::declval<g::vec3>())),
-                             bool>);
+static_assert(std::is_same_v<decltype(std::declval<g::vec3>() == std::declval<g::vec3>()), bool>);
+static_assert(std::is_same_v<decltype(std::declval<h::bool3>() == std::declval<h::bool3>()),
+                             h::bool3>);
+static_assert(std::is_same_v<decltype(std::declval<g::bvec3>() == std::declval<g::bvec3>()), bool>);
 
 // ---- glsl has no relational operators on vectors (lessThan() instead) ------------
-// Without a using-directive, ADL only sees shader_math::detail, which defines
-// no relational operators -> the expression must not compile.
+// ADL on a glsl vector sees shader_math::glsl and shader_math::detail, neither
+// of which defines relational operators -> the expression must not compile.
 template <class V>
 concept can_less = requires(const V& a, const V& b) { a < b; };
 static_assert(!can_less<g::vec3>);
@@ -96,6 +97,21 @@ static_assert(std::is_constructible_v<h::float3, h::float4>);
 
 // ---- assignment across mismatched widths does not compile -------------------------
 static_assert(!can_assign<h::float3, h::float4>);
+
+// ---- a scalar becomes a vector implicitly in hlsl, by constructor only in glsl -----
+static_assert(std::is_convertible_v<float, h::float3> && can_assign<h::float3, float>);
+static_assert(!std::is_convertible_v<float, g::vec3> && !can_assign<g::vec3, float>);
+static_assert(std::is_constructible_v<g::vec3, float>);
+// ... so a matrix is not built from scalar "rows" / "columns" either
+static_assert(!std::is_constructible_v<h::float2x2, float, float>);
+static_assert(!std::is_constructible_v<g::mat2, float, float>);
+
+// ---- glsl .length() is the component (column) count; hlsl has no such member --------
+template <class V>
+concept has_length_member = requires(const V& v) { v.length(); };
+static_assert(g::vec3::length() == 3 && g::bvec2::length() == 2 && g::mat4x2::length() == 4);
+static_assert(!has_length_member<h::float3> && !has_length_member<h::bool3>);
+static_assert(!has_length_member<h::float3x3>);
 
 // ---- bool vectors: built from bools only, components are read-only ----------
 template <class B, class... As>
@@ -114,6 +130,9 @@ void test_restrict() {
     h::float4x3 b = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
     h::float3x3 p = h::mul(a, b);
     CHECK(all(p == h::float3x3::identity()));
+
+    const g::vec3 w(1.0f);
+    CHECK(w.length() == 3);
 
     using namespace shader_math::hlsl;
     // `if (v == u)` does not compile in hlsl (bool3 is not bool) — enforced by

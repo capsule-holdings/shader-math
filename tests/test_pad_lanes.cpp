@@ -14,17 +14,20 @@ namespace {
 
 const float kNaN = std::numeric_limits<float>::quiet_NaN();
 
-d::fvec<3> poison3(float x, float y, float z) {
-    return d::fvec<3>(d::ops::set(x, y, z, kNaN));
+// Lg: the language namespace's lang_tag, named unqualified at the call site
+template <class Lg>
+d::fvec<3, float, Lg> poison3(float x, float y, float z) {
+    return d::fvec<3, float, Lg>(d::ops::set(x, y, z, kNaN));
 }
-d::fvec<2> poison2(float x, float y) {
-    return d::fvec<2>(d::ops::set(x, y, kNaN, kNaN));
+template <class Lg>
+d::fvec<2, float, Lg> poison2(float x, float y) {
+    return d::fvec<2, float, Lg>(d::ops::set(x, y, kNaN, kNaN));
 }
 
 void test_hlsl_vectors() {
     using namespace shader_math::hlsl;
-    const float3 a = poison3(1.0f, 2.0f, 2.0f);
-    const float3 b = poison3(3.0f, -1.0f, 0.5f);
+    const float3 a = poison3<lang_tag>(1.0f, 2.0f, 2.0f);
+    const float3 b = poison3<lang_tag>(3.0f, -1.0f, 0.5f);
     const float3 ca(1.0f, 2.0f, 2.0f);
     const float3 cb(3.0f, -1.0f, 0.5f);
 
@@ -37,7 +40,7 @@ void test_hlsl_vectors() {
     CHECK(all(a == ca));
     CHECK(!any(a != ca));
     CHECK(all(a < a + 1.0f));
-    CHECK(all(poison2(1.0f, 2.0f) == float2(1.0f, 2.0f)));
+    CHECK(all(poison2<lang_tag>(1.0f, 2.0f) == float2(1.0f, 2.0f)));
 
     // division by a vector leaves 0/0 in the unused lane; results unaffected
     const float3 q = ca / cb;
@@ -46,7 +49,7 @@ void test_hlsl_vectors() {
 
 void test_glsl_vectors() {
     using namespace shader_math::glsl;
-    const vec3 a = poison3(1.0f, 2.0f, 2.0f);
+    const vec3 a = poison3<lang_tag>(1.0f, 2.0f, 2.0f);
     const vec3 ca(1.0f, 2.0f, 2.0f);
     CHECK(a == ca);  // scalar bool over N lanes
     CHECK(!(a != ca));
@@ -60,8 +63,9 @@ void test_hlsl_matrices() {
                   1.0f, 3.0f, 0.0f,
                   0.0f, 1.0f, 4.0f);
     const float3x3 clean = m;
-    for (int r = 0; r < 3; ++r) m.row_[r] = poison3(m.row_[r][0], m.row_[r][1], m.row_[r][2]);
-    const float3 v = poison3(1.0f, -2.0f, 0.5f);
+    for (int r = 0; r < 3; ++r)
+        m.row_[r] = poison3<lang_tag>(m.row_[r][0], m.row_[r][1], m.row_[r][2]);
+    const float3 v = poison3<lang_tag>(1.0f, -2.0f, 0.5f);
     const float3 cv(1.0f, -2.0f, 0.5f);
 
     CHECK(all(mul(v, m) == mul(cv, clean)));
@@ -79,8 +83,9 @@ void test_glsl_matrices() {
               0.0f, 3.0f, 1.0f,
               1.0f, 0.0f, 4.0f);
     const mat3 clean = m;
-    for (int c = 0; c < 3; ++c) m.col_[c] = poison3(m.col_[c][0], m.col_[c][1], m.col_[c][2]);
-    const vec3 v = poison3(1.0f, -2.0f, 0.5f);
+    for (int c = 0; c < 3; ++c)
+        m.col_[c] = poison3<lang_tag>(m.col_[c][0], m.col_[c][1], m.col_[c][2]);
+    const vec3 v = poison3<lang_tag>(1.0f, -2.0f, 0.5f);
     const vec3 cv(1.0f, -2.0f, 0.5f);
 
     CHECK(m * v == clean * cv);

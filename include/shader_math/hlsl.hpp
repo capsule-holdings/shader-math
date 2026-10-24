@@ -13,23 +13,23 @@ namespace hlsl {
 // ---- type aliases -----------------------------------------------------------
 // vector<T, N> (HLSL's template spelling; vector<float, 3> is float3)
 template <class T = float, int N = 4>
-using vector = detail::fvec<N, T>;
+using vector = detail::fvec<N, T, lang_tag>;
 
-using float2 = detail::fvec<2>;
-using float3 = detail::fvec<3>;
-using float4 = detail::fvec<4>;
-using bool2 = detail::bvec<2>;
-using bool3 = detail::bvec<3>;
-using bool4 = detail::bvec<4>;
+using float2 = vector<float, 2>;
+using float3 = vector<float, 3>;
+using float4 = vector<float, 4>;
+using bool2 = detail::bvec<2, lang_tag>;
+using bool3 = detail::bvec<3, lang_tag>;
+using bool4 = detail::bvec<4, lang_tag>;
 
 // Half vectors (HLSL half). Language-level packing: sizeof(half3) == 8
 // (4 x binary16), just as sizeof(float3) == 16 — language compatibility, not
 // a GPU ABI. Absent entirely on compilers without a half scalar type.
 #if defined(SHADER_MATH_HAS_HALF)
 using half = detail::half_t;
-using half2 = detail::fvec<2, detail::half_t>;
-using half3 = detail::fvec<3, detail::half_t>;
-using half4 = detail::fvec<4, detail::half_t>;
+using half2 = vector<half, 2>;
+using half3 = vector<half, 3>;
+using half4 = vector<half, 4>;
 #endif
 
 using float2x2 = matrix<2, 2>;
@@ -112,106 +112,111 @@ using detail::tan;
 using detail::trunc;
 
 // HLSL-only spellings (defined here, not in detail, so they never leak into
-// glsl via ADL on the shared vector type)
+// glsl; the language tag makes ADL find them on hlsl vectors)
 template <class... As>
-    requires requires(const As&... as) { detail::lerp_impl(as...); }
+    requires(detail::ArgsOf<lang_tag, As...> &&
+             requires(const As&... as) { detail::lerp_impl(as...); })
 SHADER_MATH_INLINE auto lerp(const As&... as) {
     return detail::lerp_impl(as...);
 }
 template <class A>
-    requires detail::VecLike<A>
+    requires detail::VecOf<A, lang_tag>
 SHADER_MATH_INLINE auto saturate(const A& a) {
     return detail::saturate_impl(a);
 }
 template <class A>
-    requires detail::VecLike<A>
+    requires detail::VecOf<A, lang_tag>
 SHADER_MATH_INLINE auto frac(const A& a) {
     return detail::fract_impl(a);
 }
 template <class A>
-    requires detail::VecLike<A>
+    requires detail::VecOf<A, lang_tag>
 SHADER_MATH_INLINE auto rcp(const A& a) {
     return detail::rcp_impl(a);
 }
 template <class A>
-    requires detail::VecLike<A>
+    requires detail::VecOf<A, lang_tag>
 SHADER_MATH_INLINE auto rsqrt(const A& a) {
     return detail::rsqrt_impl(a);
 }
 template <class A>
-    requires detail::VecLike<A>
+    requires detail::VecOf<A, lang_tag>
 SHADER_MATH_INLINE auto log10(const A& a) {
     return detail::log10_impl(a);
 }
 template <class A, class B>
-    requires requires(const A& a, const B& b) { detail::ldexp_impl(a, b); }
+    requires(detail::ArgsOf<lang_tag, A, B> &&
+             requires(const A& a, const B& b) { detail::ldexp_impl(a, b); })
 SHADER_MATH_INLINE auto ldexp(const A& a, const B& b) {
     return detail::ldexp_impl(a, b);
 }
 template <class A, int N, class T>
-    requires requires(const A& a, detail::fvec<N, T>& e) { detail::frexp_impl(a, e); }
-SHADER_MATH_INLINE auto frexp(const A& a, detail::fvec<N, T>& e) {
+    requires requires(const A& a, vector<T, N>& e) { detail::frexp_impl(a, e); }
+SHADER_MATH_INLINE auto frexp(const A& a, vector<T, N>& e) {
     return detail::frexp_impl(a, e);
 }
 // select(cond, a, b) (HLSL 2021): a where cond, else b; scalar a / b broadcast
 template <int N, class A, class B>
-    requires requires(const detail::bvec<N>& c, const A& a, const B& b) {
+    requires requires(const detail::bvec<N, lang_tag>& c, const A& a, const B& b) {
         detail::select_impl(c, a, b);
     }
-SHADER_MATH_INLINE auto select(const detail::bvec<N>& c, const A& a, const B& b) {
+SHADER_MATH_INLINE auto select(const detail::bvec<N, lang_tag>& c, const A& a, const B& b) {
     return detail::select_impl(c, a, b);
 }
 // dst(a, b) = (1, a.y * b.y, a.z, b.w): the distance vector of the
 // fixed-function lighting model (float4 only, like HLSL)
 template <class A, class B>
-    requires(detail::SameVec<A, B> && detail::vec_size_v<A> == 4)
+    requires(detail::SameVec<A, B> && detail::VecOf<A, lang_tag> && detail::vec_size_v<A> == 4)
 SHADER_MATH_INLINE auto dst(const A& a0, const B& b0) {
     using T = detail::vec_elem_t<A>;
-    const detail::fvec<4, T> a = detail::to_vec(a0);
-    const detail::fvec<4, T> b = detail::to_vec(b0);
-    return detail::fvec<4, T>(T(1.0f), a[1] * b[1], a[2], b[3]);
+    const detail::vec_t<A> a = detail::to_vec(a0);
+    const detail::vec_t<A> b = detail::to_vec(b0);
+    return detail::vec_t<A>(T(1.0f), a[1] * b[1], a[2], b[3]);
 }
 // lit(n_dot_l, n_dot_h, m) = (1, diffuse, specular, 1): scalar inputs, like
 // HLSL; specular is 0 when either dot product is negative
 template <class S0, class S1, class S2>
     requires(std::is_arithmetic_v<S0> && std::is_arithmetic_v<S1> && std::is_arithmetic_v<S2>)
-SHADER_MATH_INLINE detail::fvec<4, float> lit(S0 n_dot_l, S1 n_dot_h, S2 m) {
+SHADER_MATH_INLINE float4 lit(S0 n_dot_l, S1 n_dot_h, S2 m) {
     const float l = static_cast<float>(n_dot_l);
     const float h = static_cast<float>(n_dot_h);
     const float diffuse = l < 0.0f ? 0.0f : l;
     const float specular = (l < 0.0f || h < 0.0f) ? 0.0f : std::pow(h, static_cast<float>(m));
-    return detail::fvec<4, float>(1.0f, diffuse, specular, 1.0f);
+    return float4(1.0f, diffuse, specular, 1.0f);
 }
 template <class A, class B>
-    requires requires(const A& y, const B& x) { detail::atan2_impl(y, x); }
+    requires(detail::ArgsOf<lang_tag, A, B> &&
+             requires(const A& y, const B& x) { detail::atan2_impl(y, x); })
 SHADER_MATH_INLINE auto atan2(const A& y, const B& x) {
     return detail::atan2_impl(y, x);
 }
 template <class A, class B>
-    requires requires(const A& a, const B& b) { detail::fmod_impl(a, b); }
+    requires(detail::ArgsOf<lang_tag, A, B> &&
+             requires(const A& a, const B& b) { detail::fmod_impl(a, b); })
 SHADER_MATH_INLINE auto fmod(const A& a, const B& b) {
     return detail::fmod_impl(a, b);
 }
 template <class A, class B, class C>
-    requires requires(const A& a, const B& b, const C& c) { detail::mad_impl(a, b, c); }
+    requires(detail::ArgsOf<lang_tag, A, B, C> &&
+             requires(const A& a, const B& b, const C& c) { detail::mad_impl(a, b, c); })
 SHADER_MATH_INLINE auto mad(const A& a, const B& b, const C& c) {
     return detail::mad_impl(a, b, c);
 }
 // fvec / swz parameters for the same reason as detail::isnan (MSVC UCRT)
 template <int N, class T>
-SHADER_MATH_INLINE detail::bvec<N> isfinite(const detail::fvec<N, T>& v) {
+SHADER_MATH_INLINE detail::bvec<N, lang_tag> isfinite(const vector<T, N>& v) {
     return detail::isfinite_impl(v);
 }
 template <class T, int N, int... Is>
     requires(sizeof...(Is) >= 2)
-SHADER_MATH_INLINE auto isfinite(const detail::swz<T, N, Is...>& s) {
+SHADER_MATH_INLINE auto isfinite(const detail::swz<T, N, lang_tag, Is...>& s) {
     return detail::isfinite_impl(detail::to_vec(s));
 }
 template <class A, int N, class T>
-    requires requires(const A& a, detail::fvec<N, T>& s, detail::fvec<N, T>& c) {
+    requires requires(const A& a, vector<T, N>& s, vector<T, N>& c) {
         detail::sincos_impl(a, s, c);
     }
-SHADER_MATH_INLINE void sincos(const A& a, detail::fvec<N, T>& s, detail::fvec<N, T>& c) {
+SHADER_MATH_INLINE void sincos(const A& a, vector<T, N>& s, vector<T, N>& c) {
     detail::sincos_impl(a, s, c);
 }
 
@@ -219,21 +224,21 @@ SHADER_MATH_INLINE void sincos(const A& a, detail::fvec<N, T>& s, detail::fvec<N
 template <class A>
     requires detail::ScalarCall<A>
 SHADER_MATH_INLINE bool isfinite(A a) {
-    return isfinite(detail::lane1<detail::scalar_call_t<A>>(a))[0];
+    return isfinite(detail::lane1<detail::scalar_call_t<A>, lang_tag>(a))[0];
 }
 
 // all / any on numeric vectors, matrices and scalars: HLSL tests the
 // components against zero (NaN counts as nonzero); GLSL takes bool vectors
 // only, so these live here and not in detail
 template <class A>
-    requires detail::VecLike<A>
+    requires detail::VecOf<A, lang_tag>
 SHADER_MATH_INLINE bool all(const A& a) {
-    return all(detail::bvec<detail::vec_size_v<A>>(a));
+    return all(detail::bvec<detail::vec_size_v<A>, lang_tag>(a));
 }
 template <class A>
-    requires detail::VecLike<A>
+    requires detail::VecOf<A, lang_tag>
 SHADER_MATH_INLINE bool any(const A& a) {
-    return any(detail::bvec<detail::vec_size_v<A>>(a));
+    return any(detail::bvec<detail::vec_size_v<A>, lang_tag>(a));
 }
 template <class A>
     requires detail::ScalarCall<A>
@@ -252,11 +257,11 @@ SHADER_MATH_INLINE bool any(A a) {
 template <class A, class B,
           int N = (detail::vec_size_v<A> > detail::vec_size_v<B> ? detail::vec_size_v<A>
                                                                   : detail::vec_size_v<B>)>
-    requires(N >= 2 && requires(const detail::bvec<N>& c, const A& a, const B& b) {
+    requires(N >= 2 && requires(const detail::bvec<N, lang_tag>& c, const A& a, const B& b) {
         detail::select_impl(c, a, b);
     })
 SHADER_MATH_INLINE auto select(bool c, const A& a, const B& b) {
-    return detail::select_impl(detail::bvec<N>(c), a, b);
+    return detail::select_impl(detail::bvec<N, lang_tag>(c), a, b);
 }
 
 // scalar arguments (detail::ScalarCall): HLSL-only spellings
@@ -273,16 +278,16 @@ SHADER_MATH_SCALAR_FN3(mad)
 template <class A, class T>
     requires(detail::ScalarCall<A> && std::is_same_v<T, detail::scalar_call_t<A>>)
 SHADER_MATH_INLINE T frexp(const A& a, T& e) {
-    detail::fvec<2, T> ev;
-    const T m = frexp(detail::lane1<T>(a), ev)[0];
+    vector<T, 2> ev;
+    const T m = frexp(detail::lane1<T, lang_tag>(a), ev)[0];
     e = ev[0];
     return m;
 }
 template <class A, class T>
     requires(detail::ScalarCall<A> && std::is_same_v<T, detail::scalar_call_t<A>>)
 SHADER_MATH_INLINE void sincos(const A& a, T& s, T& c) {
-    detail::fvec<2, T> sv, cv;
-    sincos(detail::lane1<T>(a), sv, cv);
+    vector<T, 2> sv, cv;
+    sincos(detail::lane1<T, lang_tag>(a), sv, cv);
     s = sv[0];
     c = cv[0];
 }
@@ -360,7 +365,8 @@ SM_HLSL_MAT_COMPOUND(/)
 // ---- % on float vectors / matrices: fmod (trunc-based, sign of x) ----------
 // HLSL defines % for floats; GLSL does not (its mod() is floor-based).
 template <class A, class B>
-    requires requires(const A& a, const B& b) { detail::fmod_impl(a, b); }
+    requires(detail::ArgsOf<lang_tag, A, B> &&
+             requires(const A& a, const B& b) { detail::fmod_impl(a, b); })
 SHADER_MATH_INLINE auto operator%(const A& a, const B& b) {
     return detail::fmod_impl(a, b);
 }
@@ -382,26 +388,27 @@ SHADER_MATH_INLINE matrix<R, C, T> operator%(const matrix<R, C, T>& a, const S& 
 // `if (a == b)` does not compile (bvec has no bool conversion); use all()/any().
 #define SM_HLSL_VEC_CMP(sym, fn)                                                         \
     template <class A, class B>                                                          \
-        requires detail::SameVec<A, B>                                                   \
+        requires(detail::SameVec<A, B> && detail::VecOf<A, lang_tag>)                    \
     SHADER_MATH_INLINE auto operator sym(const A& a, const B& b) {                       \
         constexpr int n = detail::vec_size_v<A>;                                         \
         using T = detail::vec_elem_t<A>;                                                 \
-        return detail::bvec<n>(detail::vops<T>::fn(detail::to_vec(a).q_, detail::to_vec(b).q_)); \
+        return detail::bvec<n, lang_tag>(                                                \
+            detail::vops<T>::fn(detail::to_vec(a).q_, detail::to_vec(b).q_));            \
     }                                                                                    \
     template <class A, class S>                                                          \
-        requires(detail::VecLike<A> && detail::ScalarFor<S, detail::vec_elem_t<A>>)      \
+        requires(detail::VecOf<A, lang_tag> && detail::ScalarFor<S, detail::vec_elem_t<A>>) \
     SHADER_MATH_INLINE auto operator sym(const A& a, const S& s) {                       \
         constexpr int n = detail::vec_size_v<A>;                                         \
         using T = detail::vec_elem_t<A>;                                                 \
-        return detail::bvec<n>(                                                          \
+        return detail::bvec<n, lang_tag>(                                                \
             detail::vops<T>::fn(detail::to_vec(a).q_, detail::vops<T>::splat(static_cast<T>(s)))); \
     }                                                                                    \
     template <class B, class S>                                                          \
-        requires(detail::VecLike<B> && detail::ScalarFor<S, detail::vec_elem_t<B>>)      \
+        requires(detail::VecOf<B, lang_tag> && detail::ScalarFor<S, detail::vec_elem_t<B>>) \
     SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                       \
         constexpr int n = detail::vec_size_v<B>;                                         \
         using T = detail::vec_elem_t<B>;                                                 \
-        return detail::bvec<n>(                                                          \
+        return detail::bvec<n, lang_tag>(                                                \
             detail::vops<T>::fn(detail::vops<T>::splat(static_cast<T>(s)), detail::to_vec(b).q_)); \
     }                                                                                    \
     template <int R, int C, class T>                                                     \
@@ -409,7 +416,8 @@ SHADER_MATH_INLINE matrix<R, C, T> operator%(const matrix<R, C, T>& a, const S& 
                                                        const matrix<R, C, T>& b) {       \
         detail::bmat<R, C> o;                                                            \
         for (int r = 0; r < R; ++r)                                                      \
-            o.row_[r] = detail::bvec<C>(detail::vops<T>::fn(a.row_[r].q_, b.row_[r].q_)); \
+            o.row_[r] =                                                                  \
+                detail::bvec<C, lang_tag>(detail::vops<T>::fn(a.row_[r].q_, b.row_[r].q_)); \
         return o;                                                                        \
     }
 
@@ -423,18 +431,18 @@ SM_HLSL_VEC_CMP(>=, cmp_ge)
 
 // bool-vector logic (HLSL): !, ==, != are per-component
 template <int N>
-SHADER_MATH_INLINE detail::bvec<N> operator!(const detail::bvec<N>& a) {
-    return detail::bvec<N>(detail::ops::m_not(a.m_));
+SHADER_MATH_INLINE detail::bvec<N, lang_tag> operator!(const detail::bvec<N, lang_tag>& a) {
+    return detail::bvec<N, lang_tag>(detail::ops::m_not(a.m_));
 }
 template <int N>
-SHADER_MATH_INLINE detail::bvec<N> operator==(const detail::bvec<N>& a,
-                                              const detail::bvec<N>& b) {
-    return detail::bvec<N>(detail::ops::m_not(detail::ops::m_xor(a.m_, b.m_)));
+SHADER_MATH_INLINE detail::bvec<N, lang_tag> operator==(const detail::bvec<N, lang_tag>& a,
+                                                        const detail::bvec<N, lang_tag>& b) {
+    return detail::bvec<N, lang_tag>(detail::ops::m_not(detail::ops::m_xor(a.m_, b.m_)));
 }
 template <int N>
-SHADER_MATH_INLINE detail::bvec<N> operator!=(const detail::bvec<N>& a,
-                                              const detail::bvec<N>& b) {
-    return detail::bvec<N>(detail::ops::m_xor(a.m_, b.m_));
+SHADER_MATH_INLINE detail::bvec<N, lang_tag> operator!=(const detail::bvec<N, lang_tag>& a,
+                                                        const detail::bvec<N, lang_tag>& b) {
+    return detail::bvec<N, lang_tag>(detail::ops::m_xor(a.m_, b.m_));
 }
 
 // ---- mul: the 9 official overloads ------------------------------------------
@@ -444,12 +452,12 @@ SHADER_MATH_INLINE detail::half_t mul(detail::half_t a, detail::half_t b) { retu
 #endif
 
 template <class V, class S>
-    requires(detail::VecLike<V> && detail::ScalarFor<S, detail::vec_elem_t<V>>)
+    requires(detail::VecOf<V, lang_tag> && detail::ScalarFor<S, detail::vec_elem_t<V>>)
 SHADER_MATH_INLINE auto mul(const S& s, const V& v) {
     return s * detail::to_vec(v);
 }
 template <class V, class S>
-    requires(detail::VecLike<V> && detail::ScalarFor<S, detail::vec_elem_t<V>>)
+    requires(detail::VecOf<V, lang_tag> && detail::ScalarFor<S, detail::vec_elem_t<V>>)
 SHADER_MATH_INLINE auto mul(const V& v, const S& s) {
     return detail::to_vec(v) * s;
 }
@@ -466,27 +474,27 @@ SHADER_MATH_INLINE matrix<R, C, T> mul(const matrix<R, C, T>& m, const S& s) {
 
 // vector x vector: equivalent to dot()
 template <class A, class B>
-    requires detail::SameVec<A, B>
+    requires(detail::SameVec<A, B> && detail::VecOf<A, lang_tag>)
 SHADER_MATH_INLINE detail::vec_elem_t<A> mul(const A& a, const B& b) {
     return detail::dot(a, b);
 }
 
 // row vector x matrix
 template <class V, int M, int N2, class T>
-    requires(detail::vec_size_v<V> == M && std::is_same_v<detail::vec_elem_t<V>, T>)
-SHADER_MATH_INLINE detail::fvec<N2, T> mul(const V& v0, const matrix<M, N2, T>& m) {
-    const detail::fvec<M, T> v = detail::to_vec(v0);
-    return detail::fvec<N2, T>(detail::mad_accum<M>(v.q_, m.row_));
+    requires std::is_same_v<detail::vec_t<V>, vector<T, M>>
+SHADER_MATH_INLINE vector<T, N2> mul(const V& v0, const matrix<M, N2, T>& m) {
+    const vector<T, M> v = detail::to_vec(v0);
+    return vector<T, N2>(detail::mad_accum<M>(v.q_, m.row_));
 }
 
 // matrix x column vector
 template <int M, int K, class T, class V>
-    requires(detail::vec_size_v<V> == K && std::is_same_v<detail::vec_elem_t<V>, T>)
-SHADER_MATH_INLINE detail::fvec<M, T> mul(const matrix<M, K, T>& m, const V& v0) {
-    const detail::fvec<K, T> v = detail::to_vec(v0);
+    requires std::is_same_v<detail::vec_t<V>, vector<T, K>>
+SHADER_MATH_INLINE vector<T, M> mul(const matrix<M, K, T>& m, const V& v0) {
+    const vector<T, K> v = detail::to_vec(v0);
     T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
     for (int r = 0; r < M; ++r) t[r] = detail::dot(m.row_[r], v);
-    return detail::fvec<M, T>(detail::vops<T>::load4(t));
+    return vector<T, M>(detail::vops<T>::load4(t));
 }
 
 // matrix x matrix: inner dimensions must match (enforced by the signature)
@@ -494,7 +502,7 @@ template <int M, int K, int N2, class T>
 SHADER_MATH_INLINE matrix<M, N2, T> mul(const matrix<M, K, T>& a, const matrix<K, N2, T>& b) {
     matrix<M, N2, T> o;
     for (int r = 0; r < M; ++r)
-        o.row_[r] = detail::fvec<N2, T>(detail::mad_accum<K>(a.row_[r].q_, b.row_));
+        o.row_[r] = vector<T, N2>(detail::mad_accum<K>(a.row_[r].q_, b.row_));
     return o;
 }
 

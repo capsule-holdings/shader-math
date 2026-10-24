@@ -7,6 +7,15 @@
 namespace h = shader_math::hlsl;
 namespace g = shader_math::glsl;
 
+template <class A, class B>
+concept can_add = requires(const A& a, const B& b) { a + b; };
+template <class A, class B>
+concept can_dot = requires(const A& a, const B& b) { shader_math::detail::dot(a, b); };
+template <class A, class B>
+concept can_times = requires(const A& a, const B& b) { a * b; };
+template <class A, class B>
+concept can_mul = requires(const A& a, const B& b) { h::mul(a, b); };
+
 void test_cross_lang() {
     // ---- element correspondence: float3x4 (3 rows x 4 cols) == mat4x3 --------
     {
@@ -45,16 +54,17 @@ void test_cross_lang() {
     {
         h::float3x3 M = {2, -1, 0, 1, 3, 5, -2, 4, 1};
         g::mat3 gM(M);
-        shader_math::detail::fvec<3> v(1.0f, -2.0f, 3.0f);  // shared vector type
+        const h::float3 v(1.0f, -2.0f, 3.0f);
+        const g::vec3 u(v);
 
         // HLSL mul(v, M) (row vector) == GLSL v * m
         auto hv = h::mul(v, M);
-        auto gv = g::operator*(v, gM);
+        auto gv = u * gM;
         for (int i = 0; i < 3; ++i) CHECK_NEAR(hv[i], gv[i]);
 
         // HLSL mul(M, v) (column vector) == GLSL m * v
         auto hc = h::mul(M, v);
-        auto gc = g::operator*(gM, v);
+        auto gc = gM * u;
         for (int i = 0; i < 3; ++i) CHECK_NEAR(hc[i], gc[i]);
     }
 
@@ -75,13 +85,23 @@ void test_cross_lang() {
             for (int c = 0; c < 4; ++c) CHECK_EQF(gt[c][r], ht[r][c]);
     }
 
-    // ---- the same vector type flows through both APIs ---------------------------
+    // ---- vectors: distinct types, explicit conversion ---------------------------
     {
-        h::float3 a(1.0f, 2.0f, 3.0f);
-        g::vec3 b = a;  // same type: no conversion at all
-        static_assert(std::is_same_v<h::float3, g::vec3>);
-        static_assert(std::is_same_v<h::bool3, g::bvec3>);
+        static_assert(!std::is_same_v<h::float3, g::vec3>);
+        static_assert(!std::is_same_v<h::bool3, g::bvec3>);
+        static_assert(!std::is_convertible_v<h::float3, g::vec3>);
+        static_assert(!std::is_convertible_v<g::vec3, h::float3>);
+        static_assert(std::is_constructible_v<g::vec3, h::float3>);
+        static_assert(std::is_constructible_v<h::bool3, g::bvec3>);
+        static_assert(!can_add<h::float3, g::vec3>);
+        static_assert(!can_dot<h::float3, g::vec3>);
+        static_assert(!can_times<g::mat3, h::float3> && can_times<g::mat3, g::vec3>);
+        static_assert(!can_mul<h::float3x3, g::vec3> && can_mul<h::float3x3, h::float3>);
+
+        const h::float3 a(1.0f, 2.0f, 3.0f);
+        const g::vec3 b(a);
         CHECK_EQF(b[2], 3.0f);
-        CHECK_NEAR(shader_math::detail::dot(a, b), 14.0f);
+        CHECK_NEAR(g::dot(b, g::vec3(a.zyx)), 10.0f);
+        CHECK(h::all(h::float3(b) == a));
     }
 }

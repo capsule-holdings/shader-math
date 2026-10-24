@@ -13,6 +13,15 @@
 
 template <class V>
 concept can_write_ss = requires(V v) { v.ss = v.st; };
+template <class V>
+concept has_s = requires(V v) { v.s; };
+template <class V>
+concept has_stp = requires(V v) { v.stp; };
+
+// glsl vectors only: hlsl has no .stpq
+static_assert(has_stp<shader_math::glsl::vec4> && has_s<shader_math::glsl::bvec3>);
+static_assert(!has_s<shader_math::hlsl::float4> && !has_stp<shader_math::hlsl::float4>);
+static_assert(!has_s<shader_math::hlsl::bool3>);
 
 int main() {
     using namespace shader_math::glsl;

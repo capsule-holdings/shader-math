@@ -62,26 +62,26 @@ std::basic_ostream<Ch, Tr>& operator<<(std::basic_ostream<Ch, Tr>& os, const V& 
     return os << ')';
 }
 
-template <class Ch, class Tr, int N>
-std::basic_ostream<Ch, Tr>& operator<<(std::basic_ostream<Ch, Tr>& os, const bvec<N>& b) {
+template <class Ch, class Tr, int N, class Lg>
+std::basic_ostream<Ch, Tr>& operator<<(std::basic_ostream<Ch, Tr>& os, const bvec<N, Lg>& b) {
     os << '(';
     for (int i = 0; i < N; ++i) os << (i ? ", " : "") << (b[i] ? "true" : "false");
     return os << ')';
 }
 
 // ---- tuple protocol (structured bindings) -----------------------------------
-template <std::size_t I, int N, class T>
-SHADER_MATH_INLINE T& get(fvec<N, T>& v) {
+template <std::size_t I, int N, class T, class Lg>
+SHADER_MATH_INLINE T& get(fvec<N, T, Lg>& v) {
     static_assert(I < static_cast<std::size_t>(N), "shader-math: component out of range");
     return v[static_cast<int>(I)];
 }
-template <std::size_t I, int N, class T>
-SHADER_MATH_INLINE T get(const fvec<N, T>& v) {
+template <std::size_t I, int N, class T, class Lg>
+SHADER_MATH_INLINE T get(const fvec<N, T, Lg>& v) {
     static_assert(I < static_cast<std::size_t>(N), "shader-math: component out of range");
     return v[static_cast<int>(I)];
 }
-template <std::size_t I, int N, class T>
-SHADER_MATH_INLINE T get(fvec<N, T>&& v) {
+template <std::size_t I, int N, class T, class Lg>
+SHADER_MATH_INLINE T get(fvec<N, T, Lg>&& v) {
     static_assert(I < static_cast<std::size_t>(N), "shader-math: component out of range");
     return v[static_cast<int>(I)];
 }
@@ -107,8 +107,8 @@ SHADER_MATH_INLINE V load(const T* p) {
     }
 }
 
-template <int N, class E, class T>
-SHADER_MATH_INLINE void store(const detail::fvec<N, E>& v, T* p) {
+template <int N, class E, class Lg, class T>
+SHADER_MATH_INLINE void store(const detail::fvec<N, E, Lg>& v, T* p) {
     for (int i = 0; i < N; ++i) p[i] = static_cast<T>(v[i]);
 }
 template <class M, class T>
@@ -130,17 +130,17 @@ std::basic_ostream<Ch, Tr>& operator<<(std::basic_ostream<Ch, Tr>& os, const mat
 }
 
 template <std::size_t I, int R, int C, class T>
-SHADER_MATH_INLINE detail::fvec<C, T>& get(matrix<R, C, T>& m) {
+SHADER_MATH_INLINE vector<T, C>& get(matrix<R, C, T>& m) {
     static_assert(I < static_cast<std::size_t>(R), "shader-math: row out of range");
     return m[static_cast<int>(I)];
 }
 template <std::size_t I, int R, int C, class T>
-SHADER_MATH_INLINE detail::fvec<C, T> get(const matrix<R, C, T>& m) {
+SHADER_MATH_INLINE vector<T, C> get(const matrix<R, C, T>& m) {
     static_assert(I < static_cast<std::size_t>(R), "shader-math: row out of range");
     return m[static_cast<int>(I)];
 }
 template <std::size_t I, int R, int C, class T>
-SHADER_MATH_INLINE detail::fvec<C, T> get(matrix<R, C, T>&& m) {
+SHADER_MATH_INLINE vector<T, C> get(matrix<R, C, T>&& m) {
     static_assert(I < static_cast<std::size_t>(R), "shader-math: row out of range");
     return m[static_cast<int>(I)];
 }
@@ -157,17 +157,17 @@ std::basic_ostream<Ch, Tr>& operator<<(std::basic_ostream<Ch, Tr>& os, const mat
 }
 
 template <std::size_t I, int Cn, int Rn, class T>
-SHADER_MATH_INLINE detail::fvec<Rn, T>& get(matrix<Cn, Rn, T>& m) {
+SHADER_MATH_INLINE detail::gvec<Rn, T>& get(matrix<Cn, Rn, T>& m) {
     static_assert(I < static_cast<std::size_t>(Cn), "shader-math: column out of range");
     return m[static_cast<int>(I)];
 }
 template <std::size_t I, int Cn, int Rn, class T>
-SHADER_MATH_INLINE detail::fvec<Rn, T> get(const matrix<Cn, Rn, T>& m) {
+SHADER_MATH_INLINE detail::gvec<Rn, T> get(const matrix<Cn, Rn, T>& m) {
     static_assert(I < static_cast<std::size_t>(Cn), "shader-math: column out of range");
     return m[static_cast<int>(I)];
 }
 template <std::size_t I, int Cn, int Rn, class T>
-SHADER_MATH_INLINE detail::fvec<Rn, T> get(matrix<Cn, Rn, T>&& m) {
+SHADER_MATH_INLINE detail::gvec<Rn, T> get(matrix<Cn, Rn, T>&& m) {
     static_assert(I < static_cast<std::size_t>(Cn), "shader-math: column out of range");
     return m[static_cast<int>(I)];
 }
@@ -176,10 +176,11 @@ SHADER_MATH_INLINE detail::fvec<Rn, T> get(matrix<Cn, Rn, T>&& m) {
 }  // namespace shader_math
 
 // ---- std specializations ------------------------------------------------------
-template <int N, class T>
-struct std::tuple_size<shader_math::detail::fvec<N, T>> : std::integral_constant<std::size_t, N> {};
-template <std::size_t I, int N, class T>
-struct std::tuple_element<I, shader_math::detail::fvec<N, T>> {
+template <int N, class T, class Lg>
+struct std::tuple_size<shader_math::detail::fvec<N, T, Lg>>
+    : std::integral_constant<std::size_t, N> {};
+template <std::size_t I, int N, class T, class Lg>
+struct std::tuple_element<I, shader_math::detail::fvec<N, T, Lg>> {
     using type = T;
 };
 template <int R, int C, class T>
@@ -187,33 +188,33 @@ struct std::tuple_size<shader_math::hlsl::matrix<R, C, T>>
     : std::integral_constant<std::size_t, R> {};
 template <std::size_t I, int R, int C, class T>
 struct std::tuple_element<I, shader_math::hlsl::matrix<R, C, T>> {
-    using type = shader_math::detail::fvec<C, T>;
+    using type = shader_math::detail::hvec<C, T>;
 };
 template <int Cn, int Rn, class T>
 struct std::tuple_size<shader_math::glsl::matrix<Cn, Rn, T>>
     : std::integral_constant<std::size_t, Cn> {};
 template <std::size_t I, int Cn, int Rn, class T>
 struct std::tuple_element<I, shader_math::glsl::matrix<Cn, Rn, T>> {
-    using type = shader_math::detail::fvec<Rn, T>;
+    using type = shader_math::detail::gvec<Rn, T>;
 };
 
 // Value equality over the N components (what all(a == b) means in hlsl and
 // a == b in glsl), so unordered containers work with either namespace in
 // scope. -0 and +0 hash alike because they compare equal; a NaN key never
 // matches, as with float keys.
-template <int N, class T>
-struct std::equal_to<shader_math::detail::fvec<N, T>> {
-    bool operator()(const shader_math::detail::fvec<N, T>& a,
-                    const shader_math::detail::fvec<N, T>& b) const {
+template <int N, class T, class Lg>
+struct std::equal_to<shader_math::detail::fvec<N, T, Lg>> {
+    bool operator()(const shader_math::detail::fvec<N, T, Lg>& a,
+                    const shader_math::detail::fvec<N, T, Lg>& b) const {
         for (int i = 0; i < N; ++i)
             if (!(shader_math::detail::to_float(a[i]) == shader_math::detail::to_float(b[i])))
                 return false;
         return true;
     }
 };
-template <int N, class T>
-struct std::hash<shader_math::detail::fvec<N, T>> {
-    std::size_t operator()(const shader_math::detail::fvec<N, T>& v) const {
+template <int N, class T, class Lg>
+struct std::hash<shader_math::detail::fvec<N, T, Lg>> {
+    std::size_t operator()(const shader_math::detail::fvec<N, T, Lg>& v) const {
         std::size_t h = 0;
         for (int i = 0; i < N; ++i) {
             const float f = shader_math::detail::to_float(v[i]);
@@ -226,10 +227,10 @@ struct std::hash<shader_math::detail::fvec<N, T>> {
 
 #if defined(__cpp_lib_format)
 // The format spec (fill, width, precision, type) applies to each component.
-template <int N, class T, class Ch>
-struct std::formatter<shader_math::detail::fvec<N, T>, Ch> : std::formatter<float, Ch> {
+template <int N, class T, class Lg, class Ch>
+struct std::formatter<shader_math::detail::fvec<N, T, Lg>, Ch> : std::formatter<float, Ch> {
     template <class Ctx>
-    auto format(const shader_math::detail::fvec<N, T>& v, Ctx& ctx) const {
+    auto format(const shader_math::detail::fvec<N, T, Lg>& v, Ctx& ctx) const {
         auto out = ctx.out();
         *out++ = Ch('(');
         for (int i = 0; i < N; ++i) {
@@ -248,10 +249,7 @@ struct std::formatter<shader_math::detail::fvec<N, T>, Ch> : std::formatter<floa
 template <class M, class Ch>
     requires shader_math::detail::is_matrix<M>::value
 struct std::formatter<M, Ch> {
-    std::formatter<shader_math::detail::fvec<shader_math::detail::is_matrix<M>::lanes,
-                                             typename M::elem_t>,
-                   Ch>
-        vec_;
+    std::formatter<std::remove_cvref_t<decltype(std::declval<const M&>()[0])>, Ch> vec_;
     constexpr auto parse(std::basic_format_parse_context<Ch>& ctx) { return vec_.parse(ctx); }
     template <class Ctx>
     auto format(const M& m, Ctx& ctx) const {
