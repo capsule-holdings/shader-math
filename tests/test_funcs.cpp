@@ -485,7 +485,11 @@ static void test_funcs_scalar() {
         CHECK_EQF(rcp(4.0f), 0.25f);
         CHECK_EQF(rsqrt(16.0f), 0.25f);
         CHECK_EQF(fmod(-7.0f, 3.0f), -1.0f);
-        CHECK_EQF(round(2.5f), round(float2(2.5f, 0.0f))[0]);  // same rule as the vector round
+        // qualified: libc++ / MSVC also declare ::round(float), so the
+        // unqualified call is ambiguous there
+        CHECK_EQF(shader_math::hlsl::round(2.5f), 2.0f);
+        CHECK_EQF(shader_math::hlsl::round(float2(1.0f, 2.5f).y), 2.0f);
+        CHECK_EQF(shader_math::glsl::round(-0.5f), -0.0f);
         CHECK_EQF(sign(-3.0f), -1.0f);
         CHECK_NEAR(pow(2.0f, 10.0f), 1024.0f);
         CHECK_NEAR(atan2(1.0f, 1.0f), 0.78539816f);

@@ -1376,7 +1376,6 @@ SHADER_MATH_SCALAR_FN1(floor)
 SHADER_MATH_SCALAR_FN1(log)
 SHADER_MATH_SCALAR_FN1(log2)
 SHADER_MATH_SCALAR_FN1(radians)
-SHADER_MATH_SCALAR_FN1(round)
 SHADER_MATH_SCALAR_FN1(sign)
 SHADER_MATH_SCALAR_FN1(sin)
 SHADER_MATH_SCALAR_FN1(sinh)
@@ -1390,6 +1389,19 @@ SHADER_MATH_SCALAR_FN2(pow)
 SHADER_MATH_SCALAR_FN2(step)
 SHADER_MATH_SCALAR_FN3(clamp)
 SHADER_MATH_SCALAR_FN3(smoothstep)
+
+// round on scalars is not a template: libc++ and MSVC declare ::round(float)
+// in the global namespace, and a template would quietly lose to it (halves
+// away from zero). As a plain function an unqualified call is ambiguous
+// there instead; hlsl::round(x) / glsl::round(x) always resolve here.
+SHADER_MATH_INLINE float round(float a) {
+    return round(fvec<2, float>(a))[0];
+}
+#if defined(SHADER_MATH_HAS_HALF)
+SHADER_MATH_INLINE half_t round(half_t a) {
+    return round(fvec<2, half_t>(a))[0];
+}
+#endif
 
 // geometric functions on scalars (one-component vectors)
 template <class A, class B>

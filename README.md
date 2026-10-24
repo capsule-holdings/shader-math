@@ -142,6 +142,8 @@ shader_math::store(m, ptr);                // 行列はコンストラクタの�
 1 レーンで実行するので、丸めや境界値の扱いはベクトルと同じ。`dot` / `length` / `distance` と、
 `modf` / `frexp` / `sincos`（出力引数もスカラー）、`select(bool, a, b)`、`mix(x, y, bool)` もスカラーで使える。
 `isnan` / `isinf` / `isfinite` と幾何関数（`normalize` / `reflect` など）のスカラー版は無い。
+スカラーの `round` だけは、libc++ / MSVC がグローバルに `::round(float)`（.5 は 0 から遠い方へ）を宣言しているので、
+`using namespace hlsl` 下の修飾なしの `round(x)` が曖昧でコンパイルエラーになる。`hlsl::round(x)` と書く
 
 行列への成分ごと適用は **HLSL のみ**（HLSL の intrinsic は行列も取るが、GLSL の汎用関数は
 genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` はコンパイルエラー）。対象は
