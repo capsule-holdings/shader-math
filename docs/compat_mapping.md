@@ -142,6 +142,72 @@ C++ の文法による違い:
   ベクトルがあれば `1.0` も可）
 - `out` / `inout` 引数は参照で受ける（`modf(x, ip)` の `ip` は左辺値）
 
+## 互換のために許しているもの
+
+C++ では区別できないので、言語ではエラーになるのに通るもの:
+
+| 書き方 | 言語 | 理由 |
+| --- | --- | --- |
+| `float3(s)`、`float3(v4)`、`float3x3(s)`、`float2x2(m3)` | HLSL | 同じ変換をキャスト（`(float3)v4`）や暗黙変換（`float3 v = s`）で書くのは正しい HLSL。C++ ではどれも同じコンストラクタを通る |
+| `(vec3)x` | GLSL | C 形式のキャストは C++ の文法 |
+| `if (s)`、`!s`、float の `&&`、float の条件の `?:`、`int i = 1.5` | GLSL | スカラーは C++ の `float` そのもので、C++ の bool への変換・縮小変換が効く |
+| `vec3{1, 2, 3}`、`float3{1, 2, 3}` | 両方 | C++ の波括弧初期化（どちらの言語にも無い） |
+
+C++ の文法のために書けないもの: スカラーへの swizzle（`s.xxx`）、`float1`、`not()` / `and()` / `or()`、double のリテラル
+だけの呼び出し（`max(1.0, 2.0)`）、HLSL のスカラーの `s % t`（`fmod` と書く）、可変長引数への `v.x`、`out` / `inout`
+（参照で受ける）。
+
+値だけに出る差: スカラーだけの式の `1.0` は C++ では double なので、`s * (1.0 / 3.0)` は double で計算されて
+から float に丸まる（シェーダは float で計算する）。ベクトルとの演算はスカラーを要素型に変換してから計算するので
+この差は出ない。
+
+## 言語に無い機能
+
+| 機能 | 有効になる条件 | 注記 |
+| --- | --- | --- |
+| `hlsl::inverse` | 常に | HLSL に無い（DXC はエラー）。GLSL の `inverse` は公式 |
+| `hlsl::matrix::identity()` | 常に | `float4x4::identity()`。シェーダの書き方とは紛れない |
+| `v.store(p)`（ベクトルのメンバー） | 常に | 成分を `p[0..N)` に書く |
+| HLSL ⇔ GLSL の明示変換 | 常に | `glsl::vec3(f)`、`hlsl::float3x3(gm)` |
+| `using` なしの ADL | 常に | 書ける式は増えない（シェーダには名前空間が無い） |
+| 言語が決めていない挙動の固定 | 常に | `glsl::round` の偶数丸め、`min` / `max` の NaN、`rcp` / `rsqrt` の精度、`sign` の戻り値の型 |
+| 内部のメンバー | 常に（public） | `q_` `comp_` `row_` `col_` `flat_` `m_` とレジスタからのコンストラクタ。union の都合で public。利用者向けではない |
+| 出力・`std::format`・構造化束縛・`std::hash`・`load` / `store` | `#include <shader_math/std.hpp>` | |
+| swizzle の重ねがけ、行列の複数成分アクセス | `SHADER_MATH_NESTED_SWIZZLE` / `SHADER_MATH_MATRIX_SWIZZLE(3)` | 言語にある機能。コンパイル時間のためオプトイン |
+| scalar backend の強制、`hlsl` / `glsl` のグローバル別名の抑止 | `SHADER_MATH_FORCE_SCALAR` / `SHADER_MATH_NO_ALIAS` | |
+
+言語をまたいだ修飾付きの呼び出し: 両言語に共通の関数（`dot`、`abs` など）は `hlsl::dot(glsl のベクトル)` のように
+修飾して呼ぶともう片方の言語のベクトルでも通る（言語固有の `hlsl::frac` などは通らない）。
+
+## 処理系による差
+
+コンパイルが通るかどうか:
+
+| 項目 | 差 |
+| --- | --- |
+| 修飾なしのスカラーの `round(s)` | libc++ と MSVC はグローバルの `::round(float)` があるので曖昧（エラー）。libstdc++ は通る |
+| `float16_t` | ARM では `arm_neon.h` の `::float16_t` と曖昧 |
+| `vector r = v4`（`<>` なし） | clang は通る、gcc は通らない |
+| half の型 | C++ で使える `_Float16` が要る（x86: gcc 12+ / clang 15+、AArch64: gcc 13+）。MSVC はソフトウェア実装。無ければ型が無い |
+| `std::format` | `<format>` がある環境だけ（gcc 13+ など） |
+| `<windows.h>` | `min` / `max` マクロと衝突するので `NOMINMAX` が要る |
+
+値:
+
+- FMA の有無（SSE2 だけか、`x86-64-v3` / NEON か）で、`mad` / `fma`、`lerp`、`smoothstep`、行列積の丸めが変わる
+- 利用者のスカラーの式の融合（`-ffp-contract`）はコンパイラによる（clang は既定で融合、gcc は ISO モードでは
+  しない）
+- 超越関数は各処理系の libm（glibc / Apple / UCRT）なので ulp 単位で違う。GPU とも違う
+- half は ARMv8.2 の FEAT_FP16 では 1 演算ごとに fp16 で丸める。それ以外は f32 に広げて計算して戻す（丸めが 2 回）
+- `-ffast-math` では NaN の判定や `min` / `max` の NaN の規則が崩れうる（DXC の DXIL も fast-math）
+- 非正規化数: CPU は既定で扱う。GPU は 0 にすることが多い
+- `floatN`（N < 4）の使わないレーンは値が不定。浮動小数点例外をトラップする設定では例外が上がりうる
+
+表現: 成分アクセスは union の型パンニング（ISO C++ では未定義動作）で、gcc / clang / MSVC の扱いに依存する
+（`constexpr` にできない）。`sizeof(float3) == 16` は言語上の互換で GPU の ABI ではない。シェーダのコンパイラ同士
+にも差がある（Slang の CPU の `round`、DXC の SPIR-V の `lit`、DXIL の `frexp`。[slang_compat.md](slang_compat.md)）。
+shader-math は DXC と公式のドキュメントに合わせる。
+
 ## 対象外
 
 | 分類 | 例 |
