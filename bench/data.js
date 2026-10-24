@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792825491212,
+  "lastUpdate": 1792825493583,
   "repoUrl": "https://github.com/capsule-holdings/shader-math",
   "entries": {
     "linux-x64-gcc": [
@@ -4119,6 +4119,160 @@ window.BENCHMARK_DATA = {
           {
             "name": "half4 a * b + c [scalar]",
             "value": 3.14,
+            "unit": "ns/elem"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "emuesuenu@hotmail.com",
+            "name": "Hidenori Kondo",
+            "username": "emuesuenu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "17d0f3115690cedcd685b66f777ff51f51ba9862",
+          "message": "Compute glsl::mix with GLSL's defining formula (#85)\n\nglsl::mix shared hlsl::lerp's x + a*(y - x). GLSL defines mix as\nx*(1 - a) + y*a, and the two differ at the ends: mix(1e8, 1, 1) is 1 on\nglslang / lavapipe and was 0 here, because x + a*(y - x) loses y next to a\nmuch larger x. glsl::mix now uses detail::mix_impl with the defining\nformula (vector or scalar a, float or half), exact at a = 0 and a = 1.\nhlsl::lerp keeps x + s*(y - x), which is what DXC emits for DXIL.\n\nTests in test_funcs.cpp; GLSL interop case case_exact_mix_ends (bit-exact\nagainst lavapipe). README (ja / en) and docs/glsl_interop.md describe the two\nformulas.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-10-24T15:59:30+09:00",
+          "tree_id": "da5e0dc312a8e150a64bee7fa51e838e865ce17f",
+          "url": "https://github.com/capsule-holdings/shader-math/commit/17d0f3115690cedcd685b66f777ff51f51ba9862"
+        },
+        "date": 1792825492948,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "hlsl mul(float4x4, float4x4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.217,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.212,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.793,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.576,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 4.546,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [SSE2+SSE4.1+FMA+AVX]",
+            "value": 11.757,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.39,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.41,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [SSE2+SSE4.1+FMA+AVX]",
+            "value": 7.432,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.193,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.193,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.313,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.669,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4x4) [scalar]",
+            "value": 2.611,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [scalar]",
+            "value": 2.639,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [scalar]",
+            "value": 0.628,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [scalar]",
+            "value": 4.244,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [scalar]",
+            "value": 4.349,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [scalar]",
+            "value": 12.102,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [scalar]",
+            "value": 1.628,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [scalar]",
+            "value": 0.815,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [scalar]",
+            "value": 7.634,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [scalar]",
+            "value": 0.574,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [scalar]",
+            "value": 0.142,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [scalar]",
+            "value": 0.985,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [scalar]",
+            "value": 3.027,
             "unit": "ns/elem"
           }
         ]
