@@ -180,3 +180,13 @@ vec4 case_approx_transcend(vec4 a, vec4 b)
     r = r + asinh(a) + acosh(abs(a) + 1.0f) + atanh(s * 0.5f);
     return r + pow(abs(b) + 0.5f, vec4(1.5f)) + radians(a * 10.0f) + degrees(s) * 0.01f;
 }
+
+// ---- near: edge values ----------------------------------------------------------
+// negative operands of mod, equal step bounds, fract of a signed zero
+vec4 case_near_edges(vec4 a, vec4 b)
+{
+    vec4 m = mod(a * 2.0f, -b) + mod(-a, b);
+    vec4 s = step(a, a) + step(b, a);
+    vec4 z = fract(b * 0.0f);
+    return m + s * 4.0f + z * 16.0f;
+}

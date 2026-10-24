@@ -29,6 +29,7 @@ CI は `linux-x64-glsl-interop` ジョブで実行する。
 | `near_inverse` | `inverse`、`determinant` |
 | `near_mod` | `mod` は floor 基準で y の符号（HLSL の `fmod` と逆）、`mix`、`modf`、`fma` |
 | `near_geometry` | `reflect` `refract` `faceforward` `distance` `inversesqrt` `smoothstep` |
+| `near_edges` | `mod` の負の被除数・除数、`step` の等しい境界（1 になる）、`fract(-0)` |
 | `approx_transcend` | `atan(y, x)`、逆三角・三角・指数・対数・`pow`・`radians` `degrees` |
 
 ## half（`f16vec` / `f16mat`）
