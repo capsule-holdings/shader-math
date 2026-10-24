@@ -134,8 +134,14 @@ shader_math::store(m, ptr);                // 行列はコンストラクタの�
 ## 成分ごと関数（intrinsics）
 
 ベクトル（float / half）に対する成分ごと関数。スカラー第 2/3 引数は演算子と同じ規則
-（float ベクトルは算術スカラー可、half ベクトルは half のみ）。純スカラーには定義しない
-（`std::` を使う）。
+（float ベクトルは算術スカラー可、half ベクトルは half のみ）。
+
+スカラーにも効く（`max(dot(n, l), 0.0)`、`saturate(v.x)`、`lerp(a, b, 0.5f)`）。ベクトル引数が無く、
+少なくとも 1 つが float / half / 1 成分の swizzle（`v.x`）/ 行列の要素（`m._11`）の呼び出しがスカラー版になり、
+ほかの引数は上と同じ規則で変換される（`2.0` だけの呼び出しは対象外なので `2.0f` と書く）。中身はベクトル版を
+1 レーンで実行するので、丸めや境界値の扱いはベクトルと同じ。`dot` / `length` / `distance` と、
+`modf` / `frexp` / `sincos`（出力引数もスカラー）、`select(bool, a, b)`、`mix(x, y, bool)` もスカラーで使える。
+`isnan` / `isinf` / `isfinite` と幾何関数（`normalize` / `reflect` など）のスカラー版は無い。
 
 行列への成分ごと適用は **HLSL のみ**（HLSL の intrinsic は行列も取るが、GLSL の汎用関数は
 genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` はコンパイルエラー）。対象は
