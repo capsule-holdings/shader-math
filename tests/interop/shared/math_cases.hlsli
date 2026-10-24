@@ -230,6 +230,24 @@ float4 case_exact_nan_rules(float4 a, float4 b)
     return m + s;
 }
 
+// edge values: negative operands, equal and reversed bounds, signed zero
+float4 case_near_edges(float4 a, float4 b)
+{
+    float4 f = fmod(a * 2.0f, -b) + fmod(-a, b);
+    float4 s = step(a, a) + step(b, a);
+    float4 c = clamp(a, 1.0f, 0.0f);
+    float4 z = frac(b * 0.0f) + smoothstep(1.0f, 0.0f, a * 0.25f);
+    return f + s * 4.0f + c * 8.0f + z * 16.0f;
+}
+
+// rcp / rsqrt of a signed zero are infinities. Not in the DXIL check: DXC
+// compiles DXIL with fast-math flags, which assume no infinities
+float4 case_exact_inf_edges(float4 a)
+{
+    float4 z = a - a;
+    return float4(rcp(z).x, rsqrt(z).y, rcp(-z).z, rcp(a).w);
+}
+
 // lit's specular term is (n.h)^m (Microsoft's lit documentation, Slang,
 // DXC's DXIL backend, shader-math); DXC's SPIR-V backend emits (n.h) * m,
 // so only its SPIR-V check leaves this case out (dxc/dxc_case_list.h)

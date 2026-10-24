@@ -30,12 +30,13 @@
 // SM_INTEROP_CASES_BASE is everything Slang and both DXC backends check;
 // SM_INTEROP_CASES (Slang) adds lit, which DXC's SPIR-V backend computes
 // differently (see case_near_lit; the DXIL list adds it as well), and the
-// NaN rules, which DXC's fast-math DXIL cannot keep (the SPIR-V list adds
-// them as well).
+// NaN rules and infinities, which DXC's fast-math DXIL cannot keep (the
+// SPIR-V list adds them as well).
 #define SM_INTEROP_CASES(X)                                    \
     SM_INTEROP_CASES_BASE(X)                                   \
     X(near_lit, case_near_lit())                               \
-    X(exact_nan_rules, case_exact_nan_rules(IN_A, IN_B))
+    X(exact_nan_rules, case_exact_nan_rules(IN_A, IN_B))       \
+    X(exact_inf_edges, case_exact_inf_edges(IN_A))
 
 #define SM_INTEROP_CASES_BASE(X)                               \
     X(exact_hadamard, case_exact_hadamard(IN_A, IN_B))         \
@@ -56,4 +57,5 @@
     X(near_misc, case_near_misc(IN_A, IN_B))                   \
     X(exact_select_bool, case_exact_select_bool(IN_A, IN_B))   \
     X(near_log10_ldexp, case_near_log10_ldexp(IN_A, IN_B))     \
-    X(near_scalar, case_near_scalar(IN_A, IN_B))
+    X(near_scalar, case_near_scalar(IN_A, IN_B))               \
+    X(near_edges, case_near_edges(IN_A, IN_B))

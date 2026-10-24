@@ -13,7 +13,8 @@ Tolerance is chosen from the case-name prefix:
   half_   relative 2e-3 (binary16 ulp + promoted-path rounding)
 --tol=<case>:<relative> overrides that for one case of this run (the shared
 case names are fixed across references, a looser device is not).
-NaN == NaN is accepted (bit pattern may differ).
+NaN == NaN is accepted (bit pattern may differ); an infinity matches only an
+infinity of the same sign, whatever the tier.
 
 Exit codes: 0 = match, 1 = mismatch/error.
 """
@@ -98,6 +99,8 @@ def main():
         tol = tolerance(key, overrides)
         if math.isnan(sf) or math.isnan(cf):
             ok = math.isnan(sf) and math.isnan(cf)
+        elif math.isinf(sf) or math.isinf(cf):
+            ok = sf == cf  # an infinity matches only the same infinity
         elif tol == 0.0:
             ok = sb == cb
         else:

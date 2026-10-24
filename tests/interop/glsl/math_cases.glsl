@@ -198,3 +198,13 @@ vec4 case_exact_mix_ends(vec4 a, vec4 b)
     vec4 big = a * 1.0e8f;
     return mix(big, b, 1.0f) + mix(b, big, vec4(0.0f));
 }
+
+// ---- near: edge values ----------------------------------------------------------
+// negative operands of mod, equal step bounds, fract of a signed zero
+vec4 case_near_edges(vec4 a, vec4 b)
+{
+    vec4 m = mod(a * 2.0f, -b) + mod(-a, b);
+    vec4 s = step(a, a) + step(b, a);
+    vec4 z = fract(b * 0.0f);
+    return m + s * 4.0f + z * 16.0f;
+}

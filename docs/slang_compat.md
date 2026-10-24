@@ -112,6 +112,8 @@ DXC で分かった差:
 - **WARP の逆三角関数の精度**: WARP の `asin` / `acos` / `atan`（`atan2` も）は libm と最大 1e-3 程度ずれる
   （sin / cos / exp2 / log2 / pow などは `near_` の 1e-5 に収まる）。DXIL の照合だけ、これらを使う
   `near_inverse_trig` と `near_matrix_intrinsics` の許容誤差を相対 2e-3 にしている（`compare.py --tol=`）
+- **inf / NaN（DXIL）**: DXC は DXIL を fast-math（inf / NaN が無い前提）で生成するので、inf / NaN を扱うケース
+  （`case_exact_inf_edges` など）は Slang と DXC の SPIR-V だけで照合する
 - half: `-enable-16bit-types` を付けないと DXC の `half` は 32 ビット float（min precision）になる
 - DXC は手動更新（`ci.yml` の `dxc_version` / `dxc_asset` / `dxc_sha256` を一緒に変える）
 
