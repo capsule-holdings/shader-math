@@ -224,7 +224,7 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
   （`m._m00_m11`、`m._41_42`）、`SHADER_MATH_MATRIX_SWIZZLE3` で 3 成分（`m._m30_m31_m32`）も有効になる。
   どちらも行列の形の範囲内だけで、重複の無いものは書き込める。4 成分は無い（行は `m[3]`、それ以外は
   `float4(m._m00, m._m11, m._m22, m._m33)` と書く）。メンバ宣言が組み合わせで増えるため、
-  `bench/compile_time.py`（全行列型を使う翻訳単位）で 2 成分は約 1.2 倍、3 成分は gcc で約 12 倍・clang で約 4 倍
+  `bench/compile_time.py`（全行列型を使う翻訳単位）で 2 成分は約 1.2 倍、3 成分は gcc・clang とも約 4 倍
 - GLSL の `.stpq` swizzle は**オプトイン**: `SHADER_MATH_GLSL_STPQ` を定義すると有効
   （CMake では `-DSHADER_MATH_GLSL_STPQ=ON`、インストール済みパッケージは `find_package` の前に
   `set(SHADER_MATH_GLSL_STPQ ON)`。どちらも `shader_math::shader_math` に付くので全翻訳単位で揃う）。

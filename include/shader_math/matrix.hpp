@@ -228,7 +228,17 @@ struct vec_traits<mmswz<T, R, F...>> {
 #  else
 #    define SM_MX_TRIPLES(R, C, a, b, a1, b1, e, f, e1, f1)
 #  endif
-#  define SM_MX_AT1(R, C, a, b, a1, b1) SM_MX_RB##R(R, C, SM_MX_AT2, a, b, a1, b1)
+// gcc's front-end time grows faster than linearly with the member count of
+// one class scope, so on gcc each first element gets its own nested
+// anonymous union (thousands of members per scope become hundreds). Nested
+// anonymous unions are an extension: gcc accepts them silently, clang warns
+// under -Wpedantic and gets slower, so other compilers keep one flat union.
+#  if defined(__GNUC__) && !defined(__clang__)
+#    define SM_MX_GROUP(...) union { __VA_ARGS__ };
+#  else
+#    define SM_MX_GROUP(...) __VA_ARGS__
+#  endif
+#  define SM_MX_AT1(R, C, a, b, a1, b1) SM_MX_GROUP(SM_MX_RB##R(R, C, SM_MX_AT2, a, b, a1, b1))
 #  define SM_MX_AT2(R, C, a, b, a1, b1, e, f, e1, f1)                          \
       ::shader_math::detail::mmswz<T, R, a * 4 + b, e * 4 + f>                 \
           _m##a##b##_m##e##f, _##a1##b1##_##e1##f1;                            \
@@ -263,6 +273,7 @@ SM_MX_STORE(4, 4)
 #  undef SM_MX_STORE
 #  undef SM_MX_MULTI
 #  undef SM_MX_AT1
+#  undef SM_MX_GROUP
 #  undef SM_MX_AT2
 #  undef SM_MX_AT3
 #  undef SM_MX_TRIPLES
