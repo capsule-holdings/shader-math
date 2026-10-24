@@ -74,7 +74,7 @@ void test_cross_lang() {
         g::mat4 gM(M);
         CHECK_NEAR(h::determinant(M), g::determinant(gM));
 
-        h::float4x4 hi = h::inverse(M);
+        h::float4x4 hi = shader_math::ext::inverse(M);
         g::mat4 gi = g::inverse(gM);
         for (int r = 0; r < 4; ++r)
             for (int c = 0; c < 4; ++c) CHECK_NEAR(gi[c][r], hi[r][c]);

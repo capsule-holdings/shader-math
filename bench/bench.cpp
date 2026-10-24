@@ -125,12 +125,12 @@ int main(int argc, char** argv) {
                         keep(out[0]);
                     })});
     rows.push_back({"hlsl inverse(float4x4)", best_ns_per_elem([&] {
-                        for (int i = 0; i < kCount; ++i) mo[i] = h::inverse(m[i]);
+                        for (int i = 0; i < kCount; ++i) mo[i] = shader_math::ext::inverse(m[i]);
                         keep(mo[0]);
                     })});
     h::float4x4 chain_m = m[7];
     rows.push_back({"hlsl inverse(float4x4) latency", best_ns_per_elem([&] {
-                        for (int i = 0; i < kCount; ++i) chain_m = h::inverse(chain_m);
+                        for (int i = 0; i < kCount; ++i) chain_m = shader_math::ext::inverse(chain_m);
                         keep(chain_m);
                     })});
     rows.push_back({"dot(float4, float4)", best_ns_per_elem([&] {

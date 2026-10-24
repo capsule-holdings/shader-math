@@ -61,50 +61,102 @@ using f16mat4x3 = matrix<4, 3, detail::half_t>;
 using f16mat4x4 = matrix<4, 4, detail::half_t>;
 #endif
 
-// re-export shared functions so `using namespace glsl;` provides them
-using detail::all;
-using detail::any;
-using detail::cross;
-using detail::dot;
-using detail::length;
-using detail::normalize;
-using detail::distance;
-using detail::reflect;
-using detail::refract;
-using detail::faceforward;
+// shared functions under glsl:: names, for glsl arguments only
+SHADER_MATH_LANG_FORWARD(cross)
+SHADER_MATH_LANG_FORWARD(dot)
+SHADER_MATH_LANG_FORWARD(length)
+SHADER_MATH_LANG_FORWARD(normalize)
+SHADER_MATH_LANG_FORWARD(distance)
+SHADER_MATH_LANG_FORWARD(reflect)
+SHADER_MATH_LANG_FORWARD(refract)
+SHADER_MATH_LANG_FORWARD(faceforward)
+SHADER_MATH_LANG_FORWARD(abs)
+SHADER_MATH_LANG_FORWARD(acos)
+SHADER_MATH_LANG_FORWARD(asin)
+SHADER_MATH_LANG_FORWARD(atan)
+SHADER_MATH_LANG_FORWARD(cosh)
+SHADER_MATH_LANG_FORWARD(degrees)
+SHADER_MATH_LANG_FORWARD(modf)
+SHADER_MATH_LANG_FORWARD(radians)
+SHADER_MATH_LANG_FORWARD(sinh)
+SHADER_MATH_LANG_FORWARD(tanh)
+SHADER_MATH_LANG_FORWARD(ceil)
+SHADER_MATH_LANG_FORWARD(clamp)
+SHADER_MATH_LANG_FORWARD(cos)
+SHADER_MATH_LANG_FORWARD(exp)
+SHADER_MATH_LANG_FORWARD(exp2)
+SHADER_MATH_LANG_FORWARD(floor)
+SHADER_MATH_LANG_FORWARD(log)
+SHADER_MATH_LANG_FORWARD(log2)
+SHADER_MATH_LANG_FORWARD(max)
+SHADER_MATH_LANG_FORWARD(min)
+SHADER_MATH_LANG_FORWARD(pow)
+SHADER_MATH_LANG_FORWARD(sign)
+SHADER_MATH_LANG_FORWARD(sin)
+SHADER_MATH_LANG_FORWARD(smoothstep)
+SHADER_MATH_LANG_FORWARD(sqrt)
+SHADER_MATH_LANG_FORWARD(step)
+SHADER_MATH_LANG_FORWARD(tan)
+SHADER_MATH_LANG_FORWARD(trunc)
 
-// component-wise functions with identical names in both languages
-using detail::abs;
-using detail::acos;
-using detail::asin;
-using detail::atan;
-using detail::cosh;
-using detail::degrees;
-using detail::isinf;
-using detail::isnan;
-using detail::modf;
-using detail::radians;
-using detail::sinh;
-using detail::tanh;
-using detail::ceil;
-using detail::clamp;
-using detail::cos;
-using detail::exp;
-using detail::exp2;
-using detail::floor;
-using detail::log;
-using detail::log2;
-using detail::max;
-using detail::min;
-using detail::pow;
-using detail::round;
-using detail::sign;
-using detail::sin;
-using detail::smoothstep;
-using detail::sqrt;
-using detail::step;
-using detail::tan;
-using detail::trunc;
+// isnan / isinf / round / all / any have explicit signatures. The vector
+// forms name the vector type because the MSVC UCRT declares unconstrained
+// isnan(_Ty) / isinf(_Ty) templates that only a more specialized parameter
+// beats (see detail::isnan). The scalar isnan / isinf take their argument by
+// value so that against those templates the constraint decides; where the C
+// library has a plain isnan(float) it wins, with the same result. Scalar
+// round is a plain function: libc++ and MSVC declare ::round(float) (halves
+// away from zero), which a template would quietly lose to; this way an
+// unqualified round(x) is ambiguous there and qualified calls always resolve.
+template <int N, class T>
+SHADER_MATH_INLINE detail::bvec<N, lang_tag> isnan(const detail::gvec<N, T>& v) {
+    return detail::isnan(v);
+}
+template <class T, int N, int... Is>
+    requires(sizeof...(Is) >= 2)
+SHADER_MATH_INLINE auto isnan(const detail::swz<T, N, lang_tag, Is...>& s) {
+    return detail::isnan(s);
+}
+template <class A>
+    requires detail::ScalarCall<A>
+SHADER_MATH_INLINE bool isnan(A a) {
+    return detail::isnan(detail::lane1<detail::scalar_call_t<A>, lang_tag>(a))[0];
+}
+template <int N, class T>
+SHADER_MATH_INLINE detail::bvec<N, lang_tag> isinf(const detail::gvec<N, T>& v) {
+    return detail::isinf(v);
+}
+template <class T, int N, int... Is>
+    requires(sizeof...(Is) >= 2)
+SHADER_MATH_INLINE auto isinf(const detail::swz<T, N, lang_tag, Is...>& s) {
+    return detail::isinf(s);
+}
+template <class A>
+    requires detail::ScalarCall<A>
+SHADER_MATH_INLINE bool isinf(A a) {
+    return detail::isinf(detail::lane1<detail::scalar_call_t<A>, lang_tag>(a))[0];
+}
+SHADER_MATH_INLINE float round(float a) {
+    return detail::round_lane(a);
+}
+#if defined(SHADER_MATH_HAS_HALF)
+SHADER_MATH_INLINE detail::half_t round(detail::half_t a) {
+    return detail::round_lane(a);
+}
+#endif
+template <class A>
+    requires detail::VecOf<A, lang_tag>
+SHADER_MATH_INLINE auto round(const A& a) {
+    return detail::round(a);
+}
+template <int N>
+SHADER_MATH_INLINE bool all(const detail::bvec<N, lang_tag>& b) {
+    return detail::all(b);
+}
+template <int N>
+SHADER_MATH_INLINE bool any(const detail::bvec<N, lang_tag>& b) {
+    return detail::any(b);
+}
 
 // GLSL-only spellings (defined here, not in detail, so they never leak into
 // hlsl; the language tag makes ADL find them on glsl vectors)

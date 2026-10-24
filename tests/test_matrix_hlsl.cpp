@@ -180,7 +180,7 @@ void test_matrix_hlsl() {
         float3x3 m3b = {4, 3, 2, 1, 5, 7, 9, 6, 8};
         const float d3 = determinant(m3b);
         CHECK(!near_f(d3, 0.0f));
-        float3x3 i3 = mul(m3b, inverse(m3b));
+        float3x3 i3 = mul(m3b, shader_math::ext::inverse(m3b));
         for (int r = 0; r < 3; ++r)
             for (int c = 0; c < 3; ++c) CHECK_NEAR(i3[r][c], r == c ? 1.0f : 0.0f);
         (void)m3;
@@ -188,7 +188,7 @@ void test_matrix_hlsl() {
         float4x4 m4 = {4, 0, 0, 1, 0, 3, 0, 2, 1, 0, 2, 0, 0, 2, 0, 5};
         const float d4 = determinant(m4);
         CHECK(!near_f(d4, 0.0f));
-        float4x4 i4 = mul(m4, inverse(m4));
+        float4x4 i4 = mul(m4, shader_math::ext::inverse(m4));
         for (int r = 0; r < 4; ++r)
             for (int c = 0; c < 4; ++c) CHECK_NEAR(i4[r][c], r == c ? 1.0f : 0.0f);
 
