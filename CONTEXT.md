@@ -116,6 +116,13 @@ swizzle プロキシが同じ 16 バイトを共有する。演算は `q_` に�
 - 言語で意味が分かれる演算（行列 `*`、比較）と言語固有の名前（`frac`、`mix` 等）→ 各言語名前空間。
   言語タグがその名前空間のクラスなので、ベクトルでも ADL で見つかる（using-directive 不要）。
   もう片方の言語のベクトルには見つからず、修飾して呼んでも制約で弾く
+- 言語共通の関数も、各言語名前空間には `using detail::X` ではなく自分の言語の引数だけを取る転送テンプレート
+  （`SHADER_MATH_LANG_FORWARD`）で置く。`using` だと `hlsl::dot(glsl のベクトル)` が通ってしまう。
+  `isnan` / `isinf` / `round` / `all` / `any` は MSVC UCRT の `isnan(_Ty)` や `::round(float)` との兼ね合いで
+  シグネチャを明示する。スカラーの `round` / `isnan` / `isinf` は言語名前空間にだけ置く（`detail` にも同じものが
+  あると、成分 `v.x` を渡した呼び出しが ADL で曖昧になる）
+- 言語に無い機能（`inverse` の HLSL 版など）は `shader_math::ext`。どの型の関連名前空間でもないので ADL では
+  見つからず、シェーダの書き方のまま（`inverse(m)`）では通らない
 - トップレベル `hlsl` / `glsl` の直置きは却下（DirectXShaderCompiler が `hlsl` 名前空間を使う等、
   衝突リスク）。ルート `shader_math` 配下 + グローバルエイリアスで解決
 

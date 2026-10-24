@@ -120,6 +120,40 @@ static_assert(!std::is_convertible_v<g::vec4, g::mat2>);
 static_assert(!std::is_constructible_v<g::vec3, h::float2, h::float2>);  // one language
 static_assert(std::is_convertible_v<bool, h::bool3> && !std::is_convertible_v<bool, g::bvec3>);
 
+// ---- a language namespace takes its own language's arguments only, qualified or not ----
+template <class A>
+concept hlsl_dot = requires(const A& a) { h::dot(a, a); };
+template <class A>
+concept glsl_dot = requires(const A& a) { g::dot(a, a); };
+template <class A>
+concept hlsl_abs = requires(const A& a) { h::abs(a); };
+template <class A>
+concept hlsl_isnan = requires(const A& a) { h::isnan(a); };
+template <class A>
+concept hlsl_round = requires(const A& a) { h::round(a); };
+template <class A>
+concept hlsl_all = requires(const A& a) { h::all(a); };
+template <class A>
+concept adl_dot = requires(const A& a) { dot(a, a); };
+static_assert(hlsl_dot<h::float3> && !hlsl_dot<g::vec3>);
+static_assert(glsl_dot<g::vec3> && !glsl_dot<h::float3>);
+static_assert(hlsl_abs<h::float3> && !hlsl_abs<g::vec3> && hlsl_abs<float>);
+static_assert(hlsl_isnan<h::float3> && !hlsl_isnan<g::vec3> && hlsl_isnan<float>);
+static_assert(hlsl_round<h::float3> && !hlsl_round<g::vec3> && hlsl_round<float>);
+static_assert(hlsl_all<h::bool3> && !hlsl_all<g::bvec3>);
+static_assert(adl_dot<h::float3> && adl_dot<g::vec3>);
+// one-component swizzles are scalars: either namespace takes them
+static_assert(requires(h::float3 v) { h::round(v.x); h::isnan(v.y); h::abs(v.z); });
+static_assert(requires(g::vec3 v) { g::round(v.x); g::isnan(v.y); g::abs(v.z); });
+
+// ---- extensions are reachable qualified only (shader_math::ext) -------------------
+template <class M>
+concept adl_inverse = requires(const M& m) { inverse(m); };
+template <class M>
+concept ext_inverse = requires(const M& m) { shader_math::ext::inverse(m); };
+static_assert(!adl_inverse<h::float3x3> && ext_inverse<h::float3x3>);
+static_assert(adl_inverse<g::mat3>);  // GLSL's own inverse
+
 // ---- glsl .length() is the component (column) count; hlsl has no such member --------
 template <class V>
 concept has_length_member = requires(const V& v) { v.length(); };

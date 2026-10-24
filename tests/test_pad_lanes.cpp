@@ -73,7 +73,7 @@ void test_hlsl_matrices() {
     CHECK(all(mul(m, m) == mul(clean, clean)));
     CHECK(all(m == clean));
     CHECK_EQF(determinant(m), determinant(clean));
-    CHECK(all(inverse(m) == inverse(clean)));
+    CHECK(all(shader_math::ext::inverse(m) == shader_math::ext::inverse(clean)));
     CHECK(all(transpose(m) == transpose(clean)));
 }
 

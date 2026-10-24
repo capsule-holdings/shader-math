@@ -81,7 +81,9 @@ void glsl_side() {
 | 単項 `+`、`++` / `--` | ベクトル・行列 | 同左 |
 | 複合代入 | `%=` も可 | `v *= m`（正方行列）も可 |
 
-`transpose` / `determinant` / `inverse` / `dot` / `cross` / `length` / `normalize` / `all` / `any` は両方にある（`inverse` は GLSL 公式・HLSL 側は拡張）。
+`transpose` / `determinant` / `dot` / `cross` / `length` / `normalize` / `all` / `any` は両方にある。`inverse` は GLSL のみで、
+HLSL の行列には拡張の `shader_math::ext::inverse(m)` を使う（言語に無い機能は `shader_math::ext` に置き、修飾して呼んだときだけ
+使えるようにしている）。`hlsl::` / `glsl::` の関数は自分の言語の引数だけを取る（`hlsl::dot(glsl のベクトル)` はエラー）。
 
 ## Restrict 設計（未定義の演算はコンパイルエラー）
 

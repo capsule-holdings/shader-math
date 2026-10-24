@@ -222,7 +222,7 @@ void test_inverse() {
                 m[r * 4 + c] = (r == c) ? 8.0f + 4.0f * rng.unit() : rng.unit() * 2.0f - 1.0f;
         const float4x4 a(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11],
                          m[12], m[13], m[14], m[15]);
-        const float4x4 p = mul(a, inverse(a));
+        const float4x4 p = mul(a, shader_math::ext::inverse(a));
         for (int r = 0; r < 4 && ok; ++r)
             for (int c = 0; c < 4 && ok; ++c) ok = std::fabs(p[r][c] - (r == c ? 1.0f : 0.0f)) < 1e-5f;
         if (!ok) report("inverse", it, m, 16);

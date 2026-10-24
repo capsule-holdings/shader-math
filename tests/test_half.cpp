@@ -240,7 +240,7 @@ static void test_half_matrix_hlsl() {
     // underflows quickly), relaxed comparison
     CHECK_EQF(static_cast<float>(determinant(id)), 1.0f);
     CHECK_NEAR_H(determinant(scale), 64.0f);
-    const half3x3 inv = inverse(scale);
+    const half3x3 inv = shader_math::ext::inverse(scale);
     CHECK_NEAR_H(static_cast<float>(inv[0][0]), 0.5f);
     CHECK_NEAR_H(static_cast<float>(inv[1][1]), 0.25f);
     CHECK_NEAR_H(static_cast<float>(inv[2][2]), 0.125f);

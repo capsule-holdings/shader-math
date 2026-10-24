@@ -34,7 +34,7 @@
 
 | 項目 | 理由 |
 | --- | --- |
-| `inverse` | shader-math の拡張（GLSL 由来）。HLSL/Slang に同名 intrinsic が無い |
+| `inverse` | HLSL / Slang に同名 intrinsic が無い（shader-math では拡張の `shader_math::ext::inverse`） |
 | リソース型・テクスチャ | `StructuredBuffer` 等はラッパ（`kernels.slang`）側のみ。共有数式は純関数に限る |
 | Slang のジェネリクス / `interface` | C++ 側に対応物が無い（このハーネスの対象は数式サブセットのみ） |
 | `v.x` の可変長引数直渡し | shader-math の `v.x` はプロキシ型。`printf` 等には `float(v.x)`（共有数式では非該当だが注意） |

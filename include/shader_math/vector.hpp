@@ -1428,25 +1428,14 @@ SHADER_MATH_INLINE bool any(const bvec<N, Lg>& b) {
 }
 
 // ---- bmat: matrix comparison result (HLSL) ---------------------------------
-template <int R, int C>
+// Lg is always hlsl's tag: it makes hlsl an associated namespace, where its
+// all() / any() are
+template <int R, int C, class Lg = hlsl::lang_tag>
 struct bmat {
-    bvec<C, hlsl::lang_tag> row_[R];
-    SHADER_MATH_INLINE bvec<C, hlsl::lang_tag>& operator[](int r) { return row_[r]; }
-    SHADER_MATH_INLINE const bvec<C, hlsl::lang_tag>& operator[](int r) const { return row_[r]; }
+    bvec<C, Lg> row_[R];
+    SHADER_MATH_INLINE bvec<C, Lg>& operator[](int r) { return row_[r]; }
+    SHADER_MATH_INLINE const bvec<C, Lg>& operator[](int r) const { return row_[r]; }
 };
-
-template <int R, int C>
-SHADER_MATH_INLINE bool all(const bmat<R, C>& b) {
-    for (int r = 0; r < R; ++r)
-        if (!all(b.row_[r])) return false;
-    return true;
-}
-template <int R, int C>
-SHADER_MATH_INLINE bool any(const bmat<R, C>& b) {
-    for (int r = 0; r < R; ++r)
-        if (any(b.row_[r])) return true;
-    return false;
-}
 
 // isnan / isinf (both languages), hlsl::isfinite.
 // The parameters name fvec / swz explicitly instead of a generic VecLike: the
@@ -1566,6 +1555,20 @@ using lang_tag = hlsl::lang_tag;
 }  // namespace detail
 }  // namespace shader_math
 
+// A shared function of detail under a language namespace's name, for that
+// language's arguments only (hlsl::dot rejects glsl vectors). The enclosing
+// namespace declares lang_tag. Unqualified calls also reach detail's own
+// overloads through ADL; either one runs the same detail code.
+#define SHADER_MATH_LANG_FORWARD(name)                                                   \
+    template <class... As>                                                               \
+        requires(::shader_math::detail::ArgsOf<lang_tag, std::remove_cvref_t<As>...> &&  \
+                 requires(As&&... as) {                                                  \
+                     ::shader_math::detail::name(static_cast<As&&>(as)...);              \
+                 })                                                                      \
+    SHADER_MATH_INLINE decltype(auto) name(As&&... as) {                                 \
+        return ::shader_math::detail::name(static_cast<As&&>(as)...);                   \
+    }
+
 // Scalar overloads of a component-wise function `name` that has vector
 // overloads in the enclosing namespace, which declares lang_tag.
 #define SHADER_MATH_SCALAR_LANE(T_, x) ::shader_math::detail::lane1<T_, lang_tag>(x)
@@ -1623,39 +1626,16 @@ SHADER_MATH_SCALAR_FN2(step)
 SHADER_MATH_SCALAR_FN3(clamp)
 SHADER_MATH_SCALAR_FN3(smoothstep)
 
-// round on scalars is not a template: libc++ and MSVC declare ::round(float)
-// in the global namespace, and a template would quietly lose to it (halves
-// away from zero). As a plain function an unqualified call is ambiguous
-// there instead; hlsl::round(x) / glsl::round(x) always resolve here.
-// The bodies work on the register directly: a vector here would be
-// instantiated by every translation unit that includes the library.
+// Scalar round of the language namespaces (round(float) / round(half) live
+// there, not here: a second, identical overload in detail would make a call
+// on a component (round(v.x)) ambiguous through ADL). On the register
+// directly: a vector here would be instantiated by every translation unit
+// that includes the library.
 template <class T>
 SHADER_MATH_INLINE T round_lane(T a) {
     T t[4];
     vops<T>::store4(vops<T>::rnd_even(vops<T>::splat(a)), t);
     return t[0];
-}
-SHADER_MATH_INLINE float round(float a) {
-    return round_lane(a);
-}
-#if defined(SHADER_MATH_HAS_HALF)
-SHADER_MATH_INLINE half_t round(half_t a) {
-    return round_lane(a);
-}
-#endif
-
-// isnan / isinf on scalars: by value, so that against the MSVC UCRT's
-// unconstrained isnan(_Ty) the constraint decides (see isnan above); where
-// the C library has a plain isnan(float) it wins, with the same result
-template <class A>
-    requires ScalarCall<A>
-SHADER_MATH_INLINE bool isnan(A a) {
-    return isnan(lane1<scalar_call_t<A>, lang_tag>(a))[0];
-}
-template <class A>
-    requires ScalarCall<A>
-SHADER_MATH_INLINE bool isinf(A a) {
-    return isinf(lane1<scalar_call_t<A>, lang_tag>(a))[0];
 }
 
 // geometric functions on scalars (one-component vectors)

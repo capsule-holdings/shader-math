@@ -128,7 +128,7 @@
 | `sincos(x, out s, out c)` | − | ○ / − | |
 | `dot` `cross` `length` `distance` `normalize` `reflect` `refract` `faceforward` | 同名 | ○ / ○ | スカラー版も可。`refract` は全反射でゼロ |
 | `transpose` `determinant` | 同名 | ○ / ○ | |
-| −（`inverse` は無い） | `inverse` | △ / ○ | HLSL 側は拡張として `hlsl::inverse` がある（HLSL ではエラーになる書き方） |
+| −（`inverse` は無い） | `inverse` | − / ○ | HLSL の行列には拡張の `shader_math::ext::inverse(m)`（修飾したときだけ使える） |
 | − | `matrixCompMult` `outerProduct` | − / ○ | HLSL の成分ごと積は `*` |
 | `all` `any`（数値・bool のベクトル・行列・スカラー） | `all` `any`（bvec のみ） | ○ / ○ | 数値は 0 以外が真（NaN も真）。HLSL のスカラーの bool `all(c)` は × |
 | − | `lessThan` `lessThanEqual` `greaterThan` `greaterThanEqual` `equal` `notEqual` | − / ○ | |
@@ -165,7 +165,7 @@ C++ の文法のために書けないもの: スカラーへの swizzle（`s.xxx
 
 | 機能 | 有効になる条件 | 注記 |
 | --- | --- | --- |
-| `hlsl::inverse` | 常に | HLSL に無い（DXC はエラー）。GLSL の `inverse` は公式 |
+| `shader_math::ext::inverse` | 修飾して呼んだとき | HLSL の行列の逆行列（HLSL に無い）。言語に無い機能は `shader_math::ext` に置き、シェーダの書き方のままでは通らないようにしている |
 | `hlsl::matrix::identity()` | 常に | `float4x4::identity()`。シェーダの書き方とは紛れない |
 | `v.store(p)`（ベクトルのメンバー） | 常に | 成分を `p[0..N)` に書く |
 | HLSL ⇔ GLSL の明示変換 | 常に | `glsl::vec3(f)`、`hlsl::float3x3(gm)` |
@@ -176,8 +176,8 @@ C++ の文法のために書けないもの: スカラーへの swizzle（`s.xxx
 | swizzle の重ねがけ、行列の複数成分アクセス | `SHADER_MATH_NESTED_SWIZZLE` / `SHADER_MATH_MATRIX_SWIZZLE(3)` | 言語にある機能。コンパイル時間のためオプトイン |
 | scalar backend の強制、`hlsl` / `glsl` のグローバル別名の抑止 | `SHADER_MATH_FORCE_SCALAR` / `SHADER_MATH_NO_ALIAS` | |
 
-言語をまたいだ修飾付きの呼び出し: 両言語に共通の関数（`dot`、`abs` など）は `hlsl::dot(glsl のベクトル)` のように
-修飾して呼ぶともう片方の言語のベクトルでも通る（言語固有の `hlsl::frac` などは通らない）。
+言語の名前空間の関数は、修飾して呼んでも自分の言語の引数だけを取る（`hlsl::dot(glsl のベクトル)`、
+`glsl::abs(hlsl のベクトル)` はエラー）。
 
 ## 処理系による差
 

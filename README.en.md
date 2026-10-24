@@ -66,7 +66,7 @@ The main differences only; the full HLSL / GLSL / shader-math mapping (types, co
 | unary `+`, `++` / `--` | vectors and matrices | same |
 | compound assignment | also `%=` | also `v *= m` (square `m`) |
 
-`transpose`, `determinant`, `inverse`, `dot`, `cross`, `length`, `normalize`, `all` and `any` exist in both (`inverse` is official GLSL and an extension on the HLSL side).
+`transpose`, `determinant`, `dot`, `cross`, `length`, `normalize`, `all` and `any` exist in both. `inverse` is GLSL's; for HLSL matrices use the extension `shader_math::ext::inverse(m)` (features neither language has live in `shader_math::ext` and are reachable qualified only). The `hlsl::` / `glsl::` functions take their own language's arguments only (`hlsl::dot` rejects glsl vectors).
 
 ## Restricted by design: undefined operations do not compile
 
