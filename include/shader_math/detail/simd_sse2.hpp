@@ -87,10 +87,17 @@ struct ops {
     static SHADER_MATH_INLINE freg abs(freg a) {
         return _mm_andnot_ps(_mm_set1_ps(-0.0f), a);
     }
-    // NaN handling of min/max is backend-defined (minps/maxps return b when
-    // either operand is NaN), matching the shader languages' "undefined".
-    static SHADER_MATH_INLINE freg min(freg a, freg b) { return _mm_min_ps(a, b); }
-    static SHADER_MATH_INLINE freg max(freg a, freg b) { return _mm_max_ps(a, b); }
+    // min / max ignore a NaN operand (IEEE minNum / maxNum), as D3D defines
+    // them: minps / maxps already return b when a is NaN, and b is replaced
+    // by a where b is NaN.
+    static SHADER_MATH_INLINE freg min(freg a, freg b) {
+        const freg b_nan = _mm_cmpunord_ps(b, b);
+        return _mm_or_ps(_mm_and_ps(b_nan, a), _mm_andnot_ps(b_nan, _mm_min_ps(a, b)));
+    }
+    static SHADER_MATH_INLINE freg max(freg a, freg b) {
+        const freg b_nan = _mm_cmpunord_ps(b, b);
+        return _mm_or_ps(_mm_and_ps(b_nan, a), _mm_andnot_ps(b_nan, _mm_max_ps(a, b)));
+    }
     static SHADER_MATH_INLINE freg sqrt(freg a) { return _mm_sqrt_ps(a); }
 
 #if defined(SHADER_MATH_HAS_SSE41)

@@ -12,7 +12,8 @@
 // (n.h) * m instead of the documented (n.h)^m.
 #define SM_DXC_CASES(X)                                        \
     SM_DXC_CASES_COMMON(X)                                     \
-    X(exact_frexp, case_exact_frexp(IN_A))
+    X(exact_frexp, case_exact_frexp(IN_A))                     \
+    X(exact_nan_rules, case_exact_nan_rules(IN_A, IN_B))
 
 // DXIL leaves frexp out: DXC's DXIL lowering builds the mantissa as
 // (bits & 0x007fffff) | 0x3f000000, which drops the sign of a negative input.

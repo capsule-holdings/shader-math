@@ -258,6 +258,20 @@ void test_rounding_bits() {
             CHECK(same(ops::lane(ops::rnd_even(v), k), std::nearbyint(x)));
         }
     }
+    // min / max ignore a NaN operand (IEEE minNum / maxNum, D3D's rule)
+    {
+        const float qn = std::numeric_limits<float>::quiet_NaN();
+        const freg x = ops::set(qn, 1.0f, qn, -2.0f);
+        const freg y = ops::set(1.0f, qn, qn, 3.0f);
+        CHECK(ops::lane(ops::min(x, y), 0) == 1.0f);
+        CHECK(ops::lane(ops::min(x, y), 1) == 1.0f);
+        CHECK(std::isnan(ops::lane(ops::min(x, y), 2)));
+        CHECK(ops::lane(ops::min(x, y), 3) == -2.0f);
+        CHECK(ops::lane(ops::max(x, y), 0) == 1.0f);
+        CHECK(ops::lane(ops::max(x, y), 1) == 1.0f);
+        CHECK(std::isnan(ops::lane(ops::max(x, y), 2)));
+        CHECK(ops::lane(ops::max(x, y), 3) == 3.0f);
+    }
     const float qnan = std::numeric_limits<float>::quiet_NaN();
     const freg n = ops::splat(qnan);
     CHECK(std::isnan(ops::lane(ops::rnd_floor(n), 0)));
