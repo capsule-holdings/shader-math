@@ -90,6 +90,10 @@ Semantic notes:
 - `select(c, a, b)` picks a where c is true; `mix(x, y, bvec)` picks y where true (opposite operand order)
 - With `<windows.h>`, define `NOMINMAX` (its `min` / `max` macros collide)
 
+## Standard library integration (opt-in)
+
+`#include <shader_math/std.hpp>` adds `operator<<` (vectors, swizzles, bool vectors, matrices), `std::formatter` (where `<format>` exists; the spec applies to each component), structured bindings (components; matrices by `m[i]`: hlsl rows, glsl columns), `std::hash` / `std::equal_to` for vectors (value equality over N components, so they work as unordered keys), and `shader_math::load<V>(const float*)` / `shader_math::store(x, float*)` (matrices in their constructor order: hlsl row-major, glsl column-major). It is a separate header so that `shader_math.hpp` pulls in neither `<ostream>` nor `<format>`; include it in every translation unit that uses the tuple protocol or `std::hash` on these types.
+
 ## SIMD
 
 - NEON (AArch64) and SSE2 (x86-64) are first-class; other architectures build on a scalar 4-wide fallback with the same API. `-DSHADER_MATH_FORCE_SCALAR=ON` forces the scalar backend; CI runs every test on both

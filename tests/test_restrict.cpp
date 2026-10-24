@@ -2,6 +2,8 @@
 // NOTE: no using-directives in this file; visibility itself is under test.
 #include <shader_math/shader_math.hpp>
 
+#include <ostream>
+
 #include "framework.hpp"
 
 namespace h = shader_math::hlsl;
@@ -14,6 +16,13 @@ template <class A, class B>
 concept can_add_op = requires(const A& a, const B& b) { a + b; };
 template <class A, class B>
 concept can_assign = requires(A a, const B& b) { a = b; };
+
+template <class V>
+concept can_print = requires(std::ostream& os, const V& v) { os << v; };
+
+// ---- std integration is opt-in (<shader_math/std.hpp>) -------------------------
+static_assert(!can_print<h::float3>);
+static_assert(!can_print<h::float2x2>);
 
 // ---- HLSL '*' is same-shape only (matrix product needs mul) -------------------
 static_assert(can_mul_op<h::float3x3, h::float3x3>);

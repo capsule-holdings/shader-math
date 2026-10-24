@@ -75,6 +75,29 @@ void glsl_side() {
 - `v.xx = ...`（重複 swizzle への書き込み）→ エラー
 - `hlsl::matrix` ⇔ `glsl::matrix` の暗黙変換 → エラー（explicit のみ）
 
+## 標準ライブラリとの連携（オプトイン）
+
+`#include <shader_math/std.hpp>` を足すと、C++ の標準ライブラリと組み合わせて使える（`shader_math.hpp` は
+`<ostream>` / `<format>` を引き込まないので別ヘッダーにしている）。
+
+```cpp
+#include <shader_math/std.hpp>
+using namespace hlsl;
+
+std::cout << float3(1, 2, 3);              // (1, 2, 3)。swizzle（v.zyx）や bool3 も出力できる
+std::format("{:.2f}", float2(1, 0.5f));    // (1.00, 0.50)。書式は各成分に効く
+auto [x, y, z] = v;                        // 構造化束縛。auto& なら成分を書き換えられる
+auto [row0, row1] = m;                     // 行列は m[i] の単位（hlsl は行、glsl は列）
+std::unordered_map<float3, int> ids;       // std::hash と std::equal_to（N 成分の値の一致）
+auto p = shader_math::load<float3>(ptr);   // float* から N 個読む
+shader_math::store(m, ptr);                // 行列はコンストラクタの順（hlsl は行優先、glsl は列優先）
+```
+
+- 行列の出力も `m[i]` の単位で並ぶ: hlsl は `((行0), (行1))`、glsl は `((列0), (列1))`
+- `std::format` は `<format>` のある環境だけ（gcc 13+ など）。half は float として出力・ハッシュする
+- `std::hash` / `std::equal_to` は -0 と +0 を同じキーとして扱い、NaN のキーは一致しない（float のキーと同じ）
+- `std::tuple_size` などは std の特殊化なので、構造化束縛や `std::hash` を使う翻訳単位ではこのヘッダーを必ず include する
+
 ## SIMD
 
 - NEON（AArch64）と SSE2（x86-64）が第一級。その他アーキ（RISC-V 等）は同一 API の scalar 4-wide にフォールバックしてビルド可能
