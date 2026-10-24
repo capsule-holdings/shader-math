@@ -22,7 +22,7 @@
 | 行列演算 | `mul` 全形（vec×mat / mat×vec / mat×mat）、`transpose`、`determinant` |
 | ベクトル演算 | `dot` / `cross` / `length` / `normalize` |
 | 比較 | 成分ごと `==` `<` 等 + `all` / `any` での還元 |
-| 成分ごと関数（v2） | `abs` `sign` `min` `max` `clamp` `step` `smoothstep` `floor` `ceil` `trunc` `round` `sqrt` `exp` `exp2` `log` `log2` `pow` `sin` `cos` `tan` + HLSL 別名 `lerp` `frac` `rcp` `rsqrt` `saturate`（**ベクトル引数のみ**、下記除外参照） |
+| 成分ごと関数（v2） | `abs` `sign` `min` `max` `clamp` `step` `smoothstep` `floor` `ceil` `trunc` `round` `sqrt` `exp` `exp2` `log` `log2` `pow` `sin` `cos` `tan` + HLSL 別名 `lerp` `frac` `rcp` `rsqrt` `saturate`（ベクトルとスカラー。スカラーは `case_near_scalar`） |
 | 逆三角・双曲線・角度 | `asin` `acos` `atan` `atan2(y, x)` `sinh` `cosh` `tanh` `radians` `degrees` |
 | 剰余・積和・分解 | `fmod`（trunc 基準、x の符号）、`mad`、`modf(x, out ip)`、`sincos(x, out s, out c)` |
 | 幾何 | `distance` `reflect` `refract`（全反射でゼロベクトル）`faceforward` |
@@ -38,7 +38,6 @@
 | リソース型・テクスチャ | `StructuredBuffer` 等はラッパ（`kernels.slang`）側のみ。共有数式は純関数に限る |
 | Slang のジェネリクス / `interface` | C++ 側に対応物が無い（このハーネスの対象は数式サブセットのみ） |
 | `v.x` の可変長引数直渡し | shader-math の `v.x` はプロキシ型。`printf` 等には `float(v.x)`（共有数式では非該当だが注意） |
-| **スカラーへの intrinsic 適用** | HLSL/Slang は `saturate(dot(n,l))` のようにスカラーにも intrinsic が効くが、shader-math は純スカラーを意図的に非対応にして `std::` に譲る。共有ファイルでは **intrinsic はベクトル引数のみ** に使う（スカラー値は `float3(d,d,d)` のようにベクトルへ載せて計算するか、三項演算子で書く。例: `case_near_lighting`） |
 | bool ベクトルの `.xyzw` | shader-math の `boolN` は成分名アクセスを持たない（比較結果のマスク型）。`isnan(v)[2]` のように添字で読む |
 | **half（`half2/3/4`）の CPU 実行** | Slang（v2026.20）の CPU ターゲットの C++ prelude が half ベクトル演算を未実装（`Vector<_Float16, 4>` の `operator*` 等が無い）。half のケースは `SM_INTEROP_HALF_CASES` に分け、`kernels_half.slang` を `-target spirv` で SPIR-V にして Vulkan（lavapipe）で実行し照合する（`slang_interop_half_check`、`shaderFloat16` の無いデバイスではスキップ） |
 
