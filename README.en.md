@@ -133,11 +133,11 @@ The target is `shader_math::shader_math` either way.
 include(FetchContent)
 FetchContent_Declare(shader_math
     GIT_REPOSITORY https://github.com/capsule-holdings/shader-math.git
-    GIT_TAG v0.4.1)
+    GIT_TAG v0.5.0)
 FetchContent_MakeAvailable(shader_math)
 
 # B) an installed package (cmake --install build --prefix <prefix>)
-find_package(shader_math 0.4 REQUIRED CONFIG)
+find_package(shader_math 0.5 REQUIRED CONFIG)
 
 target_link_libraries(app PRIVATE shader_math::shader_math)
 ```
