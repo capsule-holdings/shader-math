@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792824033783,
+  "lastUpdate": 1792824661853,
   "repoUrl": "https://github.com/capsule-holdings/shader-math",
   "entries": {
     "linux-x64-gcc": [
@@ -1673,6 +1673,160 @@ window.BENCHMARK_DATA = {
           {
             "name": "half4 a * b + c [scalar]",
             "value": 88.181,
+            "unit": "ns/elem"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "emuesuenu@hotmail.com",
+            "name": "Hidenori Kondo",
+            "username": "emuesuenu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f20397e9dcbf3d43e4ad1c59f0ad7f9915e1320a",
+          "message": "Accept scalar arguments in the component-wise functions (#83)\n\nmax(dot(n, l), 0.0f) and saturate(dot(n, l)), the most common shader idioms,\ndid not compile: the component-wise functions took vectors only. A call with\nno vector argument and at least one float / half / one-component swizzle /\nmatrix element (detail::ScalarCall) now takes a scalar path that runs the\nvector function on one lane, so rounding and edge cases match the vectors.\nOther arguments follow the vector-scalar operand rules (any arithmetic type\nnext to float, exactly half next to half); double- or int-only calls are not\ncovered. The overloads are constrained templates, so they do not clash with\nthe C library's same-named functions and abs(-2.5f) no longer reaches the C\nint abs.\n\nCovered: the shared component-wise functions, dot / length / distance and\nmodf in both languages; HLSL lerp saturate frac rcp rsqrt log10 atan2 fmod\nldexp mad, frexp, sincos, select(bool, a, b); GLSL mix fract inversesqrt\nroundEven asinh acosh atanh atan(y, x) mod fma, mix(x, y, bool). Scalar\nround is a plain function instead: libc++ and MSVC declare a global\n::round(float) (halves away from zero) that would beat a template, so an\nunqualified call is ambiguous there rather than quietly wrong; hlsl::round(x)\nalways resolves to shader-math.\n\nTests in test_funcs.cpp; interop cases case_near_scalar (Slang, DXC SPIR-V\nand DXIL) and case_approx_scalar (GLSL). README (ja / en), CONTEXT.md and\ndocs/slang_compat.md drop the vector-only rule.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-10-24T15:45:43+09:00",
+          "tree_id": "9d03c8c2d368878d0b8e9de20e469c826bc9ffd1",
+          "url": "https://github.com/capsule-holdings/shader-math/commit/f20397e9dcbf3d43e4ad1c59f0ad7f9915e1320a"
+        },
+        "date": 1792824660914,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "hlsl mul(float4x4, float4x4) [SSE2]",
+            "value": 2.744,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [SSE2]",
+            "value": 2.731,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [SSE2]",
+            "value": 0.783,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [SSE2]",
+            "value": 1.704,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [SSE2]",
+            "value": 5.288,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [SSE2]",
+            "value": 10.805,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [SSE2]",
+            "value": 0.566,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [SSE2]",
+            "value": 1.389,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [SSE2]",
+            "value": 7.276,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [SSE2]",
+            "value": 2.757,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [SSE2]",
+            "value": 3.786,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [SSE2]",
+            "value": 0.309,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [SSE2]",
+            "value": 7.512,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4x4) [scalar]",
+            "value": 3.604,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [scalar]",
+            "value": 3.691,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [scalar]",
+            "value": 0.755,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [scalar]",
+            "value": 6.234,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [scalar]",
+            "value": 4.831,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [scalar]",
+            "value": 11.58,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [scalar]",
+            "value": 1.814,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [scalar]",
+            "value": 1.128,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [scalar]",
+            "value": 7.325,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [scalar]",
+            "value": 2.924,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [scalar]",
+            "value": 3.909,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [scalar]",
+            "value": 1.114,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [scalar]",
+            "value": 84.098,
             "unit": "ns/elem"
           }
         ]
