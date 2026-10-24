@@ -109,9 +109,9 @@ using detail::trunc;
 // GLSL-only spellings (defined here, not in detail, so they never leak into
 // hlsl via ADL on the shared vector type)
 template <class... As>
-    requires requires(const As&... as) { detail::lerp_impl(as...); }
+    requires requires(const As&... as) { detail::mix_impl(as...); }
 SHADER_MATH_INLINE auto mix(const As&... as) {
-    return detail::lerp_impl(as...);
+    return detail::mix_impl(as...);
 }
 template <class A>
     requires detail::VecLike<A>

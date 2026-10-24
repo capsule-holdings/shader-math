@@ -178,6 +178,8 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
 - `rcp` / `rsqrt` / `inversesqrt` は近似命令（`rcpps` / `rsqrtps`）を使わない正確版
 - 超越関数は per-lane で libm を呼ぶ（SIMD 多項式近似はしない）。`pow(負, 非整数)` は NaN
 - `select(c, a, b)` は c が真の成分で a、`mix(x, y, bvec)` は真の成分で y（引数の順が逆）
+- `lerp` は `x + s*(y - x)`（DXC の DXIL と同じ）、`mix` は `x*(1 - a) + y*a`（GLSL の定義式。`mix(x, y, 1) = y` が
+  x と y の大きさに関係なく正確）。違いは丸めだけ
 - `hlsl::fmod` と `glsl::mod` は**意味が違う**: `fmod` は trunc 基準で結果は x の符号
   （`fmod(-7, 3) = -1`）、`mod` は floor 基準で y の符号（`mod(-7, 3) = 2`）
 - 2 引数の逆正接は HLSL が `atan2(y, x)`、GLSL が `atan(y, x)`。どちらも y が先

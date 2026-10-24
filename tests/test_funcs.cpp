@@ -231,6 +231,9 @@ static void test_funcs_exact() {
     CHECK_EQF(st[0], 0.0f);
     CHECK_EQF(st[2], 1.0f);
 
+    // lerp is a + t * (b - a), as DXC compiles it for DXIL
+    CHECK_EQF(lerp(float2(1.0f, 0.0f), float2(3.0f, 0.0f), 0.5f)[0], 2.0f);
+
     // rounding tier: -1.5 / 0.25 / 2.5 hit every rule differently
     const float3 r(-1.5f, 0.25f, 2.5f);
     CHECK_EQF(floor(r)[0], -2.0f);
@@ -309,6 +312,10 @@ static void test_funcs_glsl() {
     const vec3 v(-1.5f, 0.25f, 2.5f);
     CHECK_EQF(fract(vec3(1.25f, -0.25f, 3.0f))[1], 0.75f);
     CHECK_NEAR(mix(vec3(1.0f, 2.0f, 3.0f), vec3(5.0f, 6.0f, 7.0f), 0.25f)[0], 2.0f);
+    // mix is x * (1 - a) + y * a: exact at both ends however far apart x and y are
+    CHECK_EQF(mix(vec2(1.0e8f, -3.0f), vec2(1.0f, 7.0f), 1.0f)[0], 1.0f);
+    CHECK_EQF(mix(vec2(1.0f, -3.0f), vec2(1.0e8f, 7.0f), 0.0f)[0], 1.0f);
+    CHECK_EQF(mix(vec2(1.0e8f, 0.0f), vec2(1.0f, 0.0f), vec2(1.0f, 0.5f))[0], 1.0f);
     CHECK_EQF(inversesqrt(vec3(4.0f, 16.0f, 1.0f))[0], 0.5f);
     // roundEven vs round on exact halves
     CHECK_EQF(roundEven(v)[0], -2.0f);  // -1.5 -> -2 (even)

@@ -89,6 +89,7 @@ Semantic notes:
 - `mad` / `fma` fuse when the backend has FMA (neither language guarantees fusion unless `precise`)
 - `refract` returns the zero vector on total internal reflection
 - `select(c, a, b)` picks a where c is true; `mix(x, y, bvec)` picks y where true (opposite operand order)
+- `lerp` is `x + s*(y - x)` (as DXC compiles it for DXIL), `mix` is `x*(1 - a) + y*a` (GLSL's defining formula, exact at both ends whatever the magnitudes); they differ only in rounding
 - With `<windows.h>`, define `NOMINMAX` (its `min` / `max` macros collide)
 
 ## Standard library integration (opt-in)
