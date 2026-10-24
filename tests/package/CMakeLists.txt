@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.16)
 project(shader_math_consumer LANGUAGES CXX)
 
 if(SHADER_MATH_CONSUME STREQUAL "find_package")
-    find_package(shader_math 0.3 REQUIRED CONFIG)
+    find_package(shader_math 0.4 REQUIRED CONFIG)
 elseif(SHADER_MATH_CONSUME STREQUAL "subdirectory")
     add_subdirectory(${SHADER_MATH_SOURCE_DIR} shader_math)
     # A consumed shader-math must not drag its own tests or install rules in.

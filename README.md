@@ -177,12 +177,12 @@ cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON  # scalar 強制
 include(FetchContent)
 FetchContent_Declare(shader_math
     GIT_REPOSITORY https://github.com/capsule-holdings/shader-math.git
-    GIT_TAG v0.3.0)
+    GIT_TAG v0.4.0)
 FetchContent_MakeAvailable(shader_math)
 
 # B) インストール済みパッケージ
 #    cmake --install build --prefix <prefix> したものを CMAKE_PREFIX_PATH で指す
-find_package(shader_math 0.3 REQUIRED CONFIG)
+find_package(shader_math 0.4 REQUIRED CONFIG)
 
 target_link_libraries(app PRIVATE shader_math::shader_math)
 ```
