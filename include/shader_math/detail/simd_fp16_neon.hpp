@@ -67,7 +67,6 @@ struct hops {
     static SHADER_MATH_INLINE hreg rnd_ceil(hreg v) { return vrndp_f16(v); }
     static SHADER_MATH_INLINE hreg rnd_trunc(hreg v) { return vrnd_f16(v); }
     static SHADER_MATH_INLINE hreg rnd_even(hreg v) { return vrndn_f16(v); }
-    static SHADER_MATH_INLINE hreg rnd_away(hreg v) { return vrnda_f16(v); }
 
     // m ? a : b with the shared 32-bit mask: select in the f32 domain
     // (selection is exact, so widening costs no precision).

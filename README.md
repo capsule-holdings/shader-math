@@ -110,7 +110,7 @@ shader_math::store(m, ptr);                // 行列はコンストラクタの�
 - `SHADER_MATH_HAS_FMA` — FMA3 検出時に `ops::fmadd` が `_mm_fmadd_ps`（単一丸め）になる。
   gcc/clang は `__FMA__`（例: `-march=x86-64-v3`）、MSVC は `/arch:AVX2` で有効
 - `SHADER_MATH_HAS_SSE41` — SSE4.1 検出時、`floor` / `ceil` / `trunc` / `roundEven` / `round` が
-  `roundps`（1 命令、`round` は trunc + 補正）になる。それ以外の x86 はレーンごとの libm 呼び出し。
+  `roundps`（1 命令）になる。それ以外の x86 はレーンごとの libm 呼び出し。
   gcc/clang は `__SSE4_1__`（例: `-march=x86-64-v2`）、MSVC は `/arch:AVX` 以上で有効。結果は libm と
   ビット一致（符号付きゼロ・NaN 含む）
 - `SHADER_MATH_HAS_F16C` — F16C 検出時（x86 の SSE2 バックエンドのみ）、half を f32 に広げる / 戻す変換が
@@ -162,8 +162,8 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
 
 意味論の注記:
 
-- `round` は half-away-from-zero（`std::round` 同等）。GPU 実装は RNE が多く、
-  正確な .5 の丸めは環境依存。RNE が必要なら `glsl::roundEven`
+- `round` は .5 を偶数へ丸める（`round(2.5) = 2`、`round(-0.5) = -0`）。HLSL は DXC の DXIL（`Round_ne`）・
+  SPIR-V（`RoundEven`）と同じ。GLSL は .5 の向きを実装に任せているので `glsl::round` も `roundEven` と同じ
 - `sign` は両言語とも同じベクトル型を返す（HLSL 本家の int 返しは採用しない）
 - `min` / `max` / `saturate` の NaN 挙動は backend 依存（シェーダ言語仕様も未定義）
 - `rcp` / `rsqrt` / `inversesqrt` は近似命令（`rcpps` / `rsqrtps`）を使わない正確版

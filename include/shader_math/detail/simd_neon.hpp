@@ -65,7 +65,6 @@ struct ops {
     static SHADER_MATH_INLINE freg rnd_ceil(freg v) { return vrndpq_f32(v); }
     static SHADER_MATH_INLINE freg rnd_trunc(freg v) { return vrndq_f32(v); }
     static SHADER_MATH_INLINE freg rnd_even(freg v) { return vrndnq_f32(v); }
-    static SHADER_MATH_INLINE freg rnd_away(freg v) { return vrndaq_f32(v); }
 
     // m ? a : b, per lane
     static SHADER_MATH_INLINE freg sel(mreg m, freg a, freg b) { return vbslq_f32(m, a, b); }

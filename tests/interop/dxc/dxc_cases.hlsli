@@ -8,6 +8,13 @@ float4 case_exact_frexp(float4 a)
     return m + e * 0.25f;
 }
 
+// HLSL round sends halves to even. Slang's CPU target uses ::roundf (halves
+// away from zero), so exact halves are checked against DXC only.
+float4 case_exact_round_ties(float4 a)
+{
+    return float4(round(a).yw, round(a * 2.0f).xz);  // -2.5, 0.5, 2.5, 7.5
+}
+
 float4 case_exact_dst(float4 a, float4 b)
 {
     return dst(a, b);

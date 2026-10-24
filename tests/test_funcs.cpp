@@ -239,8 +239,13 @@ static void test_funcs_exact() {
     CHECK_EQF(ceil(r)[2], 3.0f);
     CHECK_EQF(trunc(r)[0], -1.0f);
     CHECK_EQF(trunc(r)[2], 2.0f);
-    CHECK_EQF(round(r)[0], -2.0f);  // half away from zero
-    CHECK_EQF(round(r)[2], 3.0f);
+    CHECK_EQF(round(r)[0], -2.0f);  // halves go to even (HLSL round = DXC Round_ne)
+    CHECK_EQF(round(r)[2], 2.0f);
+    const float4 halves = round(float4(0.5f, -0.5f, 3.5f, -2.5f));
+    CHECK_EQF(halves[0], 0.0f);
+    CHECK(std::signbit(halves[1]) && halves[1] == 0.0f);
+    CHECK_EQF(halves[2], 4.0f);
+    CHECK_EQF(halves[3], -2.0f);
 
     const float3 fr = frac(float3(1.25f, -0.25f, 3.0f));
     CHECK_EQF(fr[0], 0.25f);
@@ -308,7 +313,7 @@ static void test_funcs_glsl() {
     // roundEven vs round on exact halves
     CHECK_EQF(roundEven(v)[0], -2.0f);  // -1.5 -> -2 (even)
     CHECK_EQF(roundEven(v)[2], 2.0f);   // 2.5 -> 2 (even)
-    CHECK_EQF(round(v)[2], 3.0f);       // half away from zero
+    CHECK_EQF(round(v)[2], 2.0f);       // round is roundEven (the halfway direction is the implementation's)
     CHECK_EQF(clamp(v, 0.0f, 1.0f)[0], 0.0f);
     CHECK_EQF(step(0.0f, v)[2], 1.0f);
 }
@@ -537,7 +542,7 @@ static void test_funcs_half() {
     CHECK_EQF(static_cast<float>(clamp(v, half(-1.0f), half(1.0f))[2]), 1.0f);
     CHECK_EQF(static_cast<float>(saturate(v)[0]), 0.0f);
     CHECK_EQF(static_cast<float>(floor(v)[0]), -2.0f);
-    CHECK_EQF(static_cast<float>(round(v)[2]), 3.0f);
+    CHECK_EQF(static_cast<float>(round(v)[2]), 2.0f);  // halves to even
     CHECK_EQF(static_cast<float>(frac(half3(1.25f, -0.25f, 3.0f))[0]), 0.25f);
     CHECK_EQF(static_cast<float>(sqrt(half3(4.0f, 9.0f, 0.25f))[1]), 3.0f);
     CHECK_EQF(static_cast<float>(step(half(0.0f), v)[2]), 1.0f);
