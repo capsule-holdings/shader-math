@@ -609,6 +609,19 @@ struct matrix
         for (int r = 0; r < R; ++r) row_[r] = rr[r];
     }
 
+    // Component lists with a vector in them (float2x2(v2, 3.0, 4.0),
+    // float2x2(v4)): exactly R*C components, filled row by row. Implicit like
+    // HLSL's own conversion (float2x2 m = v4)
+    template <class... V>
+        requires(detail::any_vector_arg<V...> &&
+                 detail::ctor_fill<R * C, T, hlsl::lang_tag, V...>() == 1 &&
+                 !(sizeof...(V) == R && (detail::vec_is<V, detail::hvec<C, T>>() && ...)))
+    SHADER_MATH_INLINE matrix(const V&... v) SM_HMAT_INIT {
+        T a[R * C];
+        detail::gather_components<T>(a, R * C, v...);
+        detail::unpack_dense<R, C>(a, row_);
+    }
+
     // HLSL cast-style shrink from a bigger matrix (upper-left cut). Growth is
     // not provided (HLSL has no widening matrix cast).
     template <int R2, int C2>
@@ -685,6 +698,19 @@ struct matrix {
     SHADER_MATH_INLINE matrix(const V&... cols) {
         const detail::gvec<Rn, T> cc[Cn] = {detail::gvec<Rn, T>(cols)...};
         for (int c = 0; c < Cn; ++c) col_[c] = cc[c];
+    }
+
+    // Component lists with a vector in them (mat2(v4), mat2(v2, 3.0, 4.0),
+    // mat2(v3, v3)): filled column by column; every argument contributes, the
+    // last one may be cut short
+    template <class... V>
+        requires(detail::any_vector_arg<V...> &&
+                 detail::ctor_fill<Cn * Rn, T, glsl::lang_tag, V...>() != 0 &&
+                 !(sizeof...(V) == Cn && (detail::vec_is<V, detail::gvec<Rn, T>>() && ...)))
+    SHADER_MATH_INLINE explicit matrix(const V&... v) {
+        T a[Cn * Rn];
+        detail::gather_components<T>(a, Cn * Rn, v...);
+        detail::unpack_dense<Cn, Rn>(a, col_);
     }
 
     // GLSL matrix-from-matrix resize: result starts as identity, then the

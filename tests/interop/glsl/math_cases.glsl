@@ -217,3 +217,17 @@ vec4 case_exact_bool_numeric(vec4 a, vec4 b)
     float n = isnan(a.w) ? 8.0f : 0.0f;
     return vec4(m + vec3(k) * 4.0f, n);
 }
+
+// component lists longer than the target (the last argument cut short),
+// vector *= matrix, unary +, ++
+vec4 case_exact_ctor_ops(vec4 a, vec4 b)
+{
+    vec3 c = vec3(a.xy, b.zw);
+    mat2 m = mat2(a.xyz, b.x);
+    mat2 n = mat2(b);
+    vec2 r = vec2(1.0, 2.0);
+    r *= m;
+    vec4 v = +a;
+    v++;
+    return vec4(c, 0.0) + vec4(r, n * vec2(1.0, 0.0)) + v;
+}
