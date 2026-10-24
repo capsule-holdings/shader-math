@@ -254,6 +254,9 @@ github-action-benchmark の形式）。CI では `linux-x64-gcc` / `linux-x64-gc
 ヘッダのコンパイル時間: `python3 bench/compile_time.py <コンパイラ> [--markdown]` で、ライブラリを
 include するだけの翻訳単位のフロントエンド時間を既定とオプトインのマクロごとに測る。CI では
 `linux-x64-gcc` / `linux-x64-clang` で実行し、ジョブサマリーに出す（同じく参考値）。
+HLSL / GLSL への準拠率: `python3 tests/conformance/run.py --cxx <コンパイラ>` で、シェーダの文をそのまま
+C++ に貼ったとき、DXC / glslang と同じものを受け付け・弾くかの一致率を測る（CI では実行しない）。
+詳細は [docs/conformance.md](docs/conformance.md)。
 
 デモ: `-DSHADER_MATH_DEMO_SDLGPU=ON` で SDL_GPU + FBX（ufbx）+ CPU スキニングの
 サンプルをビルドできる（[examples/sdl_gpu_skinning/](examples/sdl_gpu_skinning/README.md)）。

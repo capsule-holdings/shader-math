@@ -121,6 +121,7 @@ ctest --test-dir build --output-on-failure
 ./build/sandbox                    # playground
 ./build/shader_math_bench          # micro-benchmarks (and shader_math_bench_scalar)
 python3 bench/compile_time.py c++  # header front-end time per opt-in macro set
+python3 tests/conformance/run.py --cxx c++  # accept / reject agreement with DXC and glslang (docs/conformance.md)
 ```
 
 Benchmark history (CI, `main` only; shared runners, so informational): <https://capsule-holdings.github.io/shader-math/bench/>
