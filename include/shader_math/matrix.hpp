@@ -78,7 +78,7 @@ struct SHADER_MATH_MAY_ALIAS mswz {
 // storage base: the row registers, a flat view, and the 16 single-element
 // accessors (declared for every shape; out-of-range ones fail where used).
 #define SM_HMAT_COMMON(R, C)                                                         \
-    ::shader_math::detail::fvec<C, T> row_[R];                                       \
+    ::shader_math::detail::hvec<C, T> row_[R];                                       \
     T flat_[R * 4];                                                                  \
     /* zero-based element accessors */                                               \
     ::shader_math::detail::mswz<T, R, C, 0, 0> _m00;                                 \
@@ -138,9 +138,9 @@ struct SHADER_MATH_MAY_ALIAS mmswz {
     mmswz() = default;
     mmswz(const mmswz&) = default;
 
-    SHADER_MATH_INLINE operator fvec<K, T>() const { return fvec<K, T>(d[F]...); }
+    SHADER_MATH_INLINE operator hvec<K, T>() const { return hvec<K, T>(d[F]...); }
 
-    SHADER_MATH_INLINE mmswz& operator=(const fvec<K, T>& v)
+    SHADER_MATH_INLINE mmswz& operator=(const hvec<K, T>& v)
         requires(writable)
     {
         int k = 0;
@@ -150,13 +150,12 @@ struct SHADER_MATH_MAY_ALIAS mmswz {
     SHADER_MATH_INLINE mmswz& operator=(const mmswz& o)
         requires(writable)
     {
-        return *this = fvec<K, T>(o);
+        return *this = hvec<K, T>(o);
     }
     template <class V>
-        requires(writable && !std::is_same_v<V, mmswz> && vec_traits<V>::size == K &&
-                 std::is_same_v<typename vec_traits<V>::elem, T>)
+        requires(writable && !std::is_same_v<V, mmswz> && std::is_same_v<vec_t<V>, hvec<K, T>>)
     SHADER_MATH_INLINE mmswz& operator=(const V& o) {
-        return *this = fvec<K, T>(vec_traits<V>::get(o));  // gather first: m._m00_m01 = m._m01_m00
+        return *this = hvec<K, T>(to_vec(o));  // gather first: m._m00_m01 = m._m01_m00
     }
 
 #  define SM_MMSWZ_COMPOUND(sym)                             \
@@ -164,7 +163,7 @@ struct SHADER_MATH_MAY_ALIAS mmswz {
     SHADER_MATH_INLINE mmswz& operator sym##=(const V& v)    \
         requires(writable)                                   \
     {                                                        \
-        *this = fvec<K, T>(*this) sym v;                     \
+        *this = hvec<K, T>(*this) sym v;                     \
         return *this;                                        \
     }
     SM_MMSWZ_COMPOUND(+)
@@ -178,8 +177,9 @@ template <class T, int R, int... F>
 struct vec_traits<mmswz<T, R, F...>> {
     static constexpr int size = static_cast<int>(sizeof...(F));
     using elem = T;
-    static SHADER_MATH_INLINE fvec<size, T> get(const mmswz<T, R, F...>& s) {
-        return fvec<size, T>(s);
+    using lang = hlsl::lang_tag;
+    static SHADER_MATH_INLINE hvec<size, T> get(const mmswz<T, R, F...>& s) {
+        return hvec<size, T>(s);
     }
 };
 
@@ -394,13 +394,13 @@ SHADER_MATH_INLINE void inv4(const T* m, T* o) {
 
 // ---- register-array cores shared by both language surfaces -----------------
 // hlsl::matrix stores rows, glsl::matrix stores columns, but both are plain
-// arrays of fvec<L, T>. Everything below is storage-direction agnostic; the
+// arrays of fvec<L, T, Lg>. Everything below is storage-direction agnostic; the
 // mathematical correctness of reusing the row-major det/inv cores for the
 // column-major pack is det(A) == det(A^T) and inv(A^T) == inv(A)^T.
 
 // acc = sum_J bcast<J>(coeff) * regs[J]   (the matrix-product accumulator)
-template <int K, int L, class T>
-SHADER_MATH_INLINE vreg<T> mad_accum(vreg<T> coeff, const fvec<L, T>* regs) {
+template <int K, int L, class T, class Lg>
+SHADER_MATH_INLINE vreg<T> mad_accum(vreg<T> coeff, const fvec<L, T, Lg>* regs) {
     vreg<T> acc = vops<T>::zero();
     unroll<K>([&]<int J>() {
         acc = vops<T>::fmadd(vops<T>::template bcast<J>(coeff), regs[J].q_, acc);
@@ -411,9 +411,9 @@ SHADER_MATH_INLINE vreg<T> mad_accum(vreg<T> coeff, const fvec<L, T>* regs) {
 // o[i] = fvec(f(i)) for i in [0, N): the component-wise matrix loop shared by
 // both language surfaces (binary/scalar operators, negation, matrixCompMult).
 // f receives the register index and returns a vreg<T>.
-template <int N, int L, class T, class F>
-SHADER_MATH_INLINE void regs_fill(fvec<L, T>* o, F&& f) {
-    for (int i = 0; i < N; ++i) o[i] = fvec<L, T>(f(i));
+template <int N, int L, class T, class Lg, class F>
+SHADER_MATH_INLINE void regs_fill(fvec<L, T, Lg>* o, F&& f) {
+    for (int i = 0; i < N; ++i) o[i] = fvec<L, T, Lg>(f(i));
 }
 
 // N registers of L lanes <-> dense array p[i * L + j] = regs[i][j].
@@ -423,8 +423,8 @@ SHADER_MATH_INLINE void regs_fill(fvec<L, T>* o, F&& f) {
 // Writes stay lane by lane through comp_: a vector store read back as float
 // elements is the union type-punning CONTEXT.md describes, and gcc on
 // AArch64 (float32x4_t is not may_alias) dropped such a store at -O2.
-template <int N, int L, class T>
-SHADER_MATH_INLINE void pack_dense(const fvec<L, T>* regs, T* p) {
+template <int N, int L, class T, class Lg>
+SHADER_MATH_INLINE void pack_dense(const fvec<L, T, Lg>* regs, T* p) {
     for (int i = 0; i < N; ++i) {
 #if defined(SHADER_MATH_ISA_NEON)
         constexpr bool whole_rows = (L == 4);
@@ -438,14 +438,14 @@ SHADER_MATH_INLINE void pack_dense(const fvec<L, T>* regs, T* p) {
         }
     }
 }
-template <int N, int L, class T>
-SHADER_MATH_INLINE void unpack_dense(const T* q, fvec<L, T>* regs) {
+template <int N, int L, class T, class Lg>
+SHADER_MATH_INLINE void unpack_dense(const T* q, fvec<L, T, Lg>* regs) {
     for (int i = 0; i < N; ++i)
         for (int j = 0; j < L; ++j) regs[i][j] = q[i * L + j];
 }
 
-template <int N, class T>
-SHADER_MATH_INLINE T det_regs(const fvec<N, T>* regs) {
+template <int N, class T, class Lg>
+SHADER_MATH_INLINE T det_regs(const fvec<N, T, Lg>* regs) {
     T p[N * N];
     pack_dense<N, N>(regs, p);
     if constexpr (N == 2) return det2(p);
@@ -458,7 +458,8 @@ SHADER_MATH_INLINE T det_regs(const fvec<N, T>* regs) {
 // the single-instruction shuffles. Used on SSE2 only: on AArch64 (gcc, CI
 // runners) it measured no faster than the dense path, and the scalar
 // backend's dense path is what compilers vectorize across loop iterations.
-SHADER_MATH_INLINE void inv4_regs(const fvec<4, float>* in, fvec<4, float>* out) {
+template <class Lg>
+SHADER_MATH_INLINE void inv4_regs(const fvec<4, float, Lg>* in, fvec<4, float, Lg>* out) {
     using O = vops<float>;
     using R = vreg<float>;
     const R a = O::cat_lo(in[0].q_, in[1].q_);
@@ -517,14 +518,14 @@ SHADER_MATH_INLINE void inv4_regs(const fvec<4, float>* in, fvec<4, float>* out)
     det = O::add(O::swap_halves(det), det);
     det = O::add(O::swap_pairs(det), det);
     const R id = O::div(O::splat(1.0f), det);
-    out[0] = fvec<4, float>(O::mul(minor0, id));
-    out[1] = fvec<4, float>(O::mul(minor1, id));
-    out[2] = fvec<4, float>(O::mul(minor2, id));
-    out[3] = fvec<4, float>(O::mul(minor3, id));
+    out[0] = fvec<4, float, Lg>(O::mul(minor0, id));
+    out[1] = fvec<4, float, Lg>(O::mul(minor1, id));
+    out[2] = fvec<4, float, Lg>(O::mul(minor2, id));
+    out[3] = fvec<4, float, Lg>(O::mul(minor3, id));
 }
 
-template <int N, class T>
-SHADER_MATH_INLINE void inv_regs(const fvec<N, T>* in, fvec<N, T>* out) {
+template <int N, class T, class Lg>
+SHADER_MATH_INLINE void inv_regs(const fvec<N, T, Lg>* in, fvec<N, T, Lg>* out) {
 #if defined(SHADER_MATH_ISA_SSE2)
     if constexpr (N == 4 && std::is_same_v<T, float>) {
         inv4_regs(in, out);
@@ -542,8 +543,8 @@ SHADER_MATH_INLINE void inv_regs(const fvec<N, T>* in, fvec<N, T>* out) {
 }
 
 // out[j][i] = in[i][j]  (in: NI regs x LI lanes, out: LI regs x NI lanes)
-template <int NI, int LI, class T>
-SHADER_MATH_INLINE void transpose_regs(const fvec<LI, T>* in, fvec<NI, T>* out) {
+template <int NI, int LI, class T, class LgI, class LgO>
+SHADER_MATH_INLINE void transpose_regs(const fvec<LI, T, LgI>* in, fvec<NI, T, LgO>* out) {
     for (int i = 0; i < NI; ++i)
         for (int j = 0; j < LI; ++j) out[j][i] = in[i][j];
 }
@@ -589,7 +590,7 @@ struct matrix
     template <class S>
         requires detail::CvtScalar<S, T>
     SHADER_MATH_INLINE matrix(const S& s) SM_HMAT_INIT {
-        for (int r = 0; r < R; ++r) row_[r] = detail::fvec<C, T>(static_cast<T>(s));
+        for (int r = 0; r < R; ++r) row_[r] = detail::hvec<C, T>(static_cast<T>(s));
     }
 
     // R*C scalars, row-major fill (HLSL constructor order).
@@ -600,11 +601,11 @@ struct matrix
         detail::unpack_dense<R, C>(a, row_);
     }
 
-    // R row vectors.
+    // R row vectors (or swizzles); scalars are not rows
     template <class... V>
-        requires(sizeof...(V) == R && (std::is_convertible_v<V, detail::fvec<C, T>> && ...))
+        requires(sizeof...(V) == R && (std::is_same_v<detail::vec_t<V>, detail::hvec<C, T>> && ...))
     SHADER_MATH_INLINE matrix(const V&... rows) SM_HMAT_INIT {
-        const detail::fvec<C, T> rr[R] = {detail::fvec<C, T>(rows)...};
+        const detail::hvec<C, T> rr[R] = {detail::hvec<C, T>(rows)...};
         for (int r = 0; r < R; ++r) row_[r] = rr[r];
     }
 
@@ -616,7 +617,7 @@ struct matrix
         for (int r = 0; r < R; ++r) {
             T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
             for (int c = 0; c < C; ++c) t[c] = o.row_[r][c];
-            row_[r] = detail::fvec<C, T>(detail::vops<T>::load4(t));
+            row_[r] = detail::hvec<C, T>(detail::vops<T>::load4(t));
         }
     }
 
@@ -624,7 +625,7 @@ struct matrix
     template <class U>
         requires(!std::is_same_v<U, T>)
     SHADER_MATH_INLINE explicit matrix(const matrix<R, C, U>& o) SM_HMAT_INIT {
-        for (int r = 0; r < R; ++r) row_[r] = detail::fvec<C, T>(o.row_[r]);
+        for (int r = 0; r < R; ++r) row_[r] = detail::hvec<C, T>(o.row_[r]);
     }
 
     // Explicit conversion from the corresponding GLSL matrix (same math object).
@@ -638,8 +639,8 @@ struct matrix
         return m;
     }
 
-    SHADER_MATH_INLINE detail::fvec<C, T>& operator[](int r) { return row_[r]; }
-    SHADER_MATH_INLINE const detail::fvec<C, T>& operator[](int r) const { return row_[r]; }
+    SHADER_MATH_INLINE detail::hvec<C, T>& operator[](int r) { return row_[r]; }
+    SHADER_MATH_INLINE const detail::hvec<C, T>& operator[](int r) const { return row_[r]; }
 };
 
 }  // namespace hlsl
@@ -656,7 +657,7 @@ struct matrix {
     static constexpr int rows_v = Rn;
     using elem_t = T;
 
-    detail::fvec<Rn, T> col_[Cn];
+    detail::gvec<Rn, T> col_[Cn];
 
     SHADER_MATH_INLINE matrix() = default;
 
@@ -677,11 +678,12 @@ struct matrix {
         detail::unpack_dense<Cn, Rn>(a, col_);
     }
 
-    // Cn column vectors.
+    // Cn column vectors (or swizzles)
     template <class... V>
-        requires(sizeof...(V) == Cn && (std::is_convertible_v<V, detail::fvec<Rn, T>> && ...))
+        requires(sizeof...(V) == Cn &&
+                 (std::is_same_v<detail::vec_t<V>, detail::gvec<Rn, T>> && ...))
     SHADER_MATH_INLINE matrix(const V&... cols) {
-        const detail::fvec<Rn, T> cc[Cn] = {detail::fvec<Rn, T>(cols)...};
+        const detail::gvec<Rn, T> cc[Cn] = {detail::gvec<Rn, T>(cols)...};
         for (int c = 0; c < Cn; ++c) col_[c] = cc[c];
     }
 
@@ -703,14 +705,17 @@ struct matrix {
     template <class U>
         requires(!std::is_same_v<U, T>)
     SHADER_MATH_INLINE explicit matrix(const matrix<Cn, Rn, U>& o) {
-        for (int c = 0; c < Cn; ++c) col_[c] = detail::fvec<Rn, T>(o.col_[c]);
+        for (int c = 0; c < Cn; ++c) col_[c] = detail::gvec<Rn, T>(o.col_[c]);
     }
 
     // Explicit conversion from the corresponding HLSL matrix (same math object).
     SHADER_MATH_INLINE explicit matrix(const hlsl::matrix<Rn, Cn, T>& h);
 
-    SHADER_MATH_INLINE detail::fvec<Rn, T>& operator[](int c) { return col_[c]; }
-    SHADER_MATH_INLINE const detail::fvec<Rn, T>& operator[](int c) const { return col_[c]; }
+    SHADER_MATH_INLINE detail::gvec<Rn, T>& operator[](int c) { return col_[c]; }
+    SHADER_MATH_INLINE const detail::gvec<Rn, T>& operator[](int c) const { return col_[c]; }
+
+    // GLSL m.length(): the number of columns
+    static constexpr int length() { return Cn; }
 };
 
 }  // namespace glsl

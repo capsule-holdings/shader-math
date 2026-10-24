@@ -15,9 +15,8 @@ using namespace shader_math::glsl;
 #include "case_list.h"
 
 // SM_GLSL_HALF / SM_GLSL_STPQ / SM_GLSL_NESTED (set by CMake for those twins)
-// select the f16, .stpq or nested-swizzle cases; the .stpq twin is also built
-// with SHADER_MATH_GLSL_STPQ, the nested one with SHADER_MATH_NESTED_SWIZZLE
-// and SHADER_MATH_GLSL_STPQ
+// select the f16, .stpq or nested-swizzle cases; the nested twin is also
+// built with SHADER_MATH_NESTED_SWIZZLE
 #if defined(SM_GLSL_HALF)
 #  include "half_cases.glsl"
 #  include "half_case_list.h"

@@ -29,7 +29,7 @@ static_assert(sizeof(d::half_t) == 2);
 static_assert(sizeof(h::half2) == 8);
 static_assert(sizeof(h::half3) == 8);  // 4 x binary16, like sizeof(float3) == 16
 static_assert(sizeof(h::half4) == 8);
-static_assert(std::is_same_v<h::half3, g::f16vec3>);  // one vector type per width
+static_assert(!std::is_same_v<h::half3, g::f16vec3>);  // one vector type per language
 
 // ---- no implicit half/float mixing ------------------------------------------
 template <class A, class B>

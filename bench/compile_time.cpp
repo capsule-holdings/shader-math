@@ -26,5 +26,30 @@ half3 h3;
 half4 h4;
 half4x4 hm44;
 #endif
-shader_math::glsl::mat4 gm4;
 }  // namespace probe
+
+namespace probe_glsl {
+using namespace shader_math::glsl;
+
+vec2 v2;
+vec3 v3;
+vec4 v4;
+bvec2 b2;
+bvec3 b3;
+bvec4 b4;
+mat2x2 m22;
+mat2x3 m23;
+mat2x4 m24;
+mat3x2 m32;
+mat3x3 m33;
+mat3x4 m34;
+mat4x2 m42;
+mat4x3 m43;
+mat4x4 m44;
+#if defined(SHADER_MATH_HAS_HALF)
+f16vec2 h2;
+f16vec3 h3;
+f16vec4 h4;
+f16mat4 hm44;
+#endif
+}  // namespace probe_glsl
