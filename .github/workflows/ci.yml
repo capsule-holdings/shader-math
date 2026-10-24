@@ -240,14 +240,26 @@ jobs:
         # Boost headers are fetched by CMake (FetchContent) when not installed.
         run: cmake -S . -B build -DSHADER_MATH_WARNINGS_AS_ERRORS=ON ${{ matrix.cmake_extra }}
 
+      # One compile job per CPU (cmake --build alone is serial with Unix
+      # Makefiles and with MSBuild). CL=-MP also runs MSVC's compiles of one
+      # target in parallel; the dash form, because Git Bash would turn /MP
+      # into a path.
       - name: Build
-        run: cmake --build build --config ${{ matrix.build_type || 'Release' }}
+        shell: bash
+        env:
+          CL: -MP
+        run: |
+          jobs=${NUMBER_OF_PROCESSORS:-$(getconf _NPROCESSORS_ONLN)}
+          cmake --build build --config ${{ matrix.build_type || 'Release' }} --parallel $jobs
 
       - name: Test
         # read only by -fprofile-instr-generate binaries (the coverage job)
         env:
           LLVM_PROFILE_FILE: ${{ github.workspace }}/build/prof/%p-%m.profraw
-        run: ctest --test-dir build --output-on-failure -C ${{ matrix.build_type || 'Release' }}
+        shell: bash
+        run: |
+          jobs=${NUMBER_OF_PROCESSORS:-$(getconf _NPROCESSORS_ONLN)}
+          ctest --test-dir build --output-on-failure -C ${{ matrix.build_type || 'Release' }} --parallel $jobs
 
       # CMake only warns when an interop prerequisite is missing, which would
       # leave the cross-check unregistered and the Test step green
