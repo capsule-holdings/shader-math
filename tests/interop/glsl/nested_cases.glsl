@@ -1,7 +1,7 @@
 // Swizzles of swizzles, shared like math_cases.glsl. In shader-math they are
 // opt-in, so the C++ side is a twin built with SM_GLSL_NESTED, which also
-// defines SHADER_MATH_NESTED_SWIZZLE and SHADER_MATH_GLSL_STPQ (for the
-// .stpq letters). Only 2- and 3-component swizzles are nested there. All
+// defines SHADER_MATH_NESTED_SWIZZLE. Only 2- and 3-component swizzles are
+// nested there. All
 // cases are exact (lanes only move).
 
 vec4 case_exact_nested_read(vec4 a, vec4 b)

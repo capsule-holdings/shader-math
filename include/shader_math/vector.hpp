@@ -189,7 +189,6 @@ struct SHADER_MATH_MAY_ALIAS swz_store<3, T, N, Lg, I0, I1, I2> {
         SM_NGEN3(x, y, z) SM_NGEN3(r, g, b)
     };
 };
-#  if defined(SHADER_MATH_GLSL_STPQ)
 template <class T, int N, int I0, int I1>
 struct SHADER_MATH_MAY_ALIAS swz_store<2, T, N, glsl::lang_tag, I0, I1> {
     using Lg = glsl::lang_tag;
@@ -206,7 +205,6 @@ struct SHADER_MATH_MAY_ALIAS swz_store<3, T, N, glsl::lang_tag, I0, I1, I2> {
         SM_NGEN3(x, y, z) SM_NGEN3(r, g, b) SM_NGEN3(s, t, p)
     };
 };
-#  endif
 #  undef SM_NW1
 #  undef SM_NW2
 #  undef SM_NW3
@@ -381,37 +379,31 @@ struct SHADER_MATH_MAY_ALIAS swz
     SM_RPL3(r, 0) SM_RPL3(g, 1) SM_RPL3(b, 2) SM_RPL3(a, 3)             \
     SM_RCU4(r, 0) SM_RCU4(g, 1) SM_RCU4(b, 2) SM_RCU4(a, 3)
 
-// GLSL's third swizzle set (texture coordinates), glsl vectors only and
-// opt-in: it adds half again as many members to every glsl vector type.
-// SHADER_MATH_GLSL_STPQ must be defined identically in every translation
-// unit (it changes the class definition). The prefix parameter is `pre`,
-// not `p`, so it never collides with the pasted letter p.
-#if defined(SHADER_MATH_GLSL_STPQ)
-#  define SM_SROW2(pre, i0) \
+// GLSL's third swizzle set (texture coordinates), glsl vectors only. The
+// prefix parameter is `pre`, not `p`, so it never collides with the pasted
+// letter p.
+#define SM_SROW2(pre, i0) \
     SM_SW2(pre##s, i0, 0) SM_SW2(pre##t, i0, 1) SM_SW2(pre##p, i0, 2) SM_SW2(pre##q, i0, 3)
-#  define SM_SROW3(pre, i0, i1)                                                  \
+#define SM_SROW3(pre, i0, i1)                                                  \
     SM_SW3(pre##s, i0, i1, 0) SM_SW3(pre##t, i0, i1, 1) SM_SW3(pre##p, i0, i1, 2) \
     SM_SW3(pre##q, i0, i1, 3)
-#  define SM_SPL3(pre, i0)                                                       \
+#define SM_SPL3(pre, i0)                                                       \
     SM_SROW3(pre##s, i0, 0) SM_SROW3(pre##t, i0, 1) SM_SROW3(pre##p, i0, 2)      \
     SM_SROW3(pre##q, i0, 3)
-#  define SM_SROW4(pre, i0, i1, i2)                                                       \
+#define SM_SROW4(pre, i0, i1, i2)                                                       \
     SM_SW4(pre##s, i0, i1, i2, 0) SM_SW4(pre##t, i0, i1, i2, 1) SM_SW4(pre##p, i0, i1, i2, 2) \
     SM_SW4(pre##q, i0, i1, i2, 3)
-#  define SM_SPL4(pre, i0, i1)                                                   \
+#define SM_SPL4(pre, i0, i1)                                                   \
     SM_SROW4(pre##s, i0, i1, 0) SM_SROW4(pre##t, i0, i1, 1) SM_SROW4(pre##p, i0, i1, 2) \
     SM_SROW4(pre##q, i0, i1, 3)
-#  define SM_SCU4(pre, i0)                                                       \
+#define SM_SCU4(pre, i0)                                                       \
     SM_SPL4(pre##s, i0, 0) SM_SPL4(pre##t, i0, 1) SM_SPL4(pre##p, i0, 2)         \
     SM_SPL4(pre##q, i0, 3)
-#  define SM_GEN_STPQ                                                   \
+#define SM_GEN_STPQ                                                   \
     SM_SW1(s, 0) SM_SW1(t, 1) SM_SW1(p, 2) SM_SW1(q, 3)                 \
     SM_SROW2(s, 0) SM_SROW2(t, 1) SM_SROW2(p, 2) SM_SROW2(q, 3)         \
     SM_SPL3(s, 0) SM_SPL3(t, 1) SM_SPL3(p, 2) SM_SPL3(q, 3)             \
     SM_SCU4(s, 0) SM_SCU4(t, 1) SM_SCU4(p, 2) SM_SCU4(q, 3)
-#else
-#  define SM_GEN_STPQ
-#endif
 
 // ---- fvec -----------------------------------------------------------------
 // The register and the swizzle members share one union, so each language's
@@ -601,14 +593,12 @@ private:
 #undef SM_RPL4
 #undef SM_RCU4
 #undef SM_GEN_RGBA
-#if defined(SHADER_MATH_GLSL_STPQ)
-#  undef SM_SROW2
-#  undef SM_SROW3
-#  undef SM_SPL3
-#  undef SM_SROW4
-#  undef SM_SPL4
-#  undef SM_SCU4
-#endif
+#undef SM_SROW2
+#undef SM_SROW3
+#undef SM_SPL3
+#undef SM_SROW4
+#undef SM_SPL4
+#undef SM_SCU4
 #undef SM_GEN_STPQ
 
 // ---- vec_traits / concepts -------------------------------------------------
@@ -1238,7 +1228,7 @@ struct SHADER_MATH_MAY_ALIAS bswz {
 };
 
 // The mask register and the component accessors share one union; glsl adds
-// .stpq with SHADER_MATH_GLSL_STPQ, as for its float vectors.
+// .stpq, as for its float vectors.
 template <int N, class Lg>
 struct bvec_store {
     union {
@@ -1255,7 +1245,6 @@ struct bvec_store {
         return *this;
     }
 };
-#if defined(SHADER_MATH_GLSL_STPQ)
 template <int N>
 struct bvec_store<N, glsl::lang_tag> {
     union {
@@ -1272,7 +1261,6 @@ struct bvec_store<N, glsl::lang_tag> {
         return *this;
     }
 };
-#endif
 
 template <int N, class Lg>
 struct bvec : bvec_store<N, Lg> {

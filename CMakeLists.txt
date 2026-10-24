@@ -81,12 +81,6 @@ option(SHADER_MATH_FORCE_SCALAR
 if(SHADER_MATH_FORCE_SCALAR)
     target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_FORCE_SCALAR>)
 endif()
-option(SHADER_MATH_GLSL_STPQ
-       "Enable GLSL .stpq swizzles on shader_math and everything linking it" OFF)
-# Same scheme as FORCE_SCALAR (the macro changes the vector class definition)
-if(SHADER_MATH_GLSL_STPQ)
-    target_compile_definitions(shader_math INTERFACE $<BUILD_INTERFACE:SHADER_MATH_GLSL_STPQ>)
-endif()
 option(SHADER_MATH_NESTED_SWIZZLE
        "Enable swizzles of swizzles (v.xy.yx) on shader_math and everything linking it" OFF)
 if(SHADER_MATH_NESTED_SWIZZLE)
@@ -148,7 +142,8 @@ if(SHADER_MATH_BUILD_TESTS)
         tests/test_pad_lanes.cpp
         tests/test_random.cpp
         tests/test_proxy_alias.cpp
-        tests/test_std.cpp)
+        tests/test_std.cpp
+        tests/test_stpq.cpp)
 
     add_executable(shader_math_tests ${SHADER_MATH_TEST_SOURCES})
     target_link_libraries(shader_math_tests PRIVATE shader_math)
@@ -193,26 +188,12 @@ if(SHADER_MATH_BUILD_TESTS)
     target_compile_definitions(shader_math_bench_scalar PRIVATE SHADER_MATH_FORCE_SCALAR)
     shader_math_warnings(shader_math_bench_scalar)
 
-    # Opt-in .stpq swizzles: its own executable (the macro changes the class
-    # definition, so it cannot share a binary with the other tests)
-    add_executable(shader_math_tests_stpq tests/test_stpq.cpp)
-    target_link_libraries(shader_math_tests_stpq PRIVATE shader_math)
-    target_compile_definitions(shader_math_tests_stpq PRIVATE SHADER_MATH_GLSL_STPQ)
-    shader_math_warnings(shader_math_tests_stpq)
-    add_test(NAME shader_math_tests_stpq COMMAND shader_math_tests_stpq)
-
-    # Opt-in swizzles of swizzles, alone and together with .stpq.
+    # Opt-in swizzles of swizzles.
     add_executable(shader_math_tests_nested tests/test_nested_swizzle.cpp)
     target_link_libraries(shader_math_tests_nested PRIVATE shader_math)
     target_compile_definitions(shader_math_tests_nested PRIVATE SHADER_MATH_NESTED_SWIZZLE)
     shader_math_warnings(shader_math_tests_nested)
     add_test(NAME shader_math_tests_nested COMMAND shader_math_tests_nested)
-    add_executable(shader_math_tests_nested_stpq tests/test_nested_swizzle.cpp)
-    target_link_libraries(shader_math_tests_nested_stpq PRIVATE shader_math)
-    target_compile_definitions(shader_math_tests_nested_stpq PRIVATE
-        SHADER_MATH_NESTED_SWIZZLE SHADER_MATH_GLSL_STPQ)
-    shader_math_warnings(shader_math_tests_nested_stpq)
-    add_test(NAME shader_math_tests_nested_stpq COMMAND shader_math_tests_nested_stpq)
 
     # Opt-in multi-element matrix accessors: 2-element, then also 3-element.
     add_executable(shader_math_tests_matrix_swizzle tests/test_matrix_swizzle.cpp)
@@ -649,8 +630,7 @@ if(SHADER_MATH_BUILD_TESTS)
                              vulkan ${SM_GLSL_HALF_SPV} --f16)
             set_tests_properties(glsl_interop_half_check PROPERTIES SKIP_RETURN_CODE 77)
 
-            # opt-in .stpq swizzles: a harness built with SHADER_MATH_GLSL_STPQ
-            # (its own executable: the macro changes the vector class)
+            # .stpq swizzles: their own kernel and harness
             set(SM_GLSL_STPQ_SPV ${CMAKE_CURRENT_BINARY_DIR}/glsl_kernels_stpq.spv)
             add_custom_command(
                 OUTPUT ${SM_GLSL_STPQ_SPV}
@@ -671,7 +651,7 @@ if(SHADER_MATH_BUILD_TESTS)
 
             add_executable(shader_math_glsl_interop_cpp_stpq ${SM_GLSL_DIR}/cpp_harness.cpp)
             target_compile_definitions(shader_math_glsl_interop_cpp_stpq PRIVATE
-                SM_GLSL_STPQ SHADER_MATH_GLSL_STPQ)
+                SM_GLSL_STPQ)
             target_link_libraries(shader_math_glsl_interop_cpp_stpq PRIVATE shader_math)
             shader_math_warnings(shader_math_glsl_interop_cpp_stpq)
 
@@ -683,7 +663,7 @@ if(SHADER_MATH_BUILD_TESTS)
                              vulkan ${SM_GLSL_STPQ_SPV})
 
             # opt-in swizzles of swizzles: a twin built with
-            # SHADER_MATH_NESTED_SWIZZLE (and .stpq for those letters)
+            # SHADER_MATH_NESTED_SWIZZLE
             set(SM_GLSL_NESTED_SPV ${CMAKE_CURRENT_BINARY_DIR}/glsl_kernels_nested.spv)
             add_custom_command(
                 OUTPUT ${SM_GLSL_NESTED_SPV}
@@ -704,7 +684,7 @@ if(SHADER_MATH_BUILD_TESTS)
 
             add_executable(shader_math_glsl_interop_cpp_nested ${SM_GLSL_DIR}/cpp_harness.cpp)
             target_compile_definitions(shader_math_glsl_interop_cpp_nested PRIVATE
-                SM_GLSL_NESTED SHADER_MATH_NESTED_SWIZZLE SHADER_MATH_GLSL_STPQ)
+                SM_GLSL_NESTED SHADER_MATH_NESTED_SWIZZLE)
             target_link_libraries(shader_math_glsl_interop_cpp_nested PRIVATE shader_math)
             shader_math_warnings(shader_math_glsl_interop_cpp_nested)
 

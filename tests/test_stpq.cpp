@@ -1,12 +1,4 @@
-// Opt-in GLSL .stpq swizzles (SHADER_MATH_GLSL_STPQ). Its own executable:
-// the macro changes the vector class definition, so it must not be mixed
-// with translation units built without it.
-#if !defined(SHADER_MATH_GLSL_STPQ)
-#  error "build this test with SHADER_MATH_GLSL_STPQ"
-#endif
-
-#include <cstdio>
-
+// GLSL .stpq swizzles (glsl vectors only).
 #include <shader_math/shader_math.hpp>
 
 #include "framework.hpp"
@@ -23,7 +15,7 @@ static_assert(has_stp<shader_math::glsl::vec4> && has_s<shader_math::glsl::bvec3
 static_assert(!has_s<shader_math::hlsl::float4> && !has_stp<shader_math::hlsl::float4>);
 static_assert(!has_s<shader_math::hlsl::bool3>);
 
-int main() {
+void test_stpq() {
     using namespace shader_math::glsl;
 
     vec4 v(1.0f, 2.0f, 3.0f, 4.0f);
@@ -49,7 +41,4 @@ int main() {
 
     const bvec3 b = lessThan(vec3(1.0f, 5.0f, 3.0f), vec3(2.0f));
     CHECK(b.s && !b.t && !b.p);
-
-    std::printf("[shader-math stpq] %d checks, %d failures\n", g_checks, g_failures);
-    return g_failures == 0 ? 0 : 1;
 }

@@ -29,11 +29,13 @@ void glsl_side() {
 ```
 
 同一スコープに両方の名前空間を `using` しないこと（`mul` / `transpose` などが衝突する）。
+演算子と各言語の関数（`frac`、`mix` など）は、その言語の型に対しては `using` なしでも見つかる（ADL）。
 
 ## 型
 
-- ベクトル: `hlsl::float2/3/4` = `glsl::vec2/3/4`（**同一型のエイリアス**。両言語とも `*` は成分ごとなので共有できる）
-- half ベクトル: `hlsl::half2/3/4` = `glsl::f16vec2/3/4`（同じく同一型）。スカラーは `hlsl::half` / `glsl::float16_t`
+- ベクトル: `hlsl::float2/3/4` と `glsl::vec2/3/4`（**別型**。中身と成分ごとの演算は同じ）。
+  相互変換は explicit（`glsl::vec3(f)` / `hlsl::float3(v)`）で、混ぜた演算はコンパイルエラー
+- half ベクトル: `hlsl::half2/3/4` と `glsl::f16vec2/3/4`（同じく別型）。スカラーは `hlsl::half` / `glsl::float16_t`
 - half 行列: `hlsl::halfRxC` と `glsl::f16matCxR`（float と同じく**別型**・explicit 変換。非正方の形対応も float と同一）。
   `determinant` / `inverse` も half のまま計算する。真の fp16 は underflow / overflow が早いので、条件の悪い行列を渡さないこと
   - `sizeof(half3) == 8`（4×binary16 パック）。`sizeof(float3) == 16` と同様、**言語互換であり GPU ABI ではない**
@@ -42,9 +44,9 @@ void glsl_side() {
   - ARM ターゲットでは `arm_neon.h` がグローバル `float16_t` を定義するため、`using namespace glsl` 下の非修飾 `float16_t` は曖昧になる。`glsl::float16_t` と修飾するか `hlsl::half` を使う
 - 行列: R,C ∈ {2,3,4} の全9形。`hlsl::floatRxC`（行格納・行優先 ctor）と `glsl::matCxR`（列格納・列優先 ctor）は **別型**、相互変換は explicit
 - 対応関係は非正方で入れ替わる: `float3x4`（3行4列）≡ `mat4x3`（4列3行）
-- 比較結果: `bool2/3/4`（= `bvec2/3/4`）と `boolRxC`。算術なし・bool への暗黙変換なし。
+- 比較結果: `hlsl::bool2/3/4` と `glsl::bvec2/3/4`（別型）、`boolRxC`。算術なし・bool への暗黙変換なし。
   float ベクトルとは明示的に変換できる（`float3(b)` は真で 1、`bool3(v)` / `bvec3(v)` は 0 以外で真）。暗黙の変換は無い
-  （GLSL に無く、型を共有しているため）
+  （GLSL には無い。HLSL の暗黙変換は意図して入れていない）
 - `hlsl::vector<T, N>`（`vector<float, 3>` = `float3`）。`using namespace std` と `using namespace hlsl` を同じスコープで
   使うと `vector` が曖昧になるので、`std::vector` と修飾する
   `bool3(true, false, true)` / `bool3(true)` で作れる（引数は bool のみ。int や float からは作れない）。
@@ -65,8 +67,10 @@ void glsl_side() {
 | `==` | 成分ごと bool 行列/ベクトル | 全成分一致のスカラー bool |
 | `<` `>` `<=` `>=` | 成分ごと bool | ベクトルには無し（`lessThan()` 等） |
 | 成分アクセス | `m[row][col]`, `_m00`, `_11`（複数成分 `_m00_m11` はオプトイン、下記） | `m[col][row]` |
-| swizzle | `.xyzw` `.rgba` 全組み合わせ（読み書き） | 同左。`.stpq` はオプトイン（下記） |
+| swizzle | `.xyzw` `.rgba` 全組み合わせ（読み書き） | 同左と `.stpq` |
 | swizzle の重ねがけ（`v.xy.yx`） | オプトイン（下記） | 同左 |
+| スカラー → ベクトル | 暗黙に変換（`float3 v = 1.0f`） | コンストラクタのみ（`vec3(1.0)`） |
+| `.length()` | 無し | 成分数（行列は列数） |
 
 `transpose` / `determinant` / `inverse` / `dot` / `cross` / `length` / `normalize` / `all` / `any` は両方にある（`inverse` は GLSL 公式・HLSL 側は拡張）。
 
@@ -77,7 +81,8 @@ void glsl_side() {
 - `float3 + float4` → エラー（サイズ変換は明示 ctor のみ）
 - `if (a == b)`（hlsl）→ エラー（`all()` / `any()` で還元）
 - `v.xx = ...`（重複 swizzle への書き込み）→ エラー
-- `hlsl::matrix` ⇔ `glsl::matrix` の暗黙変換 → エラー（explicit のみ）
+- `hlsl::matrix` ⇔ `glsl::matrix`、`hlsl::float3` ⇔ `glsl::vec3` の暗黙変換・混ぜた演算 → エラー（explicit のみ）
+- `glsl` の `vec3 v = 1.0;` / `mat2(1.0, 2.0)` → エラー（`vec3(1.0)` と書く）
 
 ## 標準ライブラリとの連携（オプトイン）
 
@@ -235,7 +240,7 @@ target_link_libraries(app PRIVATE shader_math::shader_math)
 - scalar 強制: サブプロジェクトなら `-DSHADER_MATH_FORCE_SCALAR=ON`、インストール済みパッケージなら
   `find_package` の前に `set(SHADER_MATH_FORCE_SCALAR ON)`。どちらもマクロが `shader_math::shader_math`
   に付くので、リンクする全ターゲットで揃う（SIMD と scalar の翻訳単位が混ざると ODR 違反になる）。
-  `SHADER_MATH_GLSL_STPQ` / `SHADER_MATH_NESTED_SWIZZLE` / `SHADER_MATH_MATRIX_SWIZZLE(3)` も同じ方法で有効にする
+  `SHADER_MATH_NESTED_SWIZZLE` / `SHADER_MATH_MATRIX_SWIZZLE(3)` も同じ方法で有効にする
 - pkg-config: `<prefix>/share/pkgconfig/shader_math.pc`（`pkg-config --cflags shader_math`）。Boost は
   システムの Boost を使ってインストールした場合だけ含まれる（自動取得した Boost はインストールされない）
 - バージョンは 0.x の間は同一マイナーのみ互換（`SameMinorVersion`）
@@ -265,13 +270,8 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
   どちらも行列の形の範囲内だけで、重複の無いものは書き込める。4 成分は無い（行は `m[3]`、それ以外は
   `float4(m._m00, m._m11, m._m22, m._m33)` と書く）。メンバ宣言が組み合わせで増えるため、
   `bench/compile_time.py`（全行列型を使う翻訳単位）で 2 成分は約 1.2 倍、3 成分は gcc・clang とも約 4 倍
-- GLSL の `.stpq` swizzle は**オプトイン**: `SHADER_MATH_GLSL_STPQ` を定義すると有効
-  （CMake では `-DSHADER_MATH_GLSL_STPQ=ON`、インストール済みパッケージは `find_package` の前に
-  `set(SHADER_MATH_GLSL_STPQ ON)`。どちらも `shader_math::shader_math` に付くので全翻訳単位で揃う）。
-  ベクトル型は `hlsl` と共有なので、有効にすると HLSL 側でも `.stp` が通る（HLSL には無い綴り。意味は
-  `.xyz` と同じ）。既定で無効なのはこのため。コンパイル時間は gcc で +5〜11%、clang では誤差程度（実測）
 - **swizzle の重ねがけ**（`v.xy.yx`、`v.xyz.zx`）は**オプトイン**: `SHADER_MATH_NESTED_SWIZZLE` を定義すると
-  2・3 成分の swizzle に対して読み出しだけ有効（`.stpq` も有効ならそれも使える）。4 成分の swizzle からの
+  2・3 成分の swizzle に対して読み出しだけ有効（GLSL では `.stpq` も）。4 成分の swizzle からの
   重ねがけ（`v.wzyx.xy`）と重ねがけ先への書き込みは無い（`float4(v.wzyx).xy` と書く）。メンバ宣言が
   組み合わせで増えるため、有効にするとライブラリを include するだけの翻訳単位のフロントエンド時間が
   約 2 倍になる（`bench/compile_time.py` の実測で gcc 2.0 倍、clang 2.4 倍）。既定で無効なのはこのため

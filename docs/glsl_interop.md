@@ -40,16 +40,16 @@ CI は `linux-x64-glsl-interop` ジョブで実行する。
 （`glsl_interop_half_check`）。デバイスの `shaderFloat16` が必要で、無ければスキップ（終了コード 77）。
 共有ファイルでは `float16_t` を書かない（ARM では `arm_neon.h` のグローバル `float16_t` と曖昧になる）。
 
-## `.stpq`（オプトイン）
+## `.stpq`
 
-`.stpq` は shader-math では `SHADER_MATH_GLSL_STPQ` を定義したときだけ有効なので、`stpq_cases.glsl`
-（`kernels_stpq.comp`）を、マクロ付きでビルドした専用の C++ 側と照合する（`glsl_interop_stpq_check`）。
+`.stpq` は GLSL のベクトルにだけある（HLSL には無い）。`stpq_cases.glsl`（`kernels_stpq.comp`）を
+専用の C++ 側と照合する（`glsl_interop_stpq_check`）。
 
 ## swizzle の重ねがけ（オプトイン）
 
 2・3 成分の swizzle に対する重ねがけ（`a.zw.yx`、`b.stp.ps`）も `SHADER_MATH_NESTED_SWIZZLE` を
-定義したときだけ有効なので、`nested_cases.glsl`（`kernels_nested.comp`）を、このマクロと
-`SHADER_MATH_GLSL_STPQ` 付きでビルドした C++ 側と照合する（`glsl_interop_nested_check`）。
+定義したときだけ有効なので、`nested_cases.glsl`（`kernels_nested.comp`）を、このマクロ付きで
+ビルドした C++ 側と照合する（`glsl_interop_nested_check`）。
 
 ## 許容誤差（名前の接頭辞で決まる）
 

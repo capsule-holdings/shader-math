@@ -60,7 +60,6 @@ int main() {
     CHECK_EQF(w[0], 4.0f);
     CHECK_EQF(w[1], 3.0f);
 
-#if defined(SHADER_MATH_GLSL_STPQ)
     {
         using namespace shader_math::glsl;
         const vec4 g(1.0f, 2.0f, 3.0f, 4.0f);
@@ -69,7 +68,6 @@ int main() {
         CHECK_EQF(st[1], 1.0f);
         CHECK_EQF(float(g.qp.s), 4.0f);
     }
-#endif
 
 #if defined(SHADER_MATH_HAS_HALF)
     {
