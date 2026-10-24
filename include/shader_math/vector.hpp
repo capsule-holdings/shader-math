@@ -712,9 +712,10 @@ SM_VEC_UNARY_FN(sqrt, sqrt)
 SM_VEC_UNARY_FN(floor, rnd_floor)
 SM_VEC_UNARY_FN(ceil, rnd_ceil)
 SM_VEC_UNARY_FN(trunc, rnd_trunc)
-// round is half-away-from-zero (std::round). GPU implementations commonly
-// round-to-even; halfway cases are therefore environment-dependent.
-SM_VEC_UNARY_FN(round, rnd_away)
+// round sends halves to even, as DXC compiles HLSL round (Round_ne in DXIL,
+// RoundEven in SPIR-V). GLSL leaves the halfway direction to the
+// implementation, so glsl::round is roundEven too.
+SM_VEC_UNARY_FN(round, rnd_even)
 SM_VEC_UNARY_FN(round_even_impl, rnd_even)  // glsl::roundEven
 #undef SM_VEC_UNARY_FN
 

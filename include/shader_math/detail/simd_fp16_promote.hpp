@@ -159,7 +159,6 @@ struct hops {
     SHADER_MATH_HP_UNARY(rnd_ceil, rnd_ceil)
     SHADER_MATH_HP_UNARY(rnd_trunc, rnd_trunc)
     SHADER_MATH_HP_UNARY(rnd_even, rnd_even)
-    SHADER_MATH_HP_UNARY(rnd_away, rnd_away)
 #undef SHADER_MATH_HP_UNARY
 
     static SHADER_MATH_INLINE hreg min(hreg a, hreg b) {
