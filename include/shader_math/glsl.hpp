@@ -233,6 +233,32 @@ SHADER_MATH_INLINE matrix<Cn, Rn, T> operator-(const matrix<Cn, Rn, T>& a) {
     detail::regs_fill<Cn>(o.col_, [&](int c) { return detail::vops<T>::neg(a.col_[c].q_); });
     return o;
 }
+template <int Cn, int Rn, class T>
+SHADER_MATH_INLINE matrix<Cn, Rn, T> operator+(const matrix<Cn, Rn, T>& a) {
+    return a;
+}
+template <int Cn, int Rn, class T>
+SHADER_MATH_INLINE matrix<Cn, Rn, T>& operator++(matrix<Cn, Rn, T>& a) {
+    a = a + T(1.0f);
+    return a;
+}
+template <int Cn, int Rn, class T>
+SHADER_MATH_INLINE matrix<Cn, Rn, T>& operator--(matrix<Cn, Rn, T>& a) {
+    a = a - T(1.0f);
+    return a;
+}
+template <int Cn, int Rn, class T>
+SHADER_MATH_INLINE matrix<Cn, Rn, T> operator++(matrix<Cn, Rn, T>& a, int) {
+    const matrix<Cn, Rn, T> old = a;
+    a = a + T(1.0f);
+    return old;
+}
+template <int Cn, int Rn, class T>
+SHADER_MATH_INLINE matrix<Cn, Rn, T> operator--(matrix<Cn, Rn, T>& a, int) {
+    const matrix<Cn, Rn, T> old = a;
+    a = a - T(1.0f);
+    return old;
+}
 
 // ---- operator*: linear algebra (GLSL semantics) ------------------------------
 // matrix * matrix: inner dimensions must match (enforced by the signature).
@@ -287,6 +313,14 @@ template <int Cn, int Rn, class T, class S>
     requires detail::ScalarFor<S, T>
 SHADER_MATH_INLINE matrix<Cn, Rn, T> operator*(const S& s, const matrix<Cn, Rn, T>& b) {
     return b * s;
+}
+
+// v *= m is v = v * m, which keeps v's width only for a square m
+template <int N, class T>
+SHADER_MATH_INLINE detail::gvec<N, T>& operator*=(detail::gvec<N, T>& v,
+                                                 const matrix<N, N, T>& m) {
+    v = v * m;
+    return v;
 }
 
 // compound assignment

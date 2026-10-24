@@ -766,6 +766,79 @@ static void test_funcs_half() {
 static void test_funcs_half() {}
 #endif
 
+// forms the conformance corpus (tests/conformance) found missing: unary +,
+// ++ / --, HLSL %=, GLSL v *= m, scalar geometric functions, component-list
+// constructors, HLSL bool splat
+static void test_funcs_conformance_gaps() {
+    {
+        using namespace shader_math::hlsl;
+        const float4 a(1.0f, -2.0f, 3.5f, -7.0f);
+        CHECK(all(+a == a));
+        float4 v = a;
+        CHECK(all(v++ == a));
+        CHECK(all(v == a + 1.0f));
+        CHECK(all(--v == a));
+        v %= 3.0f;
+        CHECK(all(v == float4(1.0f, -2.0f, 0.5f, -1.0f)));  // fmod: sign of x
+        float4 w = a;
+        w %= float4(2.0f);
+        CHECK(all(w == float4(1.0f, -0.0f, 1.5f, -1.0f)));
+
+        float2x2 m = float2x2(a.xy, 5.0f, 6.0f);  // rows
+        CHECK(all(m[0] == float2(1.0f, -2.0f)) && all(m[1] == float2(5.0f, 6.0f)));
+        const float2x2 n = a;  // HLSL converts a float4 to a float2x2 implicitly
+        CHECK(all(n[0] == a.xy) && all(n[1] == a.zw));
+        const float2x3 p = float2x3(a.xy, a);
+        CHECK(all(p[0] == float3(1.0f, -2.0f, 1.0f)) && all(p[1] == float3(-2.0f, 3.5f, -7.0f)));
+        m++;
+        CHECK(all(m[1] == float2(6.0f, 7.0f)));
+        CHECK(all(+m == m));
+        float2x2 q = m;
+        q %= 4.0f;
+        CHECK(all(q[1] == float2(2.0f, 3.0f)));
+
+        bool3 t = true;
+        CHECK(all(t));
+
+        CHECK_EQF(normalize(-2.0f), -1.0f);
+        CHECK_EQF(normalize(a.z), 1.0f);
+        CHECK_EQF(reflect(3.0f, 1.0f), -3.0f);
+        CHECK_EQF(refract(1.0f, -1.0f, 1.0f), 1.0f);
+        CHECK_EQF(refract(1.0f, -0.1f, 2.0f), 0.0f);  // total internal reflection
+        CHECK_EQF(faceforward(2.0f, 1.0f, -1.0f), 2.0f);
+        CHECK_EQF(faceforward(2.0f, 1.0f, 1.0f), -2.0f);
+#if defined(SHADER_MATH_HAS_HALF)
+        CHECK_EQF(static_cast<float>(normalize(half(-3.0f))), -1.0f);
+#endif
+    }
+    {
+        using namespace shader_math::glsl;
+        const vec4 a(1.0f, -2.0f, 3.5f, -7.0f);
+        const vec2 b2(8.0f, 9.0f);
+        CHECK(vec3(a.xy, b2) == vec3(1.0f, -2.0f, 8.0f));  // the last argument cut short
+        CHECK(vec4(0.5f, a) == vec4(0.5f, 1.0f, -2.0f, 3.5f));
+        CHECK(vec2(0.5f, b2) == vec2(0.5f, 8.0f));
+        const mat2 m = mat2(a);  // columns
+        CHECK(m[0] == vec2(1.0f, -2.0f) && m[1] == vec2(3.5f, -7.0f));
+        const mat2 n = mat2(a.xyz, a.xyz);
+        CHECK(n[1] == vec2(3.5f, 1.0f));
+        const mat2 k = mat2(b2, 3.0f, 4.0f);
+        CHECK(k[1] == vec2(3.0f, 4.0f));
+        vec2 r = b2;
+        r *= k;
+        CHECK(r == b2 * k);
+        vec4 v = +a;
+        ++v;
+        CHECK(v == a + 1.0f);
+        mat2 q = k;
+        q--;
+        CHECK(q[0] == vec2(7.0f, 8.0f));
+        CHECK(+q == q);
+        CHECK_EQF(normalize(-2.0f), -1.0f);
+        CHECK_EQF(reflect(3.0f, 1.0f), -3.0f);
+    }
+}
+
 void test_funcs() {
     test_funcs_exact();
     test_funcs_near();
@@ -777,5 +850,6 @@ void test_funcs() {
     test_funcs_scalar();
     test_funcs_nan_rules();
     test_funcs_review_gaps();
+    test_funcs_conformance_gaps();
     test_funcs_half();
 }

@@ -5,6 +5,8 @@
 //   HLSL. Import with `using namespace hlsl;` (one language per scope).
 #pragma once
 
+#include <concepts>
+
 #include "matrix.hpp"
 
 namespace shader_math {
@@ -341,6 +343,32 @@ SHADER_MATH_INLINE matrix<R, C, T> operator-(const matrix<R, C, T>& a) {
     detail::regs_fill<R>(o.row_, [&](int r) { return detail::vops<T>::neg(a.row_[r].q_); });
     return o;
 }
+template <int R, int C, class T>
+SHADER_MATH_INLINE matrix<R, C, T> operator+(const matrix<R, C, T>& a) {
+    return a;
+}
+template <int R, int C, class T>
+SHADER_MATH_INLINE matrix<R, C, T>& operator++(matrix<R, C, T>& a) {
+    a = a + T(1.0f);
+    return a;
+}
+template <int R, int C, class T>
+SHADER_MATH_INLINE matrix<R, C, T>& operator--(matrix<R, C, T>& a) {
+    a = a - T(1.0f);
+    return a;
+}
+template <int R, int C, class T>
+SHADER_MATH_INLINE matrix<R, C, T> operator++(matrix<R, C, T>& a, int) {
+    const matrix<R, C, T> old = a;
+    a = a + T(1.0f);
+    return old;
+}
+template <int R, int C, class T>
+SHADER_MATH_INLINE matrix<R, C, T> operator--(matrix<R, C, T>& a, int) {
+    const matrix<R, C, T> old = a;
+    a = a - T(1.0f);
+    return old;
+}
 
 #define SM_HLSL_MAT_COMPOUND(sym)                                                        \
     template <int R, int C, class T>                                                     \
@@ -382,6 +410,22 @@ SHADER_MATH_INLINE matrix<R, C, T> operator%(const matrix<R, C, T>& a, const S& 
     matrix<R, C, T> o;
     for (int r = 0; r < R; ++r) o.row_[r] = detail::fmod_impl(a.row_[r], s);
     return o;
+}
+template <int N, class T, class B>
+    requires requires(const vector<T, N>& a, const B& b) {
+        { a % b } -> std::same_as<vector<T, N>>;
+    }
+SHADER_MATH_INLINE vector<T, N>& operator%=(vector<T, N>& a, const B& b) {
+    a = a % b;
+    return a;
+}
+template <int R, int C, class T, class B>
+    requires requires(const matrix<R, C, T>& a, const B& b) {
+        { a % b } -> std::same_as<matrix<R, C, T>>;
+    }
+SHADER_MATH_INLINE matrix<R, C, T>& operator%=(matrix<R, C, T>& a, const B& b) {
+    a = a % b;
+    return a;
 }
 
 // ---- comparisons: per-component results (HLSL semantics) --------------------

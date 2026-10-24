@@ -106,6 +106,20 @@ static_assert(std::is_constructible_v<g::vec3, float>);
 static_assert(!std::is_constructible_v<h::float2x2, float, float>);
 static_assert(!std::is_constructible_v<g::mat2, float, float>);
 
+// ---- component lists: HLSL needs the exact count, GLSL lets only the last argument
+// be cut short; a single vector converts to a matrix implicitly in HLSL only ----------
+static_assert(std::is_constructible_v<h::float2x2, h::float2, float, float>);
+static_assert(!std::is_constructible_v<h::float2x2, h::float3, h::float3>);
+static_assert(std::is_convertible_v<h::float4, h::float2x2>);
+static_assert(std::is_constructible_v<g::vec3, g::vec2, g::vec2>);
+static_assert(!std::is_constructible_v<g::vec2, g::vec2, float>);  // float unused
+static_assert(!std::is_constructible_v<g::vec3, float, float, float, float>);
+static_assert(std::is_constructible_v<g::mat2, g::vec3, g::vec3>);
+static_assert(!std::is_constructible_v<g::mat2, g::vec4, float>);
+static_assert(!std::is_convertible_v<g::vec4, g::mat2>);
+static_assert(!std::is_constructible_v<g::vec3, h::float2, h::float2>);  // one language
+static_assert(std::is_convertible_v<bool, h::bool3> && !std::is_convertible_v<bool, g::bvec3>);
+
 // ---- glsl .length() is the component (column) count; hlsl has no such member --------
 template <class V>
 concept has_length_member = requires(const V& v) { v.length(); };

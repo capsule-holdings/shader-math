@@ -6,7 +6,8 @@
 #define SM_DXC_CASES_COMMON(X)                                 \
     SM_INTEROP_CASES_BASE(X)                                   \
     X(exact_dst, case_exact_dst(IN_A, IN_B))                   \
-    X(exact_round_ties, case_exact_round_ties(IN_A))
+    X(exact_round_ties, case_exact_round_ties(IN_A))           \
+    X(exact_ctor_ops, case_exact_ctor_ops(IN_A, IN_B))
 
 // SPIR-V leaves lit out: DXC's SPIR-V backend computes its specular term as
 // (n.h) * m instead of the documented (n.h)^m.
