@@ -297,6 +297,49 @@ for cid, body in [
 ]:
     H("out_of_scope", cid, body)
 
+# boundaries found while checking the constructor and operator additions
+for cid, body in [
+    ("mat_ctor_from_vec4", "float2x2 r = float2x2(a4);"),
+    ("mat_implicit_from_vec4", "float2x2 r = a4;"),
+    ("mat_ctor_v3_s", "float2x2 r = float2x2(a, s);"),
+    ("mat_ctor_v3_v3", "float2x2 r = float2x2(a, a);"),
+    ("mat_ctor_rows_v2", "float2x2 r = float2x2(a2, b2);"),
+    ("mat_ctor_v2_v4", "float2x3 r = float2x3(a2, a4);"),
+    ("mat_brace_mixed", "float2x2 r = {a2, 3.0, 4.0};"),
+    ("mat_ctor_half_vec", "float2x2 r = float2x2(a2, h.xy);"),
+    ("ctor_half_vec", "float4 r = float4(a2, h.xy);"),
+    ("vec_from_mat_implicit", "float2x2 k = a4; float4 r = k;"),
+    ("bool_assign_scalar", "bool3 r = bb; r = false;"),
+]:
+    H("ctor", cid, body)
+for cid, body in [
+    ("bool_component_write", "bool3 r = bb; r.x = true;"),
+]:
+    H("swizzle", cid, body)
+for cid, body in [
+    ("s_all_bool", "bool r = all(s > 0.0);"),
+]:
+    H("scalar", cid, body)
+for cid, body in [
+    ("swz_increment", "float3 r = a; r.x++;"),
+]:
+    H("swizzle", cid, body)
+for cid, body in [
+    ("bool_unary_plus", "bool3 r = +bb;"),
+    ("decrement_prefix", "float3 r = a; --r;"),
+    ("mat_increment", "float3x3 r = m; r++;"),
+    ("mat_unary_plus", "float3x3 r = +m;"),
+    ("vec_compound_mat", "float3 r = a; r *= m;"),
+    ("mat_compound_vec", "float3x3 r = m; r *= a;"),
+]:
+    H("operator", cid, body)
+for cid, body in [
+    ("s_reflect", "float r = reflect(s, t);"),
+    ("s_refract", "float r = refract(s, t, 0.5);"),
+    ("s_faceforward", "float r = faceforward(s, t, s);"),
+]:
+    H("scalar", cid, body)
+
 # ============================ GLSL ===========================================
 for cid, body in [
     ("ctor_scalars", "vec3 r = vec3(1.0, 2.0, 3.0);"),
@@ -523,3 +566,47 @@ for cid, body in [
     ("oos_bitCount", "int r = bitCount(1);"),
 ]:
     G("out_of_scope", cid, body)
+
+# boundaries found while checking the constructor and operator additions
+for cid, body in [
+    ("ctor_vec2_unused_arg", "vec2 r = vec2(a2, s);"),
+    ("ctor_s_v2", "vec2 r = vec2(s, a2);"),
+    ("ctor_v3_v3", "vec4 r = vec4(a, a);"),
+    ("ctor_s_v4", "vec4 r = vec4(s, a4);"),
+    ("ctor_v2_v2_s", "vec3 r = vec3(a2, a2, s);"),
+    ("ctor_four_scalars", "vec3 r = vec3(s, s, s, s);"),
+    ("ctor_bool_arg", "vec3 r = vec3(a2, true);"),
+    ("ctor_half_vec", "vec4 r = vec4(a2, h.xy);"),
+    ("mat_ctor_v3_v3", "mat2 r = mat2(a, a);"),
+    ("mat_ctor_v4_s", "mat2 r = mat2(a4, s);"),
+    ("mat_ctor_v3_s", "mat2 r = mat2(a, s);"),
+    ("mat_ctor_v4_v4_s", "mat3 r = mat3(a4, a4, s);"),
+    ("mat_implicit_from_vec4", "mat2 r = a4;"),
+    ("mat_brace_mixed", "mat2 r = {a2, 3.0, 4.0};"),
+    ("vec_from_mat", "vec4 r = vec4(mat2(a4));"),
+    ("bvec_assign_scalar", "bvec3 r = bb; r = false;"),
+]:
+    G("ctor", cid, body)
+for cid, body in [
+    ("bvec_component_write", "bvec3 r = bb; r.x = true;"),
+]:
+    G("swizzle", cid, body)
+for cid, body in [
+    ("swz_increment", "vec3 r = a; r.x++;"),
+]:
+    G("swizzle", cid, body)
+for cid, body in [
+    ("bvec_unary_plus", "bvec3 r = +bb;"),
+    ("decrement_prefix", "vec3 r = a; --r;"),
+    ("mat_increment", "mat3 r = m; r++;"),
+    ("mat_unary_plus", "mat3 r = +m;"),
+    ("mat_compound_vec", "mat3 r = m; r *= a;"),
+    ("vec_mod_assign", "vec3 r = a; r %= 2.0;"),
+]:
+    G("operator", cid, body)
+for cid, body in [
+    ("s_reflect", "float r = reflect(s, t);"),
+    ("s_refract", "float r = refract(s, t, 0.5);"),
+    ("s_faceforward", "float r = faceforward(s, t, s);"),
+]:
+    G("scalar", cid, body)

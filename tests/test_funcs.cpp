@@ -766,9 +766,8 @@ static void test_funcs_half() {
 static void test_funcs_half() {}
 #endif
 
-// forms the conformance corpus (tests/conformance) found missing: unary +,
-// ++ / --, HLSL %=, GLSL v *= m, scalar geometric functions, component-list
-// constructors, HLSL bool splat
+// unary +, ++ / --, HLSL %=, GLSL v *= m, scalar geometric functions,
+// component-list constructors, HLSL bool splat
 static void test_funcs_conformance_gaps() {
     {
         using namespace shader_math::hlsl;

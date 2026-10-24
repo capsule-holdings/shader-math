@@ -30,6 +30,8 @@ void glsl_side() {
 
 同一スコープに両方の名前空間を `using` しないこと（`mul` / `transpose` などが衝突する）。
 演算子と各言語の関数（`frac`、`mix` など）は、その言語の型に対しては `using` なしでも見つかる（ADL）。
+そのために各名前空間に型の言語を表す `hlsl::lang_tag` / `glsl::lang_tag` があり、`using namespace` で見える
+（自前の `lang_tag` と同じスコープで使うと曖昧になる）。
 
 ## 型
 
@@ -56,6 +58,9 @@ void glsl_side() {
   （Slang との相互コンパイル検証ハーネスで CI 照合済み）
 
 ## 言語セマンティクスの互換表
+
+主な違いだけをまとめる。型・コンストラクタ・成分アクセス・演算子・組み込み関数の全項目（書けるもの、
+書けないものとその理由）は [docs/compat_mapping.md](docs/compat_mapping.md)。
 
 | 項目 | hlsl:: | glsl:: |
 | --- | --- | --- |
