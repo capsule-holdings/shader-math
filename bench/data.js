@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792824666692,
+  "lastUpdate": 1792825102301,
   "repoUrl": "https://github.com/capsule-holdings/shader-math",
   "entries": {
     "linux-x64-gcc": [
@@ -1827,6 +1827,160 @@ window.BENCHMARK_DATA = {
           {
             "name": "half4 a * b + c [scalar]",
             "value": 84.098,
+            "unit": "ns/elem"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "emuesuenu@hotmail.com",
+            "name": "Hidenori Kondo",
+            "username": "emuesuenu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2895f46ecb6f57f1b3930695fc0a6a94e396acfb",
+          "message": "Make min / max ignore a NaN operand, as D3D defines them (#84)\n\nmin / max followed each backend: SSE2 and scalar returned NaN when the second\noperand was NaN, NEON returned NaN whenever either was, so saturate(NaN) was\n0 on x86 and NaN on ARM. D3D defines min / max as IEEE minNum / maxNum and\nsaturate(NaN) = 0 (DXC emits FMin / FMax / Saturate in DXIL, NMin / NMax /\nFClamp in SPIR-V); GLSL leaves it undefined, which this satisfies. Every\nbackend now ignores a NaN operand: SSE2 replaces the lanes where b is NaN\n(cmpunordps + select), NEON uses vminnmq / vmaxnmq (vminnm_f16 / vmaxnm_f16\nfor native half), scalar checks b != b. clamp / saturate / smoothstep build\non them, so saturate(NaN) = 0 and clamp(NaN, lo, hi) = lo everywhere.\n\nTests in test_simd.cpp and test_funcs.cpp (vectors, scalars, half). Interop\ncase case_exact_nan_rules runs in the Slang and DXC SPIR-V checks; not in\nDXIL, which DXC compiles with fast-math flags that assume no NaN. README\n(ja / en) updated.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-10-24T15:53:14+09:00",
+          "tree_id": "411b120f91c758fc2b398c4a1c1446ebf5efd5fc",
+          "url": "https://github.com/capsule-holdings/shader-math/commit/2895f46ecb6f57f1b3930695fc0a6a94e396acfb"
+        },
+        "date": 1792825101352,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "hlsl mul(float4x4, float4x4) [SSE2]",
+            "value": 2.525,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [SSE2]",
+            "value": 2.527,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [SSE2]",
+            "value": 0.734,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [SSE2]",
+            "value": 1.577,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [SSE2]",
+            "value": 5.04,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [SSE2]",
+            "value": 10.261,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [SSE2]",
+            "value": 0.539,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [SSE2]",
+            "value": 1.327,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [SSE2]",
+            "value": 7.004,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [SSE2]",
+            "value": 2.644,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [SSE2]",
+            "value": 3.614,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [SSE2]",
+            "value": 0.359,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [SSE2]",
+            "value": 7.178,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4x4) [scalar]",
+            "value": 3.435,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [scalar]",
+            "value": 3.54,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [scalar]",
+            "value": 0.821,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [scalar]",
+            "value": 6.001,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [scalar]",
+            "value": 4.603,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [scalar]",
+            "value": 10.988,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [scalar]",
+            "value": 1.809,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [scalar]",
+            "value": 1.035,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [scalar]",
+            "value": 6.825,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [scalar]",
+            "value": 2.69,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [scalar]",
+            "value": 3.615,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [scalar]",
+            "value": 1.06,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [scalar]",
+            "value": 79.803,
             "unit": "ns/elem"
           }
         ]
