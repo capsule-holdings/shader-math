@@ -446,15 +446,92 @@ SHADER_MATH_INLINE T det_regs(const fvec<N, T>* regs) {
     if constexpr (N == 4) return det4(p);
 }
 
+// float 4x4 inverse in registers: Cramer's rule over a transposed, pair-
+// rotated copy (the Intel AP-928 arrangement), so every lane move is one of
+// the single-instruction shuffles. Used on SSE2 only: on AArch64 (gcc, CI
+// runners) it measured no faster than the dense path, and the scalar
+// backend's dense path is what compilers vectorize across loop iterations.
+SHADER_MATH_INLINE void inv4_regs(const fvec<4, float>* in, fvec<4, float>* out) {
+    using O = vops<float>;
+    using R = vreg<float>;
+    const R a = O::cat_lo(in[0].q_, in[1].q_);
+    const R b = O::cat_lo(in[2].q_, in[3].q_);
+    const R c = O::cat_hi(in[0].q_, in[1].q_);
+    const R d = O::cat_hi(in[2].q_, in[3].q_);
+    const R row0 = O::even(a, b);  // m00 m10 m20 m30
+    const R row1 = O::odd(b, a);   // m21 m31 m01 m11
+    R row2 = O::even(c, d);        // m02 m12 m22 m32
+    const R row3 = O::odd(d, c);   // m23 m33 m03 m13
+
+    R t = O::swap_pairs(O::mul(row2, row3));
+    R minor0 = O::mul(row1, t);
+    R minor1 = O::mul(row0, t);
+    t = O::swap_halves(t);
+    minor0 = O::sub(O::mul(row1, t), minor0);
+    minor1 = O::swap_halves(O::sub(O::mul(row0, t), minor1));
+
+    t = O::swap_pairs(O::mul(row1, row2));
+    minor0 = O::fmadd(row3, t, minor0);
+    R minor3 = O::mul(row0, t);
+    t = O::swap_halves(t);
+    minor0 = O::fnmadd(row3, t, minor0);
+    minor3 = O::swap_halves(O::sub(O::mul(row0, t), minor3));
+
+    t = O::swap_pairs(O::mul(O::swap_halves(row1), row3));
+    row2 = O::swap_halves(row2);
+    minor0 = O::fmadd(row2, t, minor0);
+    R minor2 = O::mul(row0, t);
+    t = O::swap_halves(t);
+    minor0 = O::fnmadd(row2, t, minor0);
+    minor2 = O::swap_halves(O::sub(O::mul(row0, t), minor2));
+
+    t = O::swap_pairs(O::mul(row0, row1));
+    minor2 = O::fmadd(row3, t, minor2);
+    minor3 = O::sub(O::mul(row2, t), minor3);
+    t = O::swap_halves(t);
+    minor2 = O::sub(O::mul(row3, t), minor2);
+    minor3 = O::fnmadd(row2, t, minor3);
+
+    t = O::swap_pairs(O::mul(row0, row3));
+    minor1 = O::fnmadd(row2, t, minor1);
+    minor2 = O::fmadd(row1, t, minor2);
+    t = O::swap_halves(t);
+    minor1 = O::fmadd(row2, t, minor1);
+    minor2 = O::fnmadd(row1, t, minor2);
+
+    t = O::swap_pairs(O::mul(row0, row2));
+    minor1 = O::fmadd(row3, t, minor1);
+    minor3 = O::fnmadd(row1, t, minor3);
+    t = O::swap_halves(t);
+    minor1 = O::fnmadd(row3, t, minor1);
+    minor3 = O::fmadd(row1, t, minor3);
+
+    R det = O::mul(row0, minor0);
+    det = O::add(O::swap_halves(det), det);
+    det = O::add(O::swap_pairs(det), det);
+    const R id = O::div(O::splat(1.0f), det);
+    out[0] = fvec<4, float>(O::mul(minor0, id));
+    out[1] = fvec<4, float>(O::mul(minor1, id));
+    out[2] = fvec<4, float>(O::mul(minor2, id));
+    out[3] = fvec<4, float>(O::mul(minor3, id));
+}
+
 template <int N, class T>
 SHADER_MATH_INLINE void inv_regs(const fvec<N, T>* in, fvec<N, T>* out) {
-    T p[N * N];
-    T q[N * N];
-    pack_dense<N, N>(in, p);
-    if constexpr (N == 2) inv2(p, q);
-    if constexpr (N == 3) inv3(p, q);
-    if constexpr (N == 4) inv4(p, q);
-    unpack_dense<N, N>(q, out);
+#if defined(SHADER_MATH_ISA_SSE2)
+    if constexpr (N == 4 && std::is_same_v<T, float>) {
+        inv4_regs(in, out);
+    } else
+#endif
+    {
+        T p[N * N];
+        T q[N * N];
+        pack_dense<N, N>(in, p);
+        if constexpr (N == 2) inv2(p, q);
+        if constexpr (N == 3) inv3(p, q);
+        if constexpr (N == 4) inv4(p, q);
+        unpack_dense<N, N>(q, out);
+    }
 }
 
 // out[j][i] = in[i][j]  (in: NI regs x LI lanes, out: LI regs x NI lanes)

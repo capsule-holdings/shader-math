@@ -46,6 +46,21 @@ struct ops {
         return _mm_shuffle_ps(v, v, _MM_SHUFFLE(I, I, I, I));
     }
 
+    static SHADER_MATH_INLINE freg cat_lo(freg a, freg b) { return _mm_movelh_ps(a, b); }
+    static SHADER_MATH_INLINE freg cat_hi(freg a, freg b) { return _mm_movehl_ps(b, a); }
+    static SHADER_MATH_INLINE freg even(freg a, freg b) {
+        return _mm_shuffle_ps(a, b, _MM_SHUFFLE(2, 0, 2, 0));
+    }
+    static SHADER_MATH_INLINE freg odd(freg a, freg b) {
+        return _mm_shuffle_ps(a, b, _MM_SHUFFLE(3, 1, 3, 1));
+    }
+    static SHADER_MATH_INLINE freg swap_pairs(freg a) {
+        return _mm_shuffle_ps(a, a, _MM_SHUFFLE(2, 3, 0, 1));
+    }
+    static SHADER_MATH_INLINE freg swap_halves(freg a) {
+        return _mm_shuffle_ps(a, a, _MM_SHUFFLE(1, 0, 3, 2));
+    }
+
     static SHADER_MATH_INLINE freg add(freg a, freg b) { return _mm_add_ps(a, b); }
     static SHADER_MATH_INLINE freg sub(freg a, freg b) { return _mm_sub_ps(a, b); }
     static SHADER_MATH_INLINE freg mul(freg a, freg b) { return _mm_mul_ps(a, b); }
@@ -58,6 +73,14 @@ struct ops {
         return _mm_fmadd_ps(a, b, c);
 #else
         return _mm_add_ps(_mm_mul_ps(a, b), c);
+#endif
+    }
+    // c - a*b, rounded like fmadd
+    static SHADER_MATH_INLINE freg fnmadd(freg a, freg b, freg c) {
+#if defined(SHADER_MATH_HAS_FMA)
+        return _mm_fnmadd_ps(a, b, c);
+#else
+        return _mm_sub_ps(c, _mm_mul_ps(a, b));
 #endif
     }
 

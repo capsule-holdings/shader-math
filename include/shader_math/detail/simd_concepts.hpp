@@ -31,12 +31,23 @@ concept SimdFloatOps = requires(Reg r, Mask m, const T* cp, T* p, T s, int i, bo
     { Ops::template lane_c<0>(r) } -> std::same_as<T>;
     { Ops::template bcast<0>(r) } -> std::same_as<Reg>;
 
+    // lane moves that SSE2 and NEON each do in one instruction:
+    // cat_lo (a0 a1 b0 b1), cat_hi (a2 a3 b2 b3), even (a0 a2 b0 b2),
+    // odd (a1 a3 b1 b3), swap_pairs (a1 a0 a3 a2), swap_halves (a2 a3 a0 a1)
+    { Ops::cat_lo(r, r) } -> std::same_as<Reg>;
+    { Ops::cat_hi(r, r) } -> std::same_as<Reg>;
+    { Ops::even(r, r) } -> std::same_as<Reg>;
+    { Ops::odd(r, r) } -> std::same_as<Reg>;
+    { Ops::swap_pairs(r) } -> std::same_as<Reg>;
+    { Ops::swap_halves(r) } -> std::same_as<Reg>;
+
     { Ops::add(r, r) } -> std::same_as<Reg>;
     { Ops::sub(r, r) } -> std::same_as<Reg>;
     { Ops::mul(r, r) } -> std::same_as<Reg>;
     { Ops::div(r, r) } -> std::same_as<Reg>;
     { Ops::neg(r) } -> std::same_as<Reg>;
     { Ops::fmadd(r, r, r) } -> std::same_as<Reg>;
+    { Ops::fnmadd(r, r, r) } -> std::same_as<Reg>;
 
     { Ops::abs(r) } -> std::same_as<Reg>;
     { Ops::min(r, r) } -> std::same_as<Reg>;

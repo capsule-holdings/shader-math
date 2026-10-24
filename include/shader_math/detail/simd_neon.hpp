@@ -33,6 +33,17 @@ struct ops {
     template <int I>
     static SHADER_MATH_INLINE freg bcast(freg v) { return vdupq_laneq_f32(v, I); }
 
+    static SHADER_MATH_INLINE freg cat_lo(freg a, freg b) {
+        return vcombine_f32(vget_low_f32(a), vget_low_f32(b));
+    }
+    static SHADER_MATH_INLINE freg cat_hi(freg a, freg b) {
+        return vcombine_f32(vget_high_f32(a), vget_high_f32(b));
+    }
+    static SHADER_MATH_INLINE freg even(freg a, freg b) { return vuzp1q_f32(a, b); }
+    static SHADER_MATH_INLINE freg odd(freg a, freg b) { return vuzp2q_f32(a, b); }
+    static SHADER_MATH_INLINE freg swap_pairs(freg a) { return vrev64q_f32(a); }
+    static SHADER_MATH_INLINE freg swap_halves(freg a) { return vextq_f32(a, a, 2); }
+
     static SHADER_MATH_INLINE freg add(freg a, freg b) { return vaddq_f32(a, b); }
     static SHADER_MATH_INLINE freg sub(freg a, freg b) { return vsubq_f32(a, b); }
     static SHADER_MATH_INLINE freg mul(freg a, freg b) { return vmulq_f32(a, b); }
@@ -40,6 +51,8 @@ struct ops {
     static SHADER_MATH_INLINE freg neg(freg a) { return vnegq_f32(a); }
     // a*b + c
     static SHADER_MATH_INLINE freg fmadd(freg a, freg b, freg c) { return vfmaq_f32(c, a, b); }
+    // c - a*b
+    static SHADER_MATH_INLINE freg fnmadd(freg a, freg b, freg c) { return vfmsq_f32(c, a, b); }
 
     static SHADER_MATH_INLINE freg abs(freg a) { return vabsq_f32(a); }
     // NaN handling of min/max is backend-defined (vminq/vmaxq propagate NaN),
