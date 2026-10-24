@@ -712,9 +712,10 @@ SM_VEC_UNARY_FN(sqrt, sqrt)
 SM_VEC_UNARY_FN(floor, rnd_floor)
 SM_VEC_UNARY_FN(ceil, rnd_ceil)
 SM_VEC_UNARY_FN(trunc, rnd_trunc)
-// round is half-away-from-zero (std::round). GPU implementations commonly
-// round-to-even; halfway cases are therefore environment-dependent.
-SM_VEC_UNARY_FN(round, rnd_away)
+// round sends halves to even, as DXC compiles HLSL round (Round_ne in DXIL,
+// RoundEven in SPIR-V). GLSL leaves the halfway direction to the
+// implementation, so glsl::round is roundEven too.
+SM_VEC_UNARY_FN(round, rnd_even)
 SM_VEC_UNARY_FN(round_even_impl, rnd_even)  // glsl::roundEven
 #undef SM_VEC_UNARY_FN
 
@@ -781,7 +782,8 @@ SHADER_MATH_INLINE auto saturate_impl(const A& a) {
                                    vops<T>::splat(T(1.0f))));
 }
 
-// hlsl::lerp / glsl::mix: a + t*(b - a), fmadd path (rounding differs with FMA)
+// hlsl::lerp: a + t*(b - a), the form DXC emits for DXIL; fmadd path (rounding
+// differs with FMA)
 template <class A, class B, class C>
     requires(SameVec<A, B> && SameVec<A, C>)
 SHADER_MATH_INLINE auto lerp_impl(const A& a, const B& b, const C& t) {
@@ -798,6 +800,27 @@ SHADER_MATH_INLINE auto lerp_impl(const A& a, const B& b, const S& t) {
     const auto av = to_vec(a).q_;
     return fvec<n, T>(vops<T>::fmadd(vops<T>::splat(static_cast<T>(t)),
                                      vops<T>::sub(to_vec(b).q_, av), av));
+}
+
+// glsl::mix: x * (1 - a) + y * a, the formula GLSL defines mix by. Exact at
+// both ends (mix(x, y, 1) = y even when |x| is much larger than |y|).
+template <class T>
+SHADER_MATH_INLINE vreg<T> mix_core(vreg<T> x, vreg<T> y, vreg<T> a) {
+    return vops<T>::add(vops<T>::mul(x, vops<T>::sub(vops<T>::splat(T(1.0f)), a)),
+                        vops<T>::mul(y, a));
+}
+template <class A, class B, class C>
+    requires(SameVec<A, B> && SameVec<A, C>)
+SHADER_MATH_INLINE auto mix_impl(const A& x, const B& y, const C& a) {
+    using T = vec_elem_t<A>;
+    return fvec<vec_size_v<A>, T>(mix_core<T>(to_vec(x).q_, to_vec(y).q_, to_vec(a).q_));
+}
+template <class A, class B, class S>
+    requires(SameVec<A, B> && ScalarFor<S, vec_elem_t<A>>)
+SHADER_MATH_INLINE auto mix_impl(const A& x, const B& y, const S& a) {
+    using T = vec_elem_t<A>;
+    return fvec<vec_size_v<A>, T>(
+        mix_core<T>(to_vec(x).q_, to_vec(y).q_, vops<T>::splat(static_cast<T>(a))));
 }
 
 // step(edge, x): x >= edge ? 1 : 0 (note the edge-first argument order)
@@ -1269,6 +1292,165 @@ template <int N, class S, class B>
 SHADER_MATH_INLINE auto select_impl(const bvec<N>& c, const S& s, const B& b) {
     using T = vec_elem_t<B>;
     return fvec<N, T>(vops<T>::sel(c.m_, vops<T>::splat(static_cast<T>(s)), to_vec(b).q_));
+}
+
+// ---- scalar arguments ---------------------------------------------------------
+// Both languages apply their component-wise functions to scalars as well
+// (max(dot(n, l), 0.0)). A scalar call has no vector argument and at least
+// one float / half element: a float, a half, or a one-component swizzle or
+// matrix element (v.x, m._11). The other arguments follow the vector-scalar
+// operand rules (any arithmetic type next to float, exactly half next to
+// half). The call runs the vector function on a one-lane splat, so scalars
+// and vectors share every rounding and edge-case rule.
+template <class S>
+struct scalar_elem {
+    using type = void;
+};
+template <>
+struct scalar_elem<float> {
+    using type = float;
+};
+#if defined(SHADER_MATH_HAS_HALF)
+template <>
+struct scalar_elem<half_t> {
+    using type = half_t;
+};
+#endif
+template <class T, int N, int I>
+struct scalar_elem<swz<T, N, I>> {
+    using type = T;
+};
+#if defined(SHADER_MATH_NESTED_SWIZZLE)
+template <class T, int N, int J>
+struct scalar_elem<nswz<T, N, J>> {
+    using type = T;
+};
+#endif
+
+template <class... S>
+struct scalar_call_elem {
+    using type = void;
+};
+template <class S0, class... S>
+struct scalar_call_elem<S0, S...> {
+    using first = typename scalar_elem<std::remove_cvref_t<S0>>::type;
+    using type = std::conditional_t<std::is_void_v<first>, typename scalar_call_elem<S...>::type,
+                                    first>;
+};
+template <class... S>
+using scalar_call_t = typename scalar_call_elem<S...>::type;
+
+template <class S, class T>
+concept ScalarArgFor =
+    std::is_same_v<typename scalar_elem<std::remove_cvref_t<S>>::type, T> ||
+    (std::is_same_v<T, float> && std::is_arithmetic_v<std::remove_cvref_t<S>>);
+template <class... S>
+concept ScalarCall = !std::is_void_v<scalar_call_t<S...>> &&
+                     (ScalarArgFor<S, scalar_call_t<S...>> && ...);
+
+template <class T, class S>
+SHADER_MATH_INLINE fvec<2, T> lane1(const S& s) {
+    return fvec<2, T>(static_cast<T>(s));
+}
+
+}  // namespace detail
+}  // namespace shader_math
+
+// Scalar overloads of a component-wise function `name` that has vector
+// overloads in the enclosing namespace.
+#define SHADER_MATH_SCALAR_FN1(name)                                                  \
+    template <class A>                                                                \
+        requires ::shader_math::detail::ScalarCall<A>                                 \
+    SHADER_MATH_INLINE auto name(const A& a) {                                        \
+        using T_ = ::shader_math::detail::scalar_call_t<A>;                           \
+        return name(::shader_math::detail::lane1<T_>(a))[0];                          \
+    }
+#define SHADER_MATH_SCALAR_FN2(name)                                                  \
+    template <class A, class B>                                                       \
+        requires ::shader_math::detail::ScalarCall<A, B>                              \
+    SHADER_MATH_INLINE auto name(const A& a, const B& b) {                            \
+        using T_ = ::shader_math::detail::scalar_call_t<A, B>;                        \
+        return name(::shader_math::detail::lane1<T_>(a), ::shader_math::detail::lane1<T_>(b))[0]; \
+    }
+#define SHADER_MATH_SCALAR_FN3(name)                                                  \
+    template <class A, class B, class C>                                              \
+        requires ::shader_math::detail::ScalarCall<A, B, C>                           \
+    SHADER_MATH_INLINE auto name(const A& a, const B& b, const C& c) {                \
+        using T_ = ::shader_math::detail::scalar_call_t<A, B, C>;                     \
+        return name(::shader_math::detail::lane1<T_>(a), ::shader_math::detail::lane1<T_>(b), \
+                    ::shader_math::detail::lane1<T_>(c))[0];                          \
+    }
+
+namespace shader_math {
+namespace detail {
+
+SHADER_MATH_SCALAR_FN1(abs)
+SHADER_MATH_SCALAR_FN1(acos)
+SHADER_MATH_SCALAR_FN1(asin)
+SHADER_MATH_SCALAR_FN1(atan)
+SHADER_MATH_SCALAR_FN1(ceil)
+SHADER_MATH_SCALAR_FN1(cos)
+SHADER_MATH_SCALAR_FN1(cosh)
+SHADER_MATH_SCALAR_FN1(degrees)
+SHADER_MATH_SCALAR_FN1(exp)
+SHADER_MATH_SCALAR_FN1(exp2)
+SHADER_MATH_SCALAR_FN1(floor)
+SHADER_MATH_SCALAR_FN1(log)
+SHADER_MATH_SCALAR_FN1(log2)
+SHADER_MATH_SCALAR_FN1(radians)
+SHADER_MATH_SCALAR_FN1(sign)
+SHADER_MATH_SCALAR_FN1(sin)
+SHADER_MATH_SCALAR_FN1(sinh)
+SHADER_MATH_SCALAR_FN1(sqrt)
+SHADER_MATH_SCALAR_FN1(tan)
+SHADER_MATH_SCALAR_FN1(tanh)
+SHADER_MATH_SCALAR_FN1(trunc)
+SHADER_MATH_SCALAR_FN2(max)
+SHADER_MATH_SCALAR_FN2(min)
+SHADER_MATH_SCALAR_FN2(pow)
+SHADER_MATH_SCALAR_FN2(step)
+SHADER_MATH_SCALAR_FN3(clamp)
+SHADER_MATH_SCALAR_FN3(smoothstep)
+
+// round on scalars is not a template: libc++ and MSVC declare ::round(float)
+// in the global namespace, and a template would quietly lose to it (halves
+// away from zero). As a plain function an unqualified call is ambiguous
+// there instead; hlsl::round(x) / glsl::round(x) always resolve here.
+SHADER_MATH_INLINE float round(float a) {
+    return round(fvec<2, float>(a))[0];
+}
+#if defined(SHADER_MATH_HAS_HALF)
+SHADER_MATH_INLINE half_t round(half_t a) {
+    return round(fvec<2, half_t>(a))[0];
+}
+#endif
+
+// geometric functions on scalars (one-component vectors)
+template <class A, class B>
+    requires ScalarCall<A, B>
+SHADER_MATH_INLINE auto dot(const A& a, const B& b) {
+    using T = scalar_call_t<A, B>;
+    return static_cast<T>(static_cast<T>(a) * static_cast<T>(b));
+}
+template <class A>
+    requires ScalarCall<A>
+SHADER_MATH_INLINE auto length(const A& a) {
+    return abs(a);
+}
+template <class A, class B>
+    requires ScalarCall<A, B>
+SHADER_MATH_INLINE auto distance(const A& a, const B& b) {
+    using T = scalar_call_t<A, B>;
+    return abs(static_cast<T>(static_cast<T>(a) - static_cast<T>(b)));
+}
+// modf(x, out ip)
+template <class A, class T>
+    requires(ScalarCall<A> && std::is_same_v<T, scalar_call_t<A>>)
+SHADER_MATH_INLINE T modf(const A& a, T& ip) {
+    fvec<2, T> whole;
+    const T fr = modf(lane1<T>(a), whole)[0];
+    ip = whole[0];
+    return fr;
 }
 
 // compile-time loop helper (used by matrix code)

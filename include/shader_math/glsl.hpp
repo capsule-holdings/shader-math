@@ -109,9 +109,9 @@ using detail::trunc;
 // GLSL-only spellings (defined here, not in detail, so they never leak into
 // hlsl via ADL on the shared vector type)
 template <class... As>
-    requires requires(const As&... as) { detail::lerp_impl(as...); }
+    requires requires(const As&... as) { detail::mix_impl(as...); }
 SHADER_MATH_INLINE auto mix(const As&... as) {
-    return detail::lerp_impl(as...);
+    return detail::mix_impl(as...);
 }
 template <class A>
     requires detail::VecLike<A>
@@ -166,6 +166,24 @@ template <class A, class B, class C>
     requires requires(const A& a, const B& b, const C& c) { detail::mad_impl(a, b, c); }
 SHADER_MATH_INLINE auto fma(const A& a, const B& b, const C& c) {
     return detail::mad_impl(a, b, c);
+}
+
+// scalar arguments (detail::ScalarCall): GLSL-only spellings
+SHADER_MATH_SCALAR_FN3(mix)
+SHADER_MATH_SCALAR_FN1(fract)
+SHADER_MATH_SCALAR_FN1(inversesqrt)
+SHADER_MATH_SCALAR_FN1(roundEven)
+SHADER_MATH_SCALAR_FN1(asinh)
+SHADER_MATH_SCALAR_FN1(acosh)
+SHADER_MATH_SCALAR_FN1(atanh)
+SHADER_MATH_SCALAR_FN2(atan)
+SHADER_MATH_SCALAR_FN2(mod)
+SHADER_MATH_SCALAR_FN3(fma)
+template <class A, class B>
+    requires detail::ScalarCall<A, B>
+SHADER_MATH_INLINE auto mix(const A& x, const B& y, bool c) {
+    using T = detail::scalar_call_t<A, B>;
+    return c ? static_cast<T>(y) : static_cast<T>(x);
 }
 
 // ---- component-wise matrix operators (+ - / and scalar forms) ---------------

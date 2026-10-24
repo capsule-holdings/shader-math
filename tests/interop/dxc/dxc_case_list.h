@@ -5,13 +5,15 @@
 
 #define SM_DXC_CASES_COMMON(X)                                 \
     SM_INTEROP_CASES_BASE(X)                                   \
-    X(exact_dst, case_exact_dst(IN_A, IN_B))
+    X(exact_dst, case_exact_dst(IN_A, IN_B))                   \
+    X(exact_round_ties, case_exact_round_ties(IN_A))
 
 // SPIR-V leaves lit out: DXC's SPIR-V backend computes its specular term as
 // (n.h) * m instead of the documented (n.h)^m.
 #define SM_DXC_CASES(X)                                        \
     SM_DXC_CASES_COMMON(X)                                     \
     X(exact_frexp, case_exact_frexp(IN_A))                     \
+    X(exact_nan_rules, case_exact_nan_rules(IN_A, IN_B))       \
     X(exact_inf_edges, case_exact_inf_edges(IN_A))
 
 // DXIL leaves frexp out: DXC's DXIL lowering builds the mantissa as

@@ -211,6 +211,40 @@ SHADER_MATH_INLINE void sincos(const A& a, detail::fvec<N, T>& s, detail::fvec<N
     detail::sincos_impl(a, s, c);
 }
 
+// scalar arguments (detail::ScalarCall): HLSL-only spellings
+SHADER_MATH_SCALAR_FN3(lerp)
+SHADER_MATH_SCALAR_FN1(saturate)
+SHADER_MATH_SCALAR_FN1(frac)
+SHADER_MATH_SCALAR_FN1(rcp)
+SHADER_MATH_SCALAR_FN1(rsqrt)
+SHADER_MATH_SCALAR_FN1(log10)
+SHADER_MATH_SCALAR_FN2(atan2)
+SHADER_MATH_SCALAR_FN2(fmod)
+SHADER_MATH_SCALAR_FN2(ldexp)
+SHADER_MATH_SCALAR_FN3(mad)
+template <class A, class T>
+    requires(detail::ScalarCall<A> && std::is_same_v<T, detail::scalar_call_t<A>>)
+SHADER_MATH_INLINE T frexp(const A& a, T& e) {
+    detail::fvec<2, T> ev;
+    const T m = frexp(detail::lane1<T>(a), ev)[0];
+    e = ev[0];
+    return m;
+}
+template <class A, class T>
+    requires(detail::ScalarCall<A> && std::is_same_v<T, detail::scalar_call_t<A>>)
+SHADER_MATH_INLINE void sincos(const A& a, T& s, T& c) {
+    detail::fvec<2, T> sv, cv;
+    sincos(detail::lane1<T>(a), sv, cv);
+    s = sv[0];
+    c = cv[0];
+}
+template <class A, class B>
+    requires detail::ScalarCall<A, B>
+SHADER_MATH_INLINE auto select(bool c, const A& a, const B& b) {
+    using T = detail::scalar_call_t<A, B>;
+    return c ? static_cast<T>(a) : static_cast<T>(b);
+}
+
 // ---- component-wise matrix operators ----------------------------------------
 // Same-shape matrices only; `float3x4 * float4x3` does not compile (use mul).
 #define SM_HLSL_MAT_BINOP(sym, fn)                                                       \

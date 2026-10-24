@@ -22,7 +22,7 @@
 | 行列演算 | `mul` 全形（vec×mat / mat×vec / mat×mat）、`transpose`、`determinant` |
 | ベクトル演算 | `dot` / `cross` / `length` / `normalize` |
 | 比較 | 成分ごと `==` `<` 等 + `all` / `any` での還元 |
-| 成分ごと関数（v2） | `abs` `sign` `min` `max` `clamp` `step` `smoothstep` `floor` `ceil` `trunc` `round` `sqrt` `exp` `exp2` `log` `log2` `pow` `sin` `cos` `tan` + HLSL 別名 `lerp` `frac` `rcp` `rsqrt` `saturate`（**ベクトル引数のみ**、下記除外参照） |
+| 成分ごと関数（v2） | `abs` `sign` `min` `max` `clamp` `step` `smoothstep` `floor` `ceil` `trunc` `round` `sqrt` `exp` `exp2` `log` `log2` `pow` `sin` `cos` `tan` + HLSL 別名 `lerp` `frac` `rcp` `rsqrt` `saturate`（ベクトルとスカラー。スカラーは `case_near_scalar`） |
 | 逆三角・双曲線・角度 | `asin` `acos` `atan` `atan2(y, x)` `sinh` `cosh` `tanh` `radians` `degrees` |
 | 剰余・積和・分解 | `fmod`（trunc 基準、x の符号）、`mad`、`modf(x, out ip)`、`sincos(x, out s, out c)` |
 | 幾何 | `distance` `reflect` `refract`（全反射でゼロベクトル）`faceforward` |
@@ -38,7 +38,6 @@
 | リソース型・テクスチャ | `StructuredBuffer` 等はラッパ（`kernels.slang`）側のみ。共有数式は純関数に限る |
 | Slang のジェネリクス / `interface` | C++ 側に対応物が無い（このハーネスの対象は数式サブセットのみ） |
 | `v.x` の可変長引数直渡し | shader-math の `v.x` はプロキシ型。`printf` 等には `float(v.x)`（共有数式では非該当だが注意） |
-| **スカラーへの intrinsic 適用** | HLSL/Slang は `saturate(dot(n,l))` のようにスカラーにも intrinsic が効くが、shader-math は純スカラーを意図的に非対応にして `std::` に譲る。共有ファイルでは **intrinsic はベクトル引数のみ** に使う（スカラー値は `float3(d,d,d)` のようにベクトルへ載せて計算するか、三項演算子で書く。例: `case_near_lighting`） |
 | bool ベクトルの `.xyzw` | shader-math の `boolN` は成分名アクセスを持たない（比較結果のマスク型）。`isnan(v)[2]` のように添字で読む |
 | **half（`half2/3/4`）の CPU 実行** | Slang（v2026.20）の CPU ターゲットの C++ prelude が half ベクトル演算を未実装（`Vector<_Float16, 4>` の `operator*` 等が無い）。half のケースは `SM_INTEROP_HALF_CASES` に分け、`kernels_half.slang` を `-target spirv` で SPIR-V にして Vulkan（lavapipe）で実行し照合する（`slang_interop_half_check`、`shaderFloat16` の無いデバイスではスキップ） |
 
@@ -58,9 +57,9 @@
   ハーネスは Slang 生成コードを `-ffp-contract=off` でビルドし、`near_` 階層は
   相対 1e-5 で吸収する（`compare.py` の階層許容誤差: `exact_` = ビット一致、
   `near_` = 相対 1e-5、`half_` = 相対 2e-3）。
-- **`round` の半端値（.5）**: shader-math は half-away-from-zero（`std::round` 同等）。
-  GPU / Slang ターゲットは RNE のことが多く、正確な .5 の丸めは共有サブセットで
-  当てにしない（共有ケースでは .5 ちょうどを避ける入力にする）。
+- **`round` の半端値（.5）**: HLSL の `round` は .5 を偶数へ丸める（DXC は DXIL で `Round_ne`、SPIR-V で
+  `RoundEven`）。shader-math も同じ。Slang の CPU ターゲットは `::roundf`（0 から遠い方へ）なので、
+  共有ケースでは .5 ちょうどを避け、.5 は DXC 専用の `case_exact_round_ties` で照合する。
 - **`rcp` / `rsqrt`**: shader-math は近似命令を使わない正確版。GPU 実行では
   近似命令になりうる（CPU 照合では一致、SPIR-V フェーズでは許容緩和が必要）。
 - **メモリレイアウト**: 言語互換であって ABI 互換ではない（`sizeof(float3) == 16`、
@@ -77,7 +76,7 @@
   DXC は DXIL の生成時に定数入力の組み込み関数を畳み込むので、入力を出力バッファ（0 初期化）の
   ビットと XOR してコンパイル時には分からない値にしている（`SM_INTEROP_OPAQUE_INPUTS`）
 
-Slang では照合できない `frexp` / `dst` は `tests/interop/dxc/dxc_cases.hlsli` で照合する。
+Slang では照合できない `frexp` / `dst` / `round` の .5 は `tests/interop/dxc/dxc_cases.hlsli` で照合する。
 オプトインの行列の複数成分アクセスも、`SM_INTEROP_MATRIX_SWIZZLE` 付きで `shared/matrix_swizzle_cases.hlsli`
 を DXC で SPIR-V にして照合する（`dxc_interop_matrix_swizzle_check`）。
 

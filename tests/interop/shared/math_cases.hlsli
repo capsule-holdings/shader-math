@@ -77,9 +77,6 @@ float4 case_near_determinant(float4 v)
 
 float4 case_near_lighting(float3 n, float3 l, float3 c)
 {
-    // Subset rule: intrinsics take vector arguments only (shader-math leaves
-    // pure scalars to std::), so keep n.l on a vector lane instead of writing
-    // saturate(dot(...)) on a bare float.
     float d = dot(normalize(n), normalize(l));
     float3 ndl = saturate(float3(d, d, d));
     float3 lit = lerp(c * 0.1f, c, ndl);
@@ -210,6 +207,29 @@ float4 case_near_log10_ldexp(float4 a, float4 b)
     return log10(abs(a) + 1.0f) + ldexp(b, float4(1.0f, -2.0f, 3.0f, 0.0f));
 }
 
+// intrinsics on scalars: floats and one-component swizzles, f-suffixed
+// literals next to them
+float4 case_near_scalar(float4 a, float4 b)
+{
+    float d = max(dot(a.xyz, b.xyz), 0.0f);
+    float s = saturate(a.w) + lerp(a.x, b.x, 0.25f);
+    float p = pow(abs(a.y), 1.5f) + clamp(b.z, 0.0f, 0.2f);
+    float t = smoothstep(0.0f, 2.0f, a.x) + frac(b.w) + rsqrt(abs(a.z) + 1.0f);
+    return float4(d + s, p, t, sign(b.x) * step(0.5f, a.w));
+}
+
+// D3D's NaN rules: min / max ignore a NaN operand, saturate(NaN) = 0 and
+// clamp(NaN, lo, hi) = lo. Not in the DXIL check: DXC compiles DXIL with
+// fast-math flags, which assume no NaN
+float4 case_exact_nan_rules(float4 a, float4 b)
+{
+    float4 z = a - a;
+    float4 q = z / z;
+    float4 m = min(q, b) + max(a, q) + min(b, q);
+    float4 s = saturate(q) + clamp(q, -1.0f, 1.0f);
+    return m + s;
+}
+
 // edge values: negative operands, equal and reversed bounds, signed zero
 float4 case_near_edges(float4 a, float4 b)
 {
@@ -233,8 +253,6 @@ float4 case_exact_inf_edges(float4 a)
 // so only its SPIR-V check leaves this case out (dxc/dxc_case_list.h)
 float4 case_near_lit()
 {
-    // scalar arguments are literals: no intrinsics on scalars in the shared
-    // subset (an unqualified C++ abs(float) can resolve to the C int abs)
     return lit(0.5f, 0.4f, 4.0f) + lit(-0.25f, 0.5f, 2.0f) + lit(0.75f, 0.5f, 3.0f);
 }
 

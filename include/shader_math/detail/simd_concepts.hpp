@@ -57,7 +57,6 @@ concept SimdFloatOps = requires(Reg r, Mask m, const T* cp, T* p, T s, int i, bo
     { Ops::rnd_ceil(r) } -> std::same_as<Reg>;
     { Ops::rnd_trunc(r) } -> std::same_as<Reg>;
     { Ops::rnd_even(r) } -> std::same_as<Reg>;
-    { Ops::rnd_away(r) } -> std::same_as<Reg>;
     { Ops::sel(m, r, r) } -> std::same_as<Reg>;
 
     { Ops::cmp_eq(r, r) } -> std::same_as<Mask>;
@@ -107,7 +106,6 @@ concept SimdHalfOps = requires(Reg r, Mask m, const T* cp, T* p, T s, int i) {
     { Ops::rnd_ceil(r) } -> std::same_as<Reg>;
     { Ops::rnd_trunc(r) } -> std::same_as<Reg>;
     { Ops::rnd_even(r) } -> std::same_as<Reg>;
-    { Ops::rnd_away(r) } -> std::same_as<Reg>;
     { Ops::sel(m, r, r) } -> std::same_as<Reg>;
 
     { Ops::cmp_eq(r, r) } -> std::same_as<Mask>;

@@ -100,18 +100,18 @@ struct ops {
     SHADER_MATH_SCALAR_MAP1(rnd_ceil, std::ceil(x))
     SHADER_MATH_SCALAR_MAP1(rnd_trunc, std::trunc(x))
     SHADER_MATH_SCALAR_MAP1(rnd_even, std::nearbyint(x))  // assumes default FE_TONEAREST
-    SHADER_MATH_SCALAR_MAP1(rnd_away, std::round(x))
 #undef SHADER_MATH_SCALAR_MAP1
 
-    // NaN handling matches the SSE2 backend (returns b when the comparison
-    // with a NaN operand is false); shader languages leave it undefined.
+    // min / max ignore a NaN operand (IEEE minNum / maxNum), as D3D defines them
+    static SHADER_MATH_INLINE float min1(float a, float b) { return b != b ? a : (a < b ? a : b); }
+    static SHADER_MATH_INLINE float max1(float a, float b) { return b != b ? a : (a > b ? a : b); }
     static SHADER_MATH_INLINE freg min(freg a, freg b) {
-        return {{a.f[0] < b.f[0] ? a.f[0] : b.f[0], a.f[1] < b.f[1] ? a.f[1] : b.f[1],
-                 a.f[2] < b.f[2] ? a.f[2] : b.f[2], a.f[3] < b.f[3] ? a.f[3] : b.f[3]}};
+        return {{min1(a.f[0], b.f[0]), min1(a.f[1], b.f[1]), min1(a.f[2], b.f[2]),
+                 min1(a.f[3], b.f[3])}};
     }
     static SHADER_MATH_INLINE freg max(freg a, freg b) {
-        return {{a.f[0] > b.f[0] ? a.f[0] : b.f[0], a.f[1] > b.f[1] ? a.f[1] : b.f[1],
-                 a.f[2] > b.f[2] ? a.f[2] : b.f[2], a.f[3] > b.f[3] ? a.f[3] : b.f[3]}};
+        return {{max1(a.f[0], b.f[0]), max1(a.f[1], b.f[1]), max1(a.f[2], b.f[2]),
+                 max1(a.f[3], b.f[3])}};
     }
 
     // m ? a : b, per lane

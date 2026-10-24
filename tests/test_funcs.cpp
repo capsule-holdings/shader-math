@@ -231,6 +231,9 @@ static void test_funcs_exact() {
     CHECK_EQF(st[0], 0.0f);
     CHECK_EQF(st[2], 1.0f);
 
+    // lerp is a + t * (b - a), as DXC compiles it for DXIL
+    CHECK_EQF(lerp(float2(1.0f, 0.0f), float2(3.0f, 0.0f), 0.5f)[0], 2.0f);
+
     // rounding tier: -1.5 / 0.25 / 2.5 hit every rule differently
     const float3 r(-1.5f, 0.25f, 2.5f);
     CHECK_EQF(floor(r)[0], -2.0f);
@@ -239,8 +242,13 @@ static void test_funcs_exact() {
     CHECK_EQF(ceil(r)[2], 3.0f);
     CHECK_EQF(trunc(r)[0], -1.0f);
     CHECK_EQF(trunc(r)[2], 2.0f);
-    CHECK_EQF(round(r)[0], -2.0f);  // half away from zero
-    CHECK_EQF(round(r)[2], 3.0f);
+    CHECK_EQF(round(r)[0], -2.0f);  // halves go to even (HLSL round = DXC Round_ne)
+    CHECK_EQF(round(r)[2], 2.0f);
+    const float4 halves = round(float4(0.5f, -0.5f, 3.5f, -2.5f));
+    CHECK_EQF(halves[0], 0.0f);
+    CHECK(std::signbit(halves[1]) && halves[1] == 0.0f);
+    CHECK_EQF(halves[2], 4.0f);
+    CHECK_EQF(halves[3], -2.0f);
 
     const float3 fr = frac(float3(1.25f, -0.25f, 3.0f));
     CHECK_EQF(fr[0], 0.25f);
@@ -304,11 +312,15 @@ static void test_funcs_glsl() {
     const vec3 v(-1.5f, 0.25f, 2.5f);
     CHECK_EQF(fract(vec3(1.25f, -0.25f, 3.0f))[1], 0.75f);
     CHECK_NEAR(mix(vec3(1.0f, 2.0f, 3.0f), vec3(5.0f, 6.0f, 7.0f), 0.25f)[0], 2.0f);
+    // mix is x * (1 - a) + y * a: exact at both ends however far apart x and y are
+    CHECK_EQF(mix(vec2(1.0e8f, -3.0f), vec2(1.0f, 7.0f), 1.0f)[0], 1.0f);
+    CHECK_EQF(mix(vec2(1.0f, -3.0f), vec2(1.0e8f, 7.0f), 0.0f)[0], 1.0f);
+    CHECK_EQF(mix(vec2(1.0e8f, 0.0f), vec2(1.0f, 0.0f), vec2(1.0f, 0.5f))[0], 1.0f);
     CHECK_EQF(inversesqrt(vec3(4.0f, 16.0f, 1.0f))[0], 0.5f);
     // roundEven vs round on exact halves
     CHECK_EQF(roundEven(v)[0], -2.0f);  // -1.5 -> -2 (even)
     CHECK_EQF(roundEven(v)[2], 2.0f);   // 2.5 -> 2 (even)
-    CHECK_EQF(round(v)[2], 3.0f);       // half away from zero
+    CHECK_EQF(round(v)[2], 2.0f);       // round is roundEven (the halfway direction is the implementation's)
     CHECK_EQF(clamp(v, 0.0f, 1.0f)[0], 0.0f);
     CHECK_EQF(step(0.0f, v)[2], 1.0f);
 }
@@ -458,6 +470,128 @@ static void test_funcs_compat_gaps() {
     }
 }
 
+// ---- scalar arguments ----------------------------------------------------------
+template <class... As>
+concept hlsl_max_ok = requires(const As&... as) { shader_math::hlsl::max(as...); };
+
+static void test_funcs_scalar() {
+    {
+        using namespace shader_math::hlsl;
+        const float3 n(0.0f, 1.0f, 0.0f);
+        const float3 l(0.6f, 0.8f, 0.0f);
+        CHECK_EQF(max(dot(n, l), 0.0f), 0.8f);
+        CHECK_EQF(max(-dot(n, l), 0.0), 0.0f);  // double literal next to a float
+        CHECK_EQF(saturate(1.5f), 1.0f);
+        CHECK_EQF(saturate(dot(n, -l)), 0.0f);
+        CHECK_EQF(abs(-2.5f), 2.5f);  // not the C int abs
+        CHECK_EQF(lerp(1.0f, 3.0f, 0.25f), 1.5f);
+        CHECK_EQF(clamp(5.0f, 0, 1), 1.0f);
+        CHECK_EQF(step(0.5f, 0.25f), 0.0f);
+        CHECK_EQF(smoothstep(0.0f, 1.0f, 0.5f), 0.5f);
+        CHECK_EQF(frac(-0.75f), 0.25f);
+        CHECK_EQF(rcp(4.0f), 0.25f);
+        CHECK_EQF(rsqrt(16.0f), 0.25f);
+        CHECK_EQF(fmod(-7.0f, 3.0f), -1.0f);
+        // qualified: libc++ / MSVC also declare ::round(float), so the
+        // unqualified call is ambiguous there
+        CHECK_EQF(shader_math::hlsl::round(2.5f), 2.0f);
+        CHECK_EQF(shader_math::hlsl::round(float2(1.0f, 2.5f).y), 2.0f);
+        CHECK_EQF(shader_math::glsl::round(-0.5f), -0.0f);
+        CHECK_EQF(sign(-3.0f), -1.0f);
+        CHECK_NEAR(pow(2.0f, 10.0f), 1024.0f);
+        CHECK_NEAR(atan2(1.0f, 1.0f), 0.78539816f);
+        CHECK_EQF(mad(2.0f, 3.0f, 1.0f), 7.0f);
+        CHECK_EQF(ldexp(1.5f, 2.0f), 6.0f);
+        CHECK_EQF(length(-3.0f), 3.0f);
+        CHECK_EQF(distance(1.0f, 4.0f), 3.0f);
+        CHECK_EQF(dot(2.0f, 3.0f), 6.0f);
+        float ip = 0.0f;
+        CHECK_EQF(modf(-2.5f, ip), -0.5f);
+        CHECK_EQF(ip, -2.0f);
+        float e = 0.0f;
+        CHECK_EQF(frexp(8.0f, e), 0.5f);
+        CHECK_EQF(e, 4.0f);
+        float s = 0.0f, c = 0.0f;
+        sincos(0.0f, s, c);
+        CHECK_EQF(s, 0.0f);
+        CHECK_EQF(c, 1.0f);
+        CHECK_EQF(select(true, 1.0f, 2.0f), 1.0f);
+
+        // one-component swizzles and matrix elements are scalars
+        const float4 v(-0.5f, 2.0f, 3.0f, 0.25f);
+        CHECK_EQF(max(v.x, 0.0f), 0.0f);
+        CHECK_EQF(saturate(v.y), 1.0f);
+        CHECK_EQF(lerp(v.x, v.y, 0.5f), 0.75f);
+        const float2x2 m(1.0f, -2.0f, 3.0f, 4.0f);
+        CHECK_EQF(abs(m._12), 2.0f);
+        CHECK_EQF(min(m._m00, m._m11), 1.0f);
+    }
+    {
+        using namespace shader_math::glsl;
+        CHECK_EQF(mix(1.0f, 3.0f, 0.25f), 1.5f);
+        CHECK_EQF(mix(1.0f, 3.0f, true), 3.0f);  // y where the selector is true
+        CHECK_EQF(fract(-0.75f), 0.25f);
+        CHECK_EQF(mod(-7.0f, 3.0f), 2.0f);
+        CHECK_EQF(inversesqrt(4.0f), 0.5f);
+        CHECK_EQF(roundEven(2.5f), 2.0f);
+        CHECK_NEAR(atan(1.0f, 1.0f), 0.78539816f);
+        CHECK_NEAR(atan(1.0f), 0.78539816f);
+        CHECK_EQF(fma(2.0f, 3.0f, 1.0f), 7.0f);
+        CHECK_NEAR(asinh(0.5f), std::asinh(0.5f));
+        CHECK_EQF(clamp(vec2(2.0f, -1.0f).x, 0.0f, 1.0f), 1.0f);
+    }
+#if defined(SHADER_MATH_HAS_HALF)
+    {
+        using namespace shader_math::hlsl;
+        const half x = max(half(-1.0f), half(0.5f));
+        CHECK_EQF(static_cast<float>(x), 0.5f);
+        CHECK_EQF(static_cast<float>(saturate(half(2.0f))), 1.0f);
+        static_assert(std::same_as<decltype(saturate(half(2.0f))), half>);
+        static_assert(!hlsl_max_ok<half, float>);  // no implicit half / float mixing
+    }
+#endif
+    static_assert(std::same_as<decltype(shader_math::hlsl::max(1.0f, 2)), float>);
+    static_assert(!hlsl_max_ok<double, double>);  // at least one float / half
+    static_assert(!hlsl_max_ok<int, int>);
+}
+
+// ---- NaN rules (D3D): min / max ignore a NaN operand -------------------------
+static void test_funcs_nan_rules() {
+    const float qn = std::numeric_limits<float>::quiet_NaN();
+    {
+        using namespace shader_math::hlsl;
+        const float4 n(qn, 1.0f, qn, 2.0f);
+        const float4 v(1.0f, qn, 3.0f, qn);
+        CHECK_EQF(min(n, v)[0], 1.0f);
+        CHECK_EQF(min(n, v)[1], 1.0f);
+        CHECK_EQF(min(n, v)[2], 3.0f);
+        CHECK_EQF(min(n, v)[3], 2.0f);
+        CHECK_EQF(max(n, v)[0], 1.0f);
+        CHECK_EQF(max(n, v)[1], 1.0f);
+        CHECK_EQF(saturate(n)[0], 0.0f);
+        CHECK_EQF(clamp(n, -1.0f, 1.0f)[0], -1.0f);
+        CHECK_EQF(min(n, 0.5f)[0], 0.5f);
+        CHECK(isnan(min(float2(qn, qn), float2(qn, qn)))[0]);  // both NaN stays NaN
+        CHECK_EQF(max(qn, 1.0f), 1.0f);                         // scalars too
+        CHECK_EQF(saturate(qn), 0.0f);
+    }
+    {
+        using namespace shader_math::glsl;
+        CHECK_EQF(max(vec2(qn, 1.0f), vec2(2.0f, qn))[0], 2.0f);
+        CHECK_EQF(max(vec2(qn, 1.0f), vec2(2.0f, qn))[1], 1.0f);
+    }
+#if defined(SHADER_MATH_HAS_HALF)
+    {
+        using namespace shader_math::hlsl;
+        const half3 n(qn, 1.0f, 0.0f);
+        const half3 v(half(0.5f), half(qn), half(0.0f));
+        CHECK_EQF(static_cast<float>(min(n, v)[0]), 0.5f);
+        CHECK_EQF(static_cast<float>(max(n, v)[1]), 1.0f);
+        CHECK_EQF(static_cast<float>(saturate(n)[0]), 0.0f);
+    }
+#endif
+}
+
 static void test_funcs_matrix_hlsl() {
     using namespace shader_math::hlsl;
 
@@ -537,7 +671,7 @@ static void test_funcs_half() {
     CHECK_EQF(static_cast<float>(clamp(v, half(-1.0f), half(1.0f))[2]), 1.0f);
     CHECK_EQF(static_cast<float>(saturate(v)[0]), 0.0f);
     CHECK_EQF(static_cast<float>(floor(v)[0]), -2.0f);
-    CHECK_EQF(static_cast<float>(round(v)[2]), 3.0f);
+    CHECK_EQF(static_cast<float>(round(v)[2]), 2.0f);  // halves to even
     CHECK_EQF(static_cast<float>(frac(half3(1.25f, -0.25f, 3.0f))[0]), 0.25f);
     CHECK_EQF(static_cast<float>(sqrt(half3(4.0f, 9.0f, 0.25f))[1]), 3.0f);
     CHECK_EQF(static_cast<float>(step(half(0.0f), v)[2]), 1.0f);
@@ -566,5 +700,7 @@ void test_funcs() {
     test_funcs_geometry_glsl();
     test_funcs_matrix_hlsl();
     test_funcs_compat_gaps();
+    test_funcs_scalar();
+    test_funcs_nan_rules();
     test_funcs_half();
 }
