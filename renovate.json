@@ -4,6 +4,17 @@
     "config:recommended",
     "helpers:pinGitHubActionDigests"
   ],
+  "timezone": "Asia/Tokyo",
+  "labels": ["dependencies"],
+  "vulnerabilityAlerts": {
+    "labels": ["dependencies", "security"]
+  },
+  "osvVulnerabilityAlerts": true,
+  "minimumReleaseAge": "14 days",
+  "internalChecksFilter": "strict",
+  "lockFileMaintenance": {
+    "enabled": false
+  },
   "ignorePaths": [],
   "customManagers": [
     {
@@ -36,6 +47,11 @@
     }
   ],
   "packageRules": [
+    {
+      "description": "Replacement proposals for renamed or deprecated packages are not a specific version, so skip minimumReleaseAge",
+      "matchUpdateTypes": ["replacement"],
+      "minimumReleaseAge": null
+    },
     {
       "description": "Bump Boost FetchContent modules together",
       "matchManagers": ["custom.regex"],
