@@ -20,6 +20,13 @@ concept can_assign = requires(A a, const B& b) { a = b; };
 template <class V>
 concept can_print = requires(std::ostream& os, const V& v) { os << v; };
 
+// ---- bool <-> float vectors convert explicitly only (GLSL has no implicit form) --
+static_assert(std::is_constructible_v<h::float3, h::bool3>);
+static_assert(!std::is_convertible_v<h::bool3, h::float3>);
+static_assert(std::is_constructible_v<h::bool3, h::float3>);
+static_assert(!std::is_convertible_v<h::float3, h::bool3>);
+static_assert(!std::is_constructible_v<h::float3, h::bool2>);  // widths must match
+
 // ---- std integration is opt-in (<shader_math/std.hpp>) -------------------------
 static_assert(!can_print<h::float3>);
 static_assert(!can_print<h::float2x2>);

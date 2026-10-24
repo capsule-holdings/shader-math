@@ -11,6 +11,10 @@ namespace shader_math {
 namespace hlsl {
 
 // ---- type aliases -----------------------------------------------------------
+// vector<T, N> (HLSL's template spelling; vector<float, 3> is float3)
+template <class T = float, int N = 4>
+using vector = detail::fvec<N, T>;
+
 using float2 = detail::fvec<2>;
 using float3 = detail::fvec<3>;
 using float4 = detail::fvec<4>;
@@ -209,6 +213,50 @@ template <class A, int N, class T>
     }
 SHADER_MATH_INLINE void sincos(const A& a, detail::fvec<N, T>& s, detail::fvec<N, T>& c) {
     detail::sincos_impl(a, s, c);
+}
+
+// isfinite on scalars (by value, see detail::isnan)
+template <class A>
+    requires detail::ScalarCall<A>
+SHADER_MATH_INLINE bool isfinite(A a) {
+    return isfinite(detail::lane1<detail::scalar_call_t<A>>(a))[0];
+}
+
+// all / any on numeric vectors, matrices and scalars: HLSL tests the
+// components against zero (NaN counts as nonzero); GLSL takes bool vectors
+// only, so these live here and not in detail
+template <class A>
+    requires detail::VecLike<A>
+SHADER_MATH_INLINE bool all(const A& a) {
+    return all(detail::bvec<detail::vec_size_v<A>>(a));
+}
+template <class A>
+    requires detail::VecLike<A>
+SHADER_MATH_INLINE bool any(const A& a) {
+    return any(detail::bvec<detail::vec_size_v<A>>(a));
+}
+template <class A>
+    requires detail::ScalarCall<A>
+SHADER_MATH_INLINE bool all(A a) {
+    using T = detail::scalar_call_t<A>;
+    return static_cast<T>(a) != T(0.0f);
+}
+template <class A>
+    requires detail::ScalarCall<A>
+SHADER_MATH_INLINE bool any(A a) {
+    return all(a);
+}
+
+// select(bool, a, b) with a vector operand: the condition applies to every
+// component
+template <class A, class B,
+          int N = (detail::vec_size_v<A> > detail::vec_size_v<B> ? detail::vec_size_v<A>
+                                                                  : detail::vec_size_v<B>)>
+    requires(N >= 2 && requires(const detail::bvec<N>& c, const A& a, const B& b) {
+        detail::select_impl(c, a, b);
+    })
+SHADER_MATH_INLINE auto select(bool c, const A& a, const B& b) {
+    return detail::select_impl(detail::bvec<N>(c), a, b);
 }
 
 // scalar arguments (detail::ScalarCall): HLSL-only spellings
@@ -460,6 +508,20 @@ SHADER_MATH_INLINE matrix<4, 4> mul(const matrix<4, 4>& a, const matrix<4, 4>& b
     return o;
 }
 #endif
+
+// all / any on numeric matrices: every / some element is nonzero
+template <int R, int C, class T>
+SHADER_MATH_INLINE bool all(const matrix<R, C, T>& m) {
+    for (int r = 0; r < R; ++r)
+        if (!all(m.row_[r])) return false;
+    return true;
+}
+template <int R, int C, class T>
+SHADER_MATH_INLINE bool any(const matrix<R, C, T>& m) {
+    for (int r = 0; r < R; ++r)
+        if (any(m.row_[r])) return true;
+    return false;
+}
 
 // ---- transpose / determinant / inverse ---------------------------------------
 template <int R, int C, class T>

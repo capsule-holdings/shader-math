@@ -248,6 +248,20 @@ float4 case_exact_inf_edges(float4 a)
     return float4(rcp(z).x, rsqrt(z).y, rcp(-z).z, rcp(a).w);
 }
 
+// all / any on numbers, a scalar select condition, bool <-> float vectors,
+// vector<T, N>, isnan on a scalar
+float4 case_exact_bool_numeric(float4 a, float4 b)
+{
+    vector<float, 3> c = a.xyz;
+    float t = all(c) ? 1.0f : 0.0f;
+    float u = any(b - b) ? 1.0f : 0.0f;
+    float3 s = select(a.x > 0.0f, c, b.xyz);
+    float3 m = float3(a.xyz > b.xyz);
+    bool3 k = bool3(b.xyz);
+    float n = isnan(a.w) ? 8.0f : 0.0f;
+    return float4(s + m * 2.0f + float3(k) * 4.0f, t + u * 2.0f + n);
+}
+
 // lit's specular term is (n.h)^m (Microsoft's lit documentation, Slang,
 // DXC's DXIL backend, shader-math); DXC's SPIR-V backend emits (n.h) * m,
 // so only its SPIR-V check leaves this case out (dxc/dxc_case_list.h)

@@ -27,6 +27,8 @@ namespace detail {
 
 template <int N, class T = float>
 struct fvec;
+template <int N>
+struct bvec;
 
 // Element type -> register type / ops implementation.
 template <class T>
@@ -475,6 +477,12 @@ struct fvec {
         : q_(ops_t::set(static_cast<T>(o[0]), static_cast<T>(o[1]),
                         N > 2 ? static_cast<T>(o[2]) : T(0.0f),
                         N > 3 ? static_cast<T>(o[3]) : T(0.0f))) {}
+    // explicit conversion from a bool vector: 1 where true, 0 where false
+    // (HLSL float3(b), GLSL vec3(b))
+    template <int M>
+        requires(M == N)
+    SHADER_MATH_INLINE explicit fvec(const bvec<M>& b)
+        : q_(ops_t::sel(b.m_, ops_t::splat(T(1.0f)), ops_t::zero())) {}
     // ... and from a swizzle of the other element type (half4(f.wzyx)): the
     // proxy cannot deduce U through the overload above
     template <class U, int M, int... Is>
@@ -1195,6 +1203,12 @@ struct bvec {
     template <class B>
         requires std::is_same_v<B, bool>
     SHADER_MATH_INLINE explicit bvec(B s) : m_(from_bools({s, s, s, s})) {}
+    // explicit conversion from a numeric vector or swizzle: true where the
+    // component is not zero (NaN included), like HLSL bool3(v) / GLSL bvec3(v)
+    template <class V>
+        requires(VecLike<V> && vec_size_v<V> == N)
+    SHADER_MATH_INLINE explicit bvec(const V& v)
+        : m_(vops<vec_elem_t<V>>::cmp_ne(to_vec(v).q_, vops<vec_elem_t<V>>::zero())) {}
     SHADER_MATH_INLINE bvec(const bvec& o) : m_(o.m_) {}
     SHADER_MATH_INLINE bvec& operator=(const bvec& o) {
         m_ = o.m_;
@@ -1424,6 +1438,20 @@ SHADER_MATH_INLINE half_t round(half_t a) {
     return round(fvec<2, half_t>(a))[0];
 }
 #endif
+
+// isnan / isinf on scalars: by value, so that against the MSVC UCRT's
+// unconstrained isnan(_Ty) the constraint decides (see isnan above); where
+// the C library has a plain isnan(float) it wins, with the same result
+template <class A>
+    requires ScalarCall<A>
+SHADER_MATH_INLINE bool isnan(A a) {
+    return isnan(lane1<scalar_call_t<A>>(a))[0];
+}
+template <class A>
+    requires ScalarCall<A>
+SHADER_MATH_INLINE bool isinf(A a) {
+    return isinf(lane1<scalar_call_t<A>>(a))[0];
+}
 
 // geometric functions on scalars (one-component vectors)
 template <class A, class B>

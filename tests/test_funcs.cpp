@@ -185,6 +185,10 @@ concept has_mix_bvec = requires(const A& a) { mix(a, a, lessThan(a, a)); };
 static_assert(!has_log10<vec4> && !has_ldexp<vec4> && !has_frexp<vec4> && !has_select<vec4>);
 static_assert(!has_dst<vec4> && !has_lit<vec4> && !has_mod_op<vec4> && has_asinh<vec4> &&
               has_mix_bvec<vec4>);
+// all / any on numeric vectors are HLSL's; GLSL's take bool vectors only
+template <class A>
+concept has_numeric_all = requires(const A& a) { all(a); any(a); };
+static_assert(!has_numeric_all<vec3> && has_numeric_all<bvec3>);
 }  // namespace glsl_scope
 
 // ---- ScalarFor operand rules (common-name functions are ADL-visible) --------
@@ -592,6 +596,68 @@ static void test_funcs_nan_rules() {
 #endif
 }
 
+// ---- gaps from the flat review -------------------------------------------------
+static void test_funcs_review_gaps() {
+    const float qn = std::numeric_limits<float>::quiet_NaN();
+    const float inf = std::numeric_limits<float>::infinity();
+    {
+        using namespace shader_math::hlsl;
+        // isnan / isinf / isfinite on scalars and one-component swizzles
+        CHECK(isnan(qn) && !isnan(1.0f));
+        CHECK(isinf(-inf) && !isinf(1.0f));
+        CHECK(isfinite(1.0f) && !isfinite(inf) && !isfinite(qn));
+        const float4 v(qn, 1.0f, inf, 0.0f);
+        CHECK(isnan(v.x) && isinf(v.z) && isfinite(v.w));
+
+        // all / any on numbers: components against zero, NaN is nonzero
+        CHECK(all(float3(1.0f, -2.0f, 3.0f)));
+        CHECK(!all(float3(1.0f, 0.0f, 3.0f)));
+        CHECK(!any(float3(0.0f, -0.0f, 0.0f)));
+        CHECK(any(float3(0.0f, qn, 0.0f)));
+        CHECK(all(v.yx));
+        CHECK(all(2.0f) && !all(0.0f) && any(-1.0f));
+        CHECK(!all(float2x2(1.0f, 1.0f, 1.0f, 0.0f)));
+        CHECK(any(float2x2(0.0f, 0.0f, 0.0f, 0.5f)));
+        CHECK(!any(float2x2(0.0f, 0.0f, 0.0f, 0.0f)));
+
+        // select with a scalar condition and vector operands
+        const float3 a(1.0f, 2.0f, 3.0f);
+        const float3 b(4.0f, 5.0f, 6.0f);
+        CHECK_EQF(select(true, a, b)[2], 3.0f);
+        CHECK_EQF(select(false, a, b)[0], 4.0f);
+        CHECK_EQF(select(false, a, 9.0f)[1], 9.0f);
+
+        // bool <-> float vectors, explicit only
+        const float3 f(bool3(true, false, true));
+        CHECK_EQF(f[0], 1.0f);
+        CHECK_EQF(f[1], 0.0f);
+        const bool3 t(float3(0.0f, 2.0f, qn));
+        CHECK(!t[0] && t[1] && t[2]);
+        CHECK(bool2(a.zx)[1]);
+
+        // vector<T, N>
+        static_assert(std::same_as<vector<float, 3>, float3>);
+        static_assert(std::same_as<vector<>, float4>);
+    }
+    {
+        using namespace shader_math::glsl;
+        CHECK(isnan(qn) && isinf(inf));
+        const vec3 r = vec3(lessThan(vec3(1.0f, 2.0f, 3.0f), vec3(2.0f)));
+        CHECK_EQF(r[0], 1.0f);
+        CHECK_EQF(r[2], 0.0f);
+        CHECK(all(bvec3(vec3(1.0f, -1.0f, 0.5f))));
+    }
+#if defined(SHADER_MATH_HAS_HALF)
+    {
+        using namespace shader_math::hlsl;
+        CHECK(isnan(half(qn)));
+        CHECK(all(half3(half(1.0f), half(2.0f), half(3.0f))));
+        CHECK_EQF(static_cast<float>(half3(bool3(false, true, false))[1]), 1.0f);
+        static_assert(std::same_as<vector<half, 2>, half2>);
+    }
+#endif
+}
+
 static void test_funcs_matrix_hlsl() {
     using namespace shader_math::hlsl;
 
@@ -702,5 +768,6 @@ void test_funcs() {
     test_funcs_compat_gaps();
     test_funcs_scalar();
     test_funcs_nan_rules();
+    test_funcs_review_gaps();
     test_funcs_half();
 }
