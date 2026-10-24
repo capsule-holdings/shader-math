@@ -548,6 +548,43 @@ static void test_funcs_scalar() {
     static_assert(!hlsl_max_ok<int, int>);
 }
 
+// ---- NaN rules (D3D): min / max ignore a NaN operand -------------------------
+static void test_funcs_nan_rules() {
+    const float qn = std::numeric_limits<float>::quiet_NaN();
+    {
+        using namespace shader_math::hlsl;
+        const float4 n(qn, 1.0f, qn, 2.0f);
+        const float4 v(1.0f, qn, 3.0f, qn);
+        CHECK_EQF(min(n, v)[0], 1.0f);
+        CHECK_EQF(min(n, v)[1], 1.0f);
+        CHECK_EQF(min(n, v)[2], 3.0f);
+        CHECK_EQF(min(n, v)[3], 2.0f);
+        CHECK_EQF(max(n, v)[0], 1.0f);
+        CHECK_EQF(max(n, v)[1], 1.0f);
+        CHECK_EQF(saturate(n)[0], 0.0f);
+        CHECK_EQF(clamp(n, -1.0f, 1.0f)[0], -1.0f);
+        CHECK_EQF(min(n, 0.5f)[0], 0.5f);
+        CHECK(isnan(min(float2(qn, qn), float2(qn, qn)))[0]);  // both NaN stays NaN
+        CHECK_EQF(max(qn, 1.0f), 1.0f);                         // scalars too
+        CHECK_EQF(saturate(qn), 0.0f);
+    }
+    {
+        using namespace shader_math::glsl;
+        CHECK_EQF(max(vec2(qn, 1.0f), vec2(2.0f, qn))[0], 2.0f);
+        CHECK_EQF(max(vec2(qn, 1.0f), vec2(2.0f, qn))[1], 1.0f);
+    }
+#if defined(SHADER_MATH_HAS_HALF)
+    {
+        using namespace shader_math::hlsl;
+        const half3 n(qn, 1.0f, 0.0f);
+        const half3 v(half(0.5f), half(qn), half(0.0f));
+        CHECK_EQF(static_cast<float>(min(n, v)[0]), 0.5f);
+        CHECK_EQF(static_cast<float>(max(n, v)[1]), 1.0f);
+        CHECK_EQF(static_cast<float>(saturate(n)[0]), 0.0f);
+    }
+#endif
+}
+
 static void test_funcs_matrix_hlsl() {
     using namespace shader_math::hlsl;
 
@@ -657,5 +694,6 @@ void test_funcs() {
     test_funcs_matrix_hlsl();
     test_funcs_compat_gaps();
     test_funcs_scalar();
+    test_funcs_nan_rules();
     test_funcs_half();
 }

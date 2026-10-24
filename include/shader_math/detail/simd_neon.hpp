@@ -55,10 +55,9 @@ struct ops {
     static SHADER_MATH_INLINE freg fnmadd(freg a, freg b, freg c) { return vfmsq_f32(c, a, b); }
 
     static SHADER_MATH_INLINE freg abs(freg a) { return vabsq_f32(a); }
-    // NaN handling of min/max is backend-defined (vminq/vmaxq propagate NaN),
-    // matching the shader languages' "undefined".
-    static SHADER_MATH_INLINE freg min(freg a, freg b) { return vminq_f32(a, b); }
-    static SHADER_MATH_INLINE freg max(freg a, freg b) { return vmaxq_f32(a, b); }
+    // min / max ignore a NaN operand (IEEE minNum / maxNum), as D3D defines them
+    static SHADER_MATH_INLINE freg min(freg a, freg b) { return vminnmq_f32(a, b); }
+    static SHADER_MATH_INLINE freg max(freg a, freg b) { return vmaxnmq_f32(a, b); }
     static SHADER_MATH_INLINE freg sqrt(freg a) { return vsqrtq_f32(a); }
 
     static SHADER_MATH_INLINE freg rnd_floor(freg v) { return vrndmq_f32(v); }

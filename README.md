@@ -173,7 +173,8 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
 - `round` は .5 を偶数へ丸める（`round(2.5) = 2`、`round(-0.5) = -0`）。HLSL は DXC の DXIL（`Round_ne`）・
   SPIR-V（`RoundEven`）と同じ。GLSL は .5 の向きを実装に任せているので `glsl::round` も `roundEven` と同じ
 - `sign` は両言語とも同じベクトル型を返す（HLSL 本家の int 返しは採用しない）
-- `min` / `max` / `saturate` の NaN 挙動は backend 依存（シェーダ言語仕様も未定義）
+- `min` / `max` は片方が NaN ならもう片方を返す（IEEE の minNum / maxNum。D3D の規則）。そのため `saturate(NaN) = 0`、
+  `clamp(NaN, lo, hi) = lo`。全 backend で同じ（GLSL は未定義なので、この挙動でも仕様の範囲内）
 - `rcp` / `rsqrt` / `inversesqrt` は近似命令（`rcpps` / `rsqrtps`）を使わない正確版
 - 超越関数は per-lane で libm を呼ぶ（SIMD 多項式近似はしない）。`pow(負, 非整数)` は NaN
 - `select(c, a, b)` は c が真の成分で a、`mix(x, y, bvec)` は真の成分で y（引数の順が逆）
