@@ -208,3 +208,12 @@ vec4 case_near_edges(vec4 a, vec4 b)
     vec4 z = fract(b * 0.0f);
     return m + s * 4.0f + z * 16.0f;
 }
+
+// ---- exact: bool <-> float vectors, isnan on a scalar ---------------------------
+vec4 case_exact_bool_numeric(vec4 a, vec4 b)
+{
+    vec3 m = vec3(greaterThan(a.xyz, b.xyz));
+    bvec3 k = bvec3(b.xyz);
+    float n = isnan(a.w) ? 8.0f : 0.0f;
+    return vec4(m + vec3(k) * 4.0f, n);
+}

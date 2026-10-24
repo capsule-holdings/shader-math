@@ -58,4 +58,5 @@
     X(exact_select_bool, case_exact_select_bool(IN_A, IN_B))   \
     X(near_log10_ldexp, case_near_log10_ldexp(IN_A, IN_B))     \
     X(near_scalar, case_near_scalar(IN_A, IN_B))               \
-    X(near_edges, case_near_edges(IN_A, IN_B))
+    X(near_edges, case_near_edges(IN_A, IN_B))                 \
+    X(exact_bool_numeric, case_exact_bool_numeric(IN_A, IN_B))

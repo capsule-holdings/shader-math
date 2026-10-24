@@ -43,6 +43,10 @@ void glsl_side() {
 - 行列: R,C ∈ {2,3,4} の全9形。`hlsl::floatRxC`（行格納・行優先 ctor）と `glsl::matCxR`（列格納・列優先 ctor）は **別型**、相互変換は explicit
 - 対応関係は非正方で入れ替わる: `float3x4`（3行4列）≡ `mat4x3`（4列3行）
 - 比較結果: `bool2/3/4`（= `bvec2/3/4`）と `boolRxC`。算術なし・bool への暗黙変換なし。
+  float ベクトルとは明示的に変換できる（`float3(b)` は真で 1、`bool3(v)` / `bvec3(v)` は 0 以外で真）。暗黙の変換は無い
+  （GLSL に無く、型を共有しているため）
+- `hlsl::vector<T, N>`（`vector<float, 3>` = `float3`）。`using namespace std` と `using namespace hlsl` を同じスコープで
+  使うと `vector` が曖昧になるので、`std::vector` と修飾する
   `bool3(true, false, true)` / `bool3(true)` で作れる（引数は bool のみ。int や float からは作れない）。
   成分は `b[i]` と単成分の `.x` 〜 `.w` / `.r` 〜 `.a` で**読み出しのみ**（複数成分の swizzle と書き込みは無し）
 - Slang / HLSL と共有できる型・演算のサブセットは [docs/slang_compat.md](docs/slang_compat.md) 参照
@@ -141,7 +145,9 @@ shader_math::store(m, ptr);                // 行列はコンストラクタの�
 ほかの引数は上と同じ規則で変換される（`2.0` だけの呼び出しは対象外なので `2.0f` と書く）。中身はベクトル版を
 1 レーンで実行するので、丸めや境界値の扱いはベクトルと同じ。`dot` / `length` / `distance` と、
 `modf` / `frexp` / `sincos`（出力引数もスカラー）、`select(bool, a, b)`、`mix(x, y, bool)` もスカラーで使える。
-`isnan` / `isinf` / `isfinite` と幾何関数（`normalize` / `reflect` など）のスカラー版は無い。
+`isnan` / `isinf` / `isfinite` もスカラーで使える。幾何関数（`normalize` / `reflect` など）のスカラー版は無い。
+HLSL の `all` / `any` は数値のベクトル・行列・スカラーも取る（0 以外かを調べる。NaN は 0 以外）。`select` は
+スカラーの条件でベクトルを選べる（`select(c, v, w)`）。GLSL の `all` / `any` は bool ベクトルだけ
 スカラーの `round` だけは、libc++ / MSVC がグローバルに `::round(float)`（.5 は 0 から遠い方へ）を宣言しているので、
 `using namespace hlsl` 下の修飾なしの `round(x)` が曖昧でコンパイルエラーになる。`hlsl::round(x)` と書く
 
