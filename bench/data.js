@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1792889768692,
+  "lastUpdate": 1792889771479,
   "repoUrl": "https://github.com/capsule-holdings/shader-math",
   "entries": {
     "linux-x64-gcc": [
@@ -8123,6 +8123,160 @@ window.BENCHMARK_DATA = {
           {
             "name": "half4 a * b + c [scalar]",
             "value": 3.337,
+            "unit": "ns/elem"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "emuesuenu@hotmail.com",
+            "name": "Hidenori Kondo",
+            "username": "emuesuenu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4a71699c6d425e318b273bb4eeb19a47071d9af0",
+          "message": "Release 0.6.0 (#98)\n\n* Bool lane writes, ++ on components, matrix to vector, mixed half / float constructors, all / any on bool\n\nCo-authored-by: Cursor <cursoragent@cursor.com>\n\n* Release 0.6.0\n\nCo-authored-by: Cursor <cursoragent@cursor.com>\n\n---------\n\nCo-authored-by: Cursor <cursoragent@cursor.com>",
+          "timestamp": "2026-10-25T09:48:56+09:00",
+          "tree_id": "2bed9ccffb44193c823ea9b3c79d79b2d3e2d1b7",
+          "url": "https://github.com/capsule-holdings/shader-math/commit/4a71699c6d425e318b273bb4eeb19a47071d9af0"
+        },
+        "date": 1792889770771,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "hlsl mul(float4x4, float4x4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.337,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.337,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.871,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 2.255,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 4.599,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [SSE2+SSE4.1+FMA+AVX]",
+            "value": 10.534,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.522,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.003,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [SSE2+SSE4.1+FMA+AVX]",
+            "value": 6.526,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.188,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.188,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.369,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [SSE2+SSE4.1+FMA+AVX]",
+            "value": 3.308,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4x4) [scalar]",
+            "value": 4.89,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [scalar]",
+            "value": 4.903,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [scalar]",
+            "value": 0.717,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [scalar]",
+            "value": 3.347,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [scalar]",
+            "value": 6.521,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [scalar]",
+            "value": 10.291,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [scalar]",
+            "value": 0.941,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [scalar]",
+            "value": 0.89,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [scalar]",
+            "value": 7.548,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [scalar]",
+            "value": 0.669,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [scalar]",
+            "value": 0.209,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [scalar]",
+            "value": 0.869,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [scalar]",
+            "value": 5.425,
             "unit": "ns/elem"
           }
         ]
