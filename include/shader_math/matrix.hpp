@@ -72,6 +72,33 @@ struct SHADER_MATH_MAY_ALIAS mswz {
     SM_MSWZ_COMPOUND(*)
     SM_MSWZ_COMPOUND(/)
 #undef SM_MSWZ_COMPOUND
+    // m._11++ / --m._m00
+    SHADER_MATH_INLINE mswz& operator++()
+        requires valid
+    {
+        d[RI * 4 + CI] += T(1.0f);
+        return *this;
+    }
+    SHADER_MATH_INLINE mswz& operator--()
+        requires valid
+    {
+        d[RI * 4 + CI] -= T(1.0f);
+        return *this;
+    }
+    SHADER_MATH_INLINE T operator++(int)
+        requires valid
+    {
+        const T old = d[RI * 4 + CI];
+        d[RI * 4 + CI] = old + T(1.0f);
+        return old;
+    }
+    SHADER_MATH_INLINE T operator--(int)
+        requires valid
+    {
+        const T old = d[RI * 4 + CI];
+        d[RI * 4 + CI] = old - T(1.0f);
+        return old;
+    }
 };
 
 // Members shared by hlsl::matrix and, under SHADER_MATH_MATRIX_SWIZZLE, its
@@ -615,6 +642,7 @@ struct matrix
     template <class... V>
         requires(detail::any_vector_arg<V...> &&
                  detail::ctor_fill<R * C, T, hlsl::lang_tag, V...>() == 1 &&
+                 (sizeof...(V) >= 2 || !detail::any_foreign_elem<T, V...>) &&
                  !(sizeof...(V) == R && (detail::vec_is<V, detail::hvec<C, T>>() && ...)))
     SHADER_MATH_INLINE matrix(const V&... v) SM_HMAT_INIT {
         T a[R * C];
@@ -654,6 +682,14 @@ struct matrix
 
     SHADER_MATH_INLINE detail::hvec<C, T>& operator[](int r) { return row_[r]; }
     SHADER_MATH_INLINE const detail::hvec<C, T>& operator[](int r) const { return row_[r]; }
+
+    // HLSL converts a matrix to the vector of the same component count, row
+    // by row (float4 v = m22); only 2x2 has a vector of its size
+    SHADER_MATH_INLINE operator detail::hvec<4, T>() const
+        requires(R == 2 && C == 2)
+    {
+        return detail::hvec<4, T>(row_[0][0], row_[0][1], row_[1][0], row_[1][1]);
+    }
 };
 
 }  // namespace hlsl
@@ -742,6 +778,17 @@ struct matrix {
 
     // GLSL m.length(): the number of columns
     static constexpr int length() { return Cn; }
+
+    // GLSL vecN(m): the first N components, column by column (explicit only)
+    template <int N>
+        requires(N <= Cn * Rn)
+    SHADER_MATH_INLINE explicit operator detail::gvec<N, T>() const {
+        T a[Cn * Rn];
+        detail::pack_dense<Cn, Rn>(col_, a);
+        T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
+        for (int i = 0; i < N; ++i) t[i] = a[i];
+        return detail::gvec<N, T>(detail::vops<T>::load4(t));
+    }
 };
 
 }  // namespace glsl

@@ -160,6 +160,12 @@ template <int N>
 SHADER_MATH_INLINE bool all(const detail::bvec<N, lang_tag>& b) {
     return detail::all(b);
 }
+SHADER_MATH_INLINE bool all(bool b) {
+    return b;
+}
+SHADER_MATH_INLINE bool any(bool b) {
+    return b;
+}
 template <int N>
 SHADER_MATH_INLINE bool any(const detail::bvec<N, lang_tag>& b) {
     return detail::any(b);

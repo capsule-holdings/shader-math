@@ -44,10 +44,10 @@
 | 行列: 1 つのスカラー | エラー（キャストと暗黙変換は全成分） | ○（対角、`mat3(1.0)` = 単位行列） | △ / ○ | HLSL の `float3x3(s)` は C++ では通る |
 | 行列: ベクトル 1 つから暗黙に `float2x2 m = v4` | ○ | エラー | ○ / ○ | |
 | 行列 → 行列 | 縮小キャスト `(float2x2)m3` | 拡大（単位行列で補完）・縮小 `mat2(m3)` | ○ / ○ | HLSL の `float2x2(m3)`（エラー）は C++ では △ で通る |
-| 行列 → ベクトル `float4 v = m22` / `vec4(m2)` | ○ | ○ | × / × | |
+| 行列 → ベクトル `float4 v = m22` / `vec4(m2)` | ○（同じ成分数、行の順） | ○（列の順で先頭 N 成分） | ○ / ○ | HLSL は 2x2 と `float4` の間だけ（暗黙も可）。GLSL は明示のみ（`vec3(m2)`、`vec4(m3)`）。GLSL の成分リストに行列を混ぜる `vec4(s, m2)` は × |
 | half と float の明示変換 `half3(f)` / `f16vec3(v)` | ○ | ○ | ○ / ○ | |
 | half と float の暗黙変換・混ぜた演算 `h * a`、`float3 v = h` | ○ | 一部○（f16 → f32 方向） | × / × | 意図して弾いている（丸めが混ざるため） |
-| half と float のベクトルを 1 つの ctor に混ぜる `float4(v2, h2)` | ○ | ○ | × / × | 未対応 |
+| half と float のベクトルを 1 つの ctor に混ぜる `float4(v2, h2)` | ○ | ○ | ○ / ○ | 引数 1 つの暗黙変換（`float2x2 m = h4`）は × のまま |
 | bool と float の明示変換 `float3(b)` / `bool3(v)` | ○ | ○ | ○ / ○ | 0 以外が真（NaN も真）、真は 1 |
 | bool と float の暗黙変換 `float3 v = b` | ○ | エラー | × / ○ | 意図して弾いている |
 | bool の暗黙 splat `bool3 b = true` | ○ | エラー | ○ / ○ | |
@@ -64,14 +64,14 @@
 | swizzle への複合代入 `v.yz += w` | ○ | ○ | ○ / ○ | |
 | swizzle の重ねがけ `v.xy.yx` | ○ | ○ | △ / △ | `SHADER_MATH_NESTED_SWIZZLE` でオプトイン。2・3 成分の swizzle の読み出しのみ |
 | スカラーへの swizzle `s.xxx` | ○ | ○ | × / × | C++ の float にメンバは無い |
-| 1 成分への `++` `v.x++` | ○ | ○ | × / × | |
+| swizzle への `++` / `--`（`v.x++`、`v.xy--`） | ○ | ○ | ○ / ○ | HLSL の行列の要素 `m._11++` も可 |
 | 添字 `v[i]` | ○ | ○ | ○ / ○ | |
 | 行列の添字 `m[i]` | ○（行） | ○（列） | ○ / ○ | |
 | `m._m00` / `m._11` | ○ | − | ○ / − | |
 | 行列の複数成分 `m._m00_m11` | ○ | − | △ / − | `SHADER_MATH_MATRIX_SWIZZLE`（2 成分）/ `SHADER_MATH_MATRIX_SWIZZLE3`（3 成分）でオプトイン |
 | `.length()` | − | ○（成分数、行列は列数） | − / ○ | |
 | bool ベクトルの成分の読み出し `b.x` / `b[i]` | ○ | ○ | ○ / ○ | |
-| bool ベクトルの成分への書き込み `b.x = true` | ○ | ○ | × / × | 読み出しのみ |
+| bool ベクトルの成分への書き込み `b.x = true`、`b.x = c.y` | ○ | ○ | ○ / ○ | bool か別の成分を代入する（HLSL の `b.x = 1` は ×、`bool3(1)` と同じく int からは作らない）。`b[i] = true` は × |
 | 可変長引数に `v.x` を渡す | − | − | △ | `v.x` はプロキシ型なので `printf` などには `float(v.x)` |
 
 ## 演算子
@@ -79,7 +79,7 @@
 | 書き方 | HLSL | GLSL | shader-math | 注記 |
 | --- | --- | --- | --- | --- |
 | `+ - * /`（ベクトル同士、ベクトルとスカラー） | ○ | ○ | ○ / ○ | float ベクトルには int / double のスカラーも可。half ベクトルには half のスカラーのみ（HLSL の `h * 2.0` は ×） |
-| 単項 `-` `+` | ○ | ○ | ○ / ○ | bool ベクトルの `+b` は × |
+| 単項 `-` `+` | ○ | ○ | ○ / ○ | bool ベクトルの `+b` も可 |
 | `++` `--`（ベクトル・行列） | ○ | ○ | ○ / ○ | |
 | 幅の違うベクトルの演算 `a3 + a4` | ○（切り詰め、DXC は警告） | エラー | × / ○ | 意図して弾いている |
 | `%`、`%=`（float） | ○（`fmod` と同じ。x の符号） | − | ○ / − | GLSL は `mod()`（y の符号） |
@@ -130,7 +130,7 @@
 | `transpose` `determinant` | 同名 | ○ / ○ | |
 | −（`inverse` は無い） | `inverse` | − / ○ | HLSL の行列には拡張の `shader_math::ext::inverse(m)`（修飾したときだけ使える） |
 | − | `matrixCompMult` `outerProduct` | − / ○ | HLSL の成分ごと積は `*` |
-| `all` `any`（数値・bool のベクトル・行列・スカラー） | `all` `any`（bvec のみ） | ○ / ○ | 数値は 0 以外が真（NaN も真）。HLSL のスカラーの bool `all(c)` は × |
+| `all` `any`（数値・bool のベクトル・行列・スカラー） | `all` `any`（bvec のみ） | ○ / ○ | 数値は 0 以外が真（NaN も真）。HLSL はスカラーの bool（`all(c)`）も可 |
 | − | `lessThan` `lessThanEqual` `greaterThan` `greaterThanEqual` `equal` `notEqual` | − / ○ | |
 | − | `not` | − / △ | `not_()`（C++ のキーワード） |
 | `dst` `lit` | − | ○ / − | `lit` はスカラー引数で `float4` を返す |
@@ -219,14 +219,14 @@ shader-math は DXC と公式のドキュメントに合わせる。
 
 ## 準拠率（2026-10-25）
 
-`tests/conformance/` の 529 ケース（HLSL 280、GLSL 249）で、言語と同じものを受け付け・弾く割合。
+`tests/conformance/` の 548 ケース（HLSL 291、GLSL 257）で、言語と同じものを受け付け・弾く割合。
 対象外の分類を除いた値。
 
-| | v0.5.0 | main（`a7e4dfa`） |
+| | v0.5.0 | main（2026-10-25） |
 | --- | --- | --- |
-| HLSL（271） | 78.2% | 88.6% |
-| GLSL（242） | 81.8% | 94.2% |
+| HLSL（282） | 75.5% | 91.5% |
+| GLSL（250） | 79.6% | 96.0% |
 
-g++ 13（Linux）で測った値。Apple Clang では GLSL が 93.8%（libc++ の `::round(float)` でスカラーの
-`round(s)` が曖昧になる 1 件）。残りの不一致は上の表の × と △ に対応する。測り直しは
+Apple Clang で測った値。g++ 13（Linux）では main の GLSL が 96.4%（libc++ の `::round(float)` でスカラーの
+`round(s)` が曖昧になる 1 件の差）。残りの不一致は上の表の × と △ に対応する。測り直しは
 `python3 tests/conformance/run.py --cxx <コンパイラ>`。

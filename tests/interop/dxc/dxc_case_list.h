@@ -7,7 +7,8 @@
     SM_INTEROP_CASES_BASE(X)                                   \
     X(exact_dst, case_exact_dst(IN_A, IN_B))                   \
     X(exact_round_ties, case_exact_round_ties(IN_A))           \
-    X(exact_ctor_ops, case_exact_ctor_ops(IN_A, IN_B))
+    X(exact_ctor_ops, case_exact_ctor_ops(IN_A, IN_B))         \
+    X(exact_lane_writes, case_exact_lane_writes(IN_A, IN_B))
 
 // SPIR-V leaves lit out: DXC's SPIR-V backend computes its specular term as
 // (n.h) * m instead of the documented (n.h)^m.
@@ -19,6 +20,8 @@
 
 // DXIL leaves frexp out: DXC's DXIL lowering builds the mantissa as
 // (bits & 0x007fffff) | 0x3f000000, which drops the sign of a negative input.
+// It adds the ++ / -- forms that DXC's SPIR-V backend cannot compile.
 #define SM_DXIL_CASES(X)                                       \
     SM_DXC_CASES_COMMON(X)                                     \
-    X(near_lit, case_near_lit())
+    X(near_lit, case_near_lit())                               \
+    X(exact_step_writes, case_exact_step_writes(IN_A))

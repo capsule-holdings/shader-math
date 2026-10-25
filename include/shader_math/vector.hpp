@@ -91,11 +91,12 @@ using vec_lang_t = typename vec_traits<std::remove_cvref_t<V>>::lang;
 
 // Component-list constructors (GLSL vec3(v2, w2) / mat2(v4), HLSL
 // float2x2(v2, 3.0, 4.0)): the components an argument contributes, -1 when it
-// is neither a scalar nor a vector of element type T in language Lg
+// is neither a scalar nor a vector of language Lg whose elements convert to T
+// (constructors convert: float4(v2, h2) mixes float and half)
 template <class T, class Lg, class A>
 constexpr int ctor_arg_size() {
     if constexpr (vec_size_v<A> >= 2) {
-        return std::is_same_v<vec_elem_t<A>, T> && std::is_same_v<vec_lang_t<A>, Lg>
+        return CvtScalar<vec_elem_t<A>, T> && std::is_same_v<vec_lang_t<A>, Lg>
                    ? vec_size_v<A>
                    : -1;
     } else {
@@ -122,12 +123,23 @@ constexpr int ctor_fill() {
 // At least one vector argument (all-scalar lists have their own constructors)
 template <class... As>
 inline constexpr bool any_vector_arg = ((vec_size_v<As> >= 2) || ...);
+// A vector argument whose element type is not T
+template <class T, class A>
+constexpr bool foreign_elem() {
+    if constexpr (vec_size_v<A> >= 2) {
+        return !std::is_same_v<vec_elem_t<A>, T>;
+    } else {
+        return false;
+    }
+}
+template <class T, class... As>
+inline constexpr bool any_foreign_elem = (foreign_elem<T, As>() || ...);
 // The first n components of the arguments, in order
 template <class T, class A>
 SHADER_MATH_INLINE void put_components(T* out, int& k, int n, const A& a) {
     if constexpr (vec_size_v<A> >= 2) {
         const auto v = to_vec(a);
-        for (int i = 0; i < vec_size_v<A> && k < n; ++i) out[k++] = v[i];
+        for (int i = 0; i < vec_size_v<A> && k < n; ++i) out[k++] = static_cast<T>(v[i]);
     } else if (k < n) {
         out[k++] = static_cast<T>(a);
     }
@@ -386,6 +398,31 @@ struct SHADER_MATH_MAY_ALIAS swz
     SM_SWZ_COMPOUND(*)
     SM_SWZ_COMPOUND(/)
 #undef SM_SWZ_COMPOUND
+
+    // ++ / -- add or subtract 1 in the selected components (v.x++, v.xy++)
+#define SM_SWZ_STEP(sym)                                         \
+    SHADER_MATH_INLINE swz& operator sym##sym()                  \
+        requires writable                                        \
+    {                                                            \
+        *this sym## = T(1.0f);                                   \
+        return *this;                                            \
+    }                                                            \
+    SHADER_MATH_INLINE auto operator sym##sym(int)               \
+        requires writable                                        \
+    {                                                            \
+        if constexpr (M == 1) {                                  \
+            const T old = d[idx[0]];                             \
+            d[idx[0]] = old sym T(1.0f);                         \
+            return old;                                          \
+        } else {                                                 \
+            const fvec<M, T, Lg> old(*this);                     \
+            *this = old sym T(1.0f);                             \
+            return old;                                          \
+        }                                                        \
+    }
+    SM_SWZ_STEP(+)
+    SM_SWZ_STEP(-)
+#undef SM_SWZ_STEP
 };
 
 // ---- swizzle member generation ------------------------------------------
@@ -583,6 +620,13 @@ struct fvec : fvec_store<N, T, Lg> {
         requires(N == 4 && CvtScalar<X, T>)
     SHADER_MATH_INLINE fvec(X x, const fvec<3, T, Lg>& v)
         : store_t(ops_t::set(static_cast<T>(x), v[0], v[1], v[2])) {}
+
+    // Exact component lists with a vector of another element type
+    // (float4(v2, h2)); the same-type lists have the constructors above
+    template <class... As>
+        requires(sizeof...(As) >= 2 && ctor_fill<N, T, Lg, As...>() == 1 &&
+                 any_foreign_elem<T, As...>)
+    SHADER_MATH_INLINE fvec(const As&... as) : store_t(gathered(as...)) {}
 
     // GLSL component lists longer than N (vec3(v2, w2), vec4(s, v4)): every
     // argument contributes, the last one may be cut short
@@ -1318,14 +1362,38 @@ SHADER_MATH_INLINE auto faceforward(const A& n0, const B& i, const C& nref) {
 // No arithmetic and no implicit bool conversion; reduce with all()/any().
 // Shared by float and half comparisons (half comparisons widen to f32, which
 // is exact for every pair of half values).
-// Read-only single-component accessor (b.x, b.a) overlaying the mask
-// register, like the float swizzle proxies; out-of-range lanes fail at use.
+// Single-component accessor (b.x, b.a) overlaying the mask register, like
+// the float swizzle proxies; out-of-range lanes fail at use. Assignment
+// writes the one lane, from a bool or another component (not an int, as
+// bool3(1) does not compile either); the copy assignment is user-provided
+// because a trivial one would copy the whole register.
 template <int N, int I>
 struct SHADER_MATH_MAY_ALIAS bswz {
     mreg d;
+
+    bswz() = default;
+    bswz(const bswz&) = default;
+
     SHADER_MATH_INLINE operator bool() const {
         static_assert(I < N, "shader-math: bool vector component out of range");
         return ops::lane_b(d, I);
+    }
+    template <class B>
+        requires std::is_same_v<B, bool>
+    SHADER_MATH_INLINE bswz& operator=(B v) {
+        static_assert(I < N, "shader-math: bool vector component out of range");
+        float t[4];
+        for (int i = 0; i < 4; ++i) t[i] = ops::lane_b(d, i) ? 1.0f : 0.0f;
+        t[I] = v ? 1.0f : 0.0f;
+        d = ops::cmp_ne(ops::load4(t), ops::zero());
+        return *this;
+    }
+    SHADER_MATH_INLINE bswz& operator=(const bswz& o) {
+        return *this = static_cast<bool>(o);
+    }
+    template <int J>
+    SHADER_MATH_INLINE bswz& operator=(const bswz<N, J>& o) {
+        return *this = static_cast<bool>(o);
     }
 };
 
@@ -1417,6 +1485,12 @@ private:
         return ops::cmp_ne(ops::load4(t), ops::zero());
     }
 };
+
+// +b is b (both languages accept unary + on bool vectors)
+template <int N, class Lg>
+SHADER_MATH_INLINE bvec<N, Lg> operator+(const bvec<N, Lg>& b) {
+    return b;
+}
 
 template <int N, class Lg>
 SHADER_MATH_INLINE bool all(const bvec<N, Lg>& b) {
