@@ -213,6 +213,18 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
 - `isnan` / `isinf` / `isfinite` は `bool2/3/4` を返す（`-ffast-math` 下では NaN 判定が消えうる）
 - Windows で `<windows.h>` を使う場合は `NOMINMAX` が必要（`min` / `max` マクロと衝突）
 
+## 0.5 からの移行
+
+0.6 は互換性のない変更を含む（0.x の間は同じマイナー版だけが互換）。
+
+- `hlsl::float3` と `glsl::vec3`（half、bool のベクトルも）は別の型になった。混ぜていたところは明示的に変換する
+  （`glsl::vec3(f)`）。`detail::fvec<N>` / `detail::bvec<N>` は `fvec<N, T, Lg>` / `bvec<N, Lg>`
+- GLSL ではスカラーからベクトルへの暗黙変換が無くなった（`vec3 v = 1.0;` は `vec3 v = vec3(1.0);`）
+- `.stpq` は GLSL のベクトルに常にあり、HLSL のベクトルには無い。CMake オプション `SHADER_MATH_GLSL_STPQ` は削除
+- `hlsl::inverse` は `shader_math::ext::inverse` に移った（HLSL に `inverse` は無い）
+- `hlsl::` / `glsl::` の関数はその言語の引数だけを取る（`hlsl::dot(glsl のベクトル)` はエラー）。演算子と各言語の
+  関数は `using` なしでも ADL で見つかる
+
 ## ビルドとテスト
 
 ```bash
@@ -234,12 +246,12 @@ cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON  # scalar 強制
 include(FetchContent)
 FetchContent_Declare(shader_math
     GIT_REPOSITORY https://github.com/capsule-holdings/shader-math.git
-    GIT_TAG v0.5.0)
+    GIT_TAG v0.6.0)
 FetchContent_MakeAvailable(shader_math)
 
 # B) インストール済みパッケージ
 #    cmake --install build --prefix <prefix> したものを CMAKE_PREFIX_PATH で指す
-find_package(shader_math 0.5 REQUIRED CONFIG)
+find_package(shader_math 0.6 REQUIRED CONFIG)
 
 target_link_libraries(app PRIVATE shader_math::shader_math)
 ```
