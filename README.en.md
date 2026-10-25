@@ -117,6 +117,16 @@ Semantic notes:
   - ARM FEAT_FP16 (`-march=armv8.2-a+fp16`): half math on real 16-bit lanes; elsewhere half widens to f32 per operation, converting four lanes at once (ARMv8.0 base `vcvt_f32_f16` / `vcvt_f16_f32`, x86 F16C or SSE2 integer ops)
 - Boost is used header-only (Config / Predef 1.60+ for ISA detection); CMake fetches it when it is not installed
 
+## Migrating from 0.5
+
+0.6 breaks compatibility (during 0.x only the same minor version is compatible).
+
+- `hlsl::float3` and `glsl::vec3` (and the half and bool vectors) are distinct types now; convert explicitly where they were mixed (`glsl::vec3(f)`). `detail::fvec<N>` / `detail::bvec<N>` are `fvec<N, T, Lg>` / `bvec<N, Lg>`
+- GLSL no longer converts a scalar to a vector implicitly (`vec3 v = 1.0;` becomes `vec3 v = vec3(1.0);`)
+- `.stpq` is always on glsl vectors and absent from hlsl ones; the CMake option `SHADER_MATH_GLSL_STPQ` is gone
+- `hlsl::inverse` moved to `shader_math::ext::inverse` (HLSL has no `inverse`)
+- The `hlsl::` / `glsl::` functions take their own language's arguments only (`hlsl::dot` rejects glsl vectors); operators and each language's functions are found by ADL without a `using`
+
 ## Build and test
 
 ```bash
@@ -144,11 +154,11 @@ The target is `shader_math::shader_math` either way.
 include(FetchContent)
 FetchContent_Declare(shader_math
     GIT_REPOSITORY https://github.com/capsule-holdings/shader-math.git
-    GIT_TAG v0.5.0)
+    GIT_TAG v0.6.0)
 FetchContent_MakeAvailable(shader_math)
 
 # B) an installed package (cmake --install build --prefix <prefix>)
-find_package(shader_math 0.5 REQUIRED CONFIG)
+find_package(shader_math 0.6 REQUIRED CONFIG)
 
 target_link_libraries(app PRIVATE shader_math::shader_math)
 ```
