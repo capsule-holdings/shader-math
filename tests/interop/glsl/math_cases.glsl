@@ -231,3 +231,17 @@ vec4 case_exact_ctor_ops(vec4 a, vec4 b)
     v++;
     return vec4(c, 0.0) + vec4(r, n * vec2(1.0, 0.0)) + v;
 }
+
+// one bool lane written, ++ / -- on components, vector from a matrix
+// (column by column, the first N components)
+vec4 case_exact_lane_writes(vec4 a, vec4 b)
+{
+    bvec3 k = bvec3(false);
+    k.y = greaterThan(a.xyz, b.xyz).x;
+    vec3 v = a.xyz;
+    v.x++;
+    v.yz--;
+    vec4 c = vec4(mat2(a));
+    vec3 d = vec3(mat3(2.0));
+    return c + vec4(v, 0.0) + vec4(vec3(k), 0.0) + vec4(d, 0.0);
+}

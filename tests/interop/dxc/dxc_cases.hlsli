@@ -34,3 +34,30 @@ float4 case_exact_ctor_ops(float4 a, float4 b)
     float2 r = mul(float2(1.0f, 2.0f), m) + n[1];
     return float4(r, 0.0f, 0.0f) + v + w + float4(float3(t), 0.0f);
 }
+
+// one bool lane written, ++ on a component, a float2x2 read as a float4 (row
+// by row), all / any on bool
+float4 case_exact_lane_writes(float4 a, float4 b)
+{
+    bool3 k = false;
+    k.y = (a.xyz > b.xyz).x;
+    float3 v = a.xyz;
+    v.x++;
+    float2x2 m = float2x2(a);
+    float4 c = m;
+    bool t = any(a.x > b.x) || all(false);
+    return c + float4(v, 0.0f) + float4(float3(k), t ? 1.0f : 0.0f);
+}
+
+// ++ / -- on a two-component swizzle and on a matrix element. DXIL only:
+// DXC's SPIR-V backend (v1.9.2609) emits invalid SPIR-V for both ("OpStore
+// Pointer ... is not a logical pointer").
+float4 case_exact_step_writes(float4 a)
+{
+    float3 v = a.xyz;
+    v.yz--;
+    float3x3 n = float3x3(1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+    n._12++;
+    n._m22--;
+    return float4(v, n._12 + n._m22);
+}

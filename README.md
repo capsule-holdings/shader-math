@@ -41,7 +41,7 @@ void glsl_side() {
 - half 行列: `hlsl::halfRxC` と `glsl::f16matCxR`（float と同じく**別型**・explicit 変換。非正方の形対応も float と同一）。
   `determinant` / `inverse` も half のまま計算する。真の fp16 は underflow / overflow が早いので、条件の悪い行列を渡さないこと
   - `sizeof(half3) == 8`（4×binary16 パック）。`sizeof(float3) == 16` と同様、**言語互換であり GPU ABI ではない**
-  - half と float の**暗黙混合演算は不可**（`half3 * float3` / `half3 * 2.0f` はコンパイルエラー、変換は explicit）。コンストラクタ引数は変換する（`half3(1.0f, 2.0f, 3.0f)` は可）
+  - half と float の**暗黙混合演算は不可**（`half3 * float3` / `half3 * 2.0f` はコンパイルエラー、変換は explicit）。コンストラクタ引数は変換する（`half3(1.0f, 2.0f, 3.0f)`、`float4(v2, h2)` は可）
   - コンパイラ下限: gcc/clang は C++ で使える `_Float16` が必要（x86 では gcc 12+ / clang 15+、AArch64 では gcc 13+）。MSVC はビット格納のソフトウェア型で対応。未対応コンパイラでは half 型群は定義されない（float 面は無影響）
   - ARM ターゲットでは `arm_neon.h` がグローバル `float16_t` を定義するため、`using namespace glsl` 下の非修飾 `float16_t` は曖昧になる。`glsl::float16_t` と修飾するか `hlsl::half` を使う
 - 行列: R,C ∈ {2,3,4} の全9形。`hlsl::floatRxC`（行格納・行優先 ctor）と `glsl::matCxR`（列格納・列優先 ctor）は **別型**、相互変換は explicit
@@ -53,7 +53,8 @@ void glsl_side() {
   使うと `vector` が曖昧になるので、`std::vector` と修飾する
   `bool3(true, false, true)` / `bool3(true)` で作れる（引数は bool のみ。int や float からは作れない。
   HLSL は `bool3 b = true;` も可）。
-  成分は `b[i]` と単成分の `.x` 〜 `.w` / `.r` 〜 `.a` で**読み出しのみ**（複数成分の swizzle と書き込みは無し）
+  成分は `b[i]` と単成分の `.x` 〜 `.w` / `.r` 〜 `.a` で読む。`.x` などへは bool か別の成分を代入できる
+  （`b.x = true`、`b.x = c.y`。int は不可）。複数成分の swizzle と `b[i]` への書き込みは無い
 - Slang / HLSL と共有できる型・演算のサブセットは [docs/slang_compat.md](docs/slang_compat.md) 参照
   （Slang との相互コンパイル検証ハーネスで CI 照合済み）
 

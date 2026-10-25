@@ -146,6 +146,14 @@ static_assert(adl_dot<h::float3> && adl_dot<g::vec3>);
 static_assert(requires(h::float3 v) { h::round(v.x); h::isnan(v.y); h::abs(v.z); });
 static_assert(requires(g::vec3 v) { g::round(v.x); g::isnan(v.y); g::abs(v.z); });
 
+// ---- matrix -> vector: HLSL implicitly for the same component count, GLSL explicitly --
+static_assert(std::is_convertible_v<h::float2x2, h::float4>);
+static_assert(!std::is_convertible_v<h::float3x3, h::float3> &&
+              !std::is_constructible_v<h::float3, h::float2x2>);
+static_assert(std::is_constructible_v<g::vec3, g::mat2> && !std::is_convertible_v<g::mat2, g::vec4>);
+static_assert(std::is_constructible_v<g::vec4, g::mat2x3>);  // the first 4 of 6
+static_assert(std::is_constructible_v<g::vec4, g::mat3>);
+
 // ---- extensions are reachable qualified only (shader_math::ext) -------------------
 template <class M>
 concept adl_inverse = requires(const M& m) { inverse(m); };
@@ -169,7 +177,8 @@ static_assert(can_build<h::bool3, bool>);                // splat
 static_assert(!can_build<h::bool3, int, int, int>);      // no int -> mask
 static_assert(!can_build<h::bool3, float, float, float>);
 static_assert(!can_build<h::bool3, bool, bool>);         // arity
-static_assert(!can_assign<decltype(h::bool3().x)&, bool>);  // read-only
+static_assert(can_assign<decltype(h::bool3().x)&, bool>);   // one lane
+static_assert(!can_assign<decltype(h::bool3().x)&, int>);   // no int -> mask, as above
 static_assert(std::is_convertible_v<decltype(h::bool3().x), bool>);
 
 void test_restrict() {

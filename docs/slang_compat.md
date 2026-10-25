@@ -106,6 +106,9 @@ DXC で分かった差:
   作るので、負の入力でも仮数が正になる（`frexp(-7.5)` の仮数が 0.9375）。SPIR-V 出力（GLSL の `Frexp`）・
   Slang・shader-math は C の `frexp` と同じく符号付き（-0.9375）。DXIL の照合からだけ `case_exact_frexp` を
   外している
+- **swizzle と行列の要素への `++` / `--`（SPIR-V）**: DXC v1.9.2609 の SPIR-V 出力は `v.yz--` や `m._12++` で
+  不正な SPIR-V を生成してエラーになる（`OpStore Pointer ... is not a logical pointer`）。1 成分の `v.x++` と
+  DXIL 出力は問題ない。この形は DXIL の照合（`case_exact_step_writes`）だけで照合している
 - **`frac` の定数畳み込み（DXIL）**: DXC が DXIL を生成するときの定数畳み込みは `frac(-0.75)` を 0.75 にする
   （`x - floor(x)` なら 0.25）。実行時の入力なら DXIL の `Frc` 命令になり、WARP の結果は 0.25 で shader-math と
   一致する。照合が畳み込みでなく実行を見るよう、DXIL 版は入力を不透明にしている（上記）

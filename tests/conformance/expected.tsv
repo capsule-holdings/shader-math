@@ -279,6 +279,17 @@ h_mat_compound_vec	err	cannot convert from 'float3' to 'float3x3'
 h_s_reflect	ok	
 h_s_refract	ok	
 h_s_faceforward	ok	
+h_bool_component_copy	ok	
+h_bool_component_int	ok	
+h_swz_decrement	ok	
+h_swz2_increment	ok	
+h_mat_elem_increment	ok	
+h_vec_from_mat22_cast	ok	
+h_vec_from_mat22_ctor	ok	
+h_vec3_from_mat22	err	cannot initialize a variable of type 'float3' with an lvalue of type 'float2x2'
+h_ctor_half_scalar_mix	ok	
+h_ctor_half_target	ok	
+h_s_any_bool	ok	
 g_ctor_scalars	ok	
 g_ctor_int_args	ok	
 g_ctor_vec_scalar	ok	
@@ -528,3 +539,11 @@ g_vec_mod_assign	err	g_vec_mod_assign.comp:4: 'assign' : cannot convert from ' c
 g_s_reflect	ok	
 g_s_refract	ok	
 g_s_faceforward	ok	
+g_bvec_component_copy	ok	
+g_swz2_increment	ok	
+g_vec3_from_mat2	ok	
+g_vec4_from_mat3	ok	
+g_vec2_from_mat2	ok	
+g_vec_from_mat_implicit	err	g_vec_from_mat_implicit.comp:4: '=' : cannot convert from ' temp 2X2 matrix of float' to ' temp highp 4-component vector
+g_mat_ctor_half_vec	ok	
+g_ctor_half_target	ok	

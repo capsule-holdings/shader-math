@@ -838,6 +838,76 @@ static void test_funcs_conformance_gaps() {
     }
 }
 
+// bool components written one at a time, ++ / -- on swizzles and matrix
+// elements, +b, matrix -> vector, half and float mixed in a constructor,
+// HLSL all / any on bool
+static void test_funcs_lane_writes() {
+    {
+        using namespace shader_math::hlsl;
+        bool3 r(false, false, false);
+        const bool3 b(true, false, true);
+        r.x = b.x;  // one lane, not the register
+        CHECK(r[0] && !r[1] && !r[2]);
+        r.y = true;
+        r.z = b.y;
+        CHECK(r[0] && r[1] && !r[2]);
+        CHECK(all(+b == b));
+
+        float3 v(1.0f, 2.0f, 3.0f);
+        CHECK_EQF(v.x++, 1.0f);
+        CHECK_EQF(v[0], 2.0f);
+        --v.z;
+        CHECK_EQF(v[2], 2.0f);
+        const float2 old = v.xy++;
+        CHECK(all(old == float2(2.0f, 2.0f)) && all(v.xy == float2(3.0f, 3.0f)));
+
+        float3x3 m = float3x3::identity();
+        m._12++;
+        CHECK_EQF(m[0][1], 1.0f);
+        CHECK_EQF(m._m11--, 1.0f);
+        CHECK_EQF(m[1][1], 0.0f);
+
+        const float2x2 k(1.0f, 2.0f, 3.0f, 4.0f);
+        const float4 kv = k;  // row by row
+        CHECK(all(kv == float4(1.0f, 2.0f, 3.0f, 4.0f)));
+
+        CHECK(all(true) && !any(false) && any(v.x > 2.0f));
+#if defined(SHADER_MATH_HAS_HALF)
+        const half2 h(half(5.0f), half(6.0f));
+        const float4 f = float4(float2(1.0f, 2.0f), h);
+        CHECK(all(f == float4(1.0f, 2.0f, 5.0f, 6.0f)));
+        const half4 hh = half4(float2(1.0f, 2.0f), h);
+        CHECK_EQF(static_cast<float>(hh[3]), 6.0f);
+        const float2x2 hm = float2x2(float2(1.0f, 2.0f), h);
+        CHECK(all(hm[1] == float2(5.0f, 6.0f)));
+#endif
+    }
+    {
+        using namespace shader_math::glsl;
+        bvec3 r(false, false, false);
+        r.y = bvec3(true, true, true).x;
+        CHECK(!r[0] && r[1] && !r[2]);
+        CHECK(+r == r);
+
+        vec3 v(1.0f, 2.0f, 3.0f);
+        v.y--;
+        CHECK_EQF(v[1], 1.0f);
+
+        const mat2 m(1.0f, 2.0f, 3.0f, 4.0f);  // columns (1, 2), (3, 4)
+        CHECK(vec4(m) == vec4(1.0f, 2.0f, 3.0f, 4.0f));
+        CHECK(vec3(m) == vec3(1.0f, 2.0f, 3.0f));
+        const mat3 m3(1.0f);
+        CHECK(vec4(m3) == vec4(1.0f, 0.0f, 0.0f, 0.0f));
+#if defined(SHADER_MATH_HAS_HALF)
+        const f16vec2 h(glsl::float16_t(5.0f), glsl::float16_t(6.0f));
+        CHECK(vec4(vec2(1.0f, 2.0f), h) == vec4(1.0f, 2.0f, 5.0f, 6.0f));
+        CHECK(vec3(vec2(1.0f, 2.0f), h) == vec3(1.0f, 2.0f, 5.0f));  // the last cut short
+        const mat2 hm = mat2(vec2(1.0f, 2.0f), h);
+        CHECK(hm[1] == vec2(5.0f, 6.0f));
+#endif
+    }
+}
+
 void test_funcs() {
     test_funcs_exact();
     test_funcs_near();
@@ -850,5 +920,6 @@ void test_funcs() {
     test_funcs_nan_rules();
     test_funcs_review_gaps();
     test_funcs_conformance_gaps();
+    test_funcs_lane_writes();
     test_funcs_half();
 }

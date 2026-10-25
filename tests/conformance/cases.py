@@ -340,6 +340,29 @@ for cid, body in [
 ]:
     H("scalar", cid, body)
 
+# bool component writes, ++ on components, matrix -> vector, mixed element
+# types in a constructor, all / any on bool
+for cid, body in [
+    ("bool_component_copy", "bool3 r = bb; r.x = bb.y;"),
+    ("bool_component_int", "bool3 r = bb; r.x = 1;"),
+    ("swz_decrement", "float3 r = a; r.x--;"),
+    ("swz2_increment", "float3 r = a; r.xy++;"),
+    ("mat_elem_increment", "float3x3 r = m; r._11++;"),
+]:
+    H("swizzle", cid, body)
+for cid, body in [
+    ("vec_from_mat22_cast", "float2x2 k = a4; float4 r = (float4)k;"),
+    ("vec_from_mat22_ctor", "float2x2 k = a4; float4 r = float4(k);"),
+    ("vec3_from_mat22", "float2x2 k = a4; float3 r = k;"),
+    ("ctor_half_scalar_mix", "float3 r = float3(h.xy, s);"),
+    ("ctor_half_target", "half4 r = half4(a2, h.xy);"),
+]:
+    H("ctor", cid, body)
+for cid, body in [
+    ("s_any_bool", "bool r = any(s > 0.0);"),
+]:
+    H("scalar", cid, body)
+
 # ============================ GLSL ===========================================
 for cid, body in [
     ("ctor_scalars", "vec3 r = vec3(1.0, 2.0, 3.0);"),
@@ -610,3 +633,20 @@ for cid, body in [
     ("s_faceforward", "float r = faceforward(s, t, s);"),
 ]:
     G("scalar", cid, body)
+
+# bool component writes, ++ on components, matrix -> vector, mixed element
+# types in a constructor
+for cid, body in [
+    ("bvec_component_copy", "bvec3 r = bb; r.x = bb.y;"),
+    ("swz2_increment", "vec3 r = a; r.xy++;"),
+]:
+    G("swizzle", cid, body)
+for cid, body in [
+    ("vec3_from_mat2", "vec3 r = vec3(mat2(a4));"),
+    ("vec4_from_mat3", "vec4 r = vec4(m);"),
+    ("vec2_from_mat2", "vec2 r = vec2(mat2(a4));"),
+    ("vec_from_mat_implicit", "vec4 r = mat2(a4);"),
+    ("mat_ctor_half_vec", "mat2 r = mat2(a2, h.xy);"),
+    ("ctor_half_target", "f16vec4 r = f16vec4(a2, h.xy);"),
+]:
+    G("ctor", cid, body)
