@@ -1,6 +1,6 @@
 # shader-math 開発コンテキスト
 
-計画フェーズ（Cursor Plan Mode）での調査・設計判断の記録。実装の背景を追うためのドキュメント。
+計画フェーズでの調査・設計判断の記録。実装の背景を追うためのドキュメント。
 作成: 2026-08-20
 
 ## 発端と要件の変遷
@@ -247,11 +247,3 @@ Slang v2026.20（バージョン固定、renovate 対象外の手動更新）を
 
 実装中に踏んだバグ: swizzle 生成マクロのパラメータ名 `a`/`b` が rgba の文字トークンと衝突
 （`p##a` がパラメータ値に置換される）→ パラメータを `i0/i1/i2` に改名して解決。
-
-## リポジトリ移送の経緯
-
-本来のリポジトリは `capsule-holdings/shader-math`（git@github.com:capsule-holdings/shader-math.git）。
-実装した Cloud Agent の GitHub 認証は kineca org 固定で capsule-holdings に届かなかったため、
-`kineca/cabakuru-server` のブランチ `cursor/shader-math-9737`（PR #27011、移送用 draft）と
-zip/tar.gz 成果物の2経路でコードを受け渡した。以後の Cloud Agent 開発は
-`capsule-holdings/shader-math` を対象に新規エージェントを起動すること。
