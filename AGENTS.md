@@ -1,6 +1,6 @@
 # AGENTS.md
 
-## 共通ルール（Cursor / Claude ほか全エージェント）
+## 全体のルール（すべてのエージェント）
 
 ### Git / PR
 
@@ -15,7 +15,7 @@
 - **リリースタグ（`vX.Y.Z`）は人間の確認なしに作らない**。手順と自動チェックは CONTEXT.md の
   「バージョンとリリース」。版を変えるときは `project(VERSION)` と `include/shader_math/version.hpp` の両方を変える。
 
-## Cursor Cloud specific instructions
+## 開発環境の要点
 
 `shader-math` はヘッダオンリーの C++20 ライブラリ（CMake、Boost はヘッダのみ利用）。
 常駐するサーバ・Web アプリは無く、「アプリケーション」に相当するのは
