@@ -7,10 +7,12 @@
 H_PARAMS = ("float s, float t, float2 a2, float2 b2, float3 a, float3 b, float3 c, "
             "float4 a4, float4 b4, float3x3 m, float3x3 n, float4x4 m4, float2x3 m23, "
             "float3x2 m32, bool3 bb, half3 h, half hs, int3 ia, int3 ib, uint3 ua, int ka, int3x3 im, "
-            "int16_t3 sa, uint16_t3 sb, int64_t3 la, uint64_t3 lb")
+            "int16_t3 sa, uint16_t3 sb, int64_t3 la, uint64_t3 lb, "
+            "double ds, double dt, double3 da, double3 db, double3 dc, double3x3 dm, double3x3 dn")
 G_PARAMS = ("float s, float t, vec2 a2, vec2 b2, vec3 a, vec3 b, vec3 c, vec4 a4, vec4 b4, "
             "mat3 m, mat3 n, mat4 m4, mat2x3 m23, mat3x2 m32, bvec3 bb, f16vec3 h, float16_t hs, "
-            "ivec3 ia, ivec3 ib, uvec3 ua, int ka, i16vec3 sa, u16vec3 sb, i64vec3 la, u64vec3 lb")
+            "ivec3 ia, ivec3 ib, uvec3 ua, int ka, i16vec3 sa, u16vec3 sb, i64vec3 la, u64vec3 lb, "
+            "double ds, double dt, dvec3 da, dvec3 db, dvec3 dc, dmat3 dm, dmat3 dn")
 # On ARM, arm_neon.h declares a global float16_t that makes the unqualified
 # name ambiguous in C++ (a platform matter, not a language one), so the C++
 # side names glsl::float16_t explicitly
@@ -444,9 +446,64 @@ for cid, body in [
 ]:
     H("pack", cid, body)
 
-# out of scope (double / derivatives)
+# double vectors and matrices
 for cid, body in [
-    ("oos_double", "double r = 1.0L;"),
+    ("double_lit", "double r = 1.0L;"),
+    ("double3_ctor", "double3 r = double3(1.0, 2.0, 3.0);"),
+    ("double1", "double1 r = ds;"),
+    ("double_vector_template", "vector<double, 3> r = da;"),
+    ("double_matrix_template", "matrix<double, 3, 3> r = dm;"),
+    ("double_splat", "double3 r = 1.0;"),
+    ("double_from_float_implicit", "double3 r = a;"),
+    ("float_from_double_implicit", "float3 r = da;"),
+    ("double_from_int_implicit", "double3 r = ia;"),
+    ("int_from_double_implicit", "int3 r = da;"),
+    ("double_from_int64_implicit", "double3 r = la;"),
+    ("double_from_half_explicit", "double3 r = double3(h);"),
+    ("double_from_bool_explicit", "double3 r = double3(bb);"),
+    ("double_mat_ctor", "double3x3 r = double3x3(da, db, dc);"),
+    ("double_mat_from_float", "double3x3 r = m;"),
+    ("float_mat_from_double", "float3x3 r = dm;"),
+    ("double_mat13", "double1x3 r = da; double3x1 t = transpose(r); double1x1 p = mul(r, t);"),
+    ("double_arith", "double3 r = da + db * 2.0 - ds;"),
+    ("double_plus_float", "double3 r = da + a;"),
+    ("double_plus_int", "double3 r = da + ia;"),
+    ("double_compound", "double3 r = da; r += a; r *= 2.0; r++;"),
+    ("double_compare", "bool3 r = da < db;"),
+    ("double_mod_err", "double3 r = da % db;"),
+    ("double_mod_assign_err", "double3 r = da; r %= db;"),
+    ("double_mat_mod_err", "double3x3 r = dm % dn;"),
+    ("double1_mod_err", "double1 r = double1(ds) % 2.0;"),
+    ("double_mat_ops", "double3x3 r = dm + m * 2.0;"),
+    ("double_mul_mm", "double3x3 r = mul(dm, dn);"),
+    ("double_mul_mixed", "double3x3 r = mul(dm, m);"),
+    ("double_mul_vm_mixed", "double3 r = mul(da, m) + mul(a, dm);"),
+    ("double_native_fns", "double3 r = abs(da) + min(da, db) + max(da, a) + clamp(da, 0.0, 1.0) + saturate(da) + rcp(da) + mad(da, db, dc);"),
+    ("double_dot", "double r = dot(da, db);"),
+    ("double_select", "double3 r = select(bb, da, a);"),
+    ("double_classify", "bool3 r = isnan(da) == isinf(da); bool3 q = isfinite(da);"),
+    ("double_all_any", "bool r = all(da) || any(dm);"),
+    ("double_fma_vec", "double3 r = fma(da, db, dc);"),
+    ("double_fma_mixed_scalar", "double3 r = fma(da, ds, dt);"),
+    ("double_fma_scalar", "double r = fma(ds, dt, ds);"),
+    ("double_fma_mat", "double3x3 r = fma(dm, dn, dm);"),
+    ("double_fma_mixed_vec_err", "double3 r = fma(da, a, dc);"),
+    ("double_asdouble_asuint", "uint3 lo, hi; asuint(da, lo, hi); double3 r = asdouble(lo, hi);"),
+    ("double_asdouble_int", "int3 lo, hi; asuint(da, lo, hi); double3 r = asdouble(lo, hi);"),
+    ("double_asdouble_scalar", "uint lo, hi; asuint(ds, lo, hi); double r = asdouble(lo, hi);"),
+    ("double_asuint_1arg_err", "uint3 r = asuint(da);"),
+    ("double_float_lowered", "float3 r = floor(da) + ceil(da) + trunc(da) + round(da) + frac(da) + sqrt(da) + rsqrt(da) + sin(da) + lerp(da, db, 0.5) + step(0.5, da) + smoothstep(0.0, 1.0, da) + fmod(da, db) + pow(da, 2.0);"),
+    ("double_geom_lowered", "float r = length(da) + distance(da, db); float3 v = cross(da, db) + normalize(da) + reflect(da, db) + refract(da, db, 0.5) + faceforward(da, db, dc);"),
+    ("double_modf_frexp_sincos", "float3 ip, e, sn, cs; float3 r = modf(da, ip) + frexp(da, e); sincos(da, sn, cs);"),
+    ("double_modf_frexp_out_double", "double3 ip, e, sn, cs; float3 r = modf(da, ip) + frexp(da, e); sincos(da, sn, cs);"),
+    ("double_mat_fns", "float d = determinant(dm); float3x3 r = sqrt(dm) + lerp(dm, dn, 0.5); double3x3 t = transpose(dm) + abs(dm);"),
+    ("double_scalar_fns", "double r = abs(ds) + min(ds, dt) + max(ds, 2) + clamp(ds, 0.0, 1.0) + saturate(ds) + rcp(ds) + mad(ds, dt, ds);"),
+    ("double_scalar_lowered", "float r = sqrt(ds) + sin(ds) + floor(ds) + frac(ds) + lerp(ds, dt, 0.5);"),
+]:
+    H("double", cid, body)
+
+# out of scope (derivatives)
+for cid, body in [
     ("oos_ddx", "float3 r = ddx(a);"),
 ]:
     H("out_of_scope", cid, body)
@@ -951,9 +1008,55 @@ for cid, body in [
 ]:
     G("pack", cid, body)
 
+# double vectors and matrices
+for cid, body in [
+    ("dvec3_ctor", "dvec3 r = dvec3(a);"),
+    ("f64vec3_alias", "f64vec3 r = f64vec3(1.0, 2.0, 3.0);"),
+    ("float64_t_alias", "float64_t r = ds;"),
+    ("dvec_from_vec_implicit", "dvec3 r = a;"),
+    ("vec_from_dvec_implicit", "vec3 r = da;"),
+    ("dvec_from_ivec_implicit", "dvec3 r = ia;"),
+    ("dvec_from_i16vec_implicit", "dvec3 r = sa;"),
+    ("dvec_from_i64vec_implicit", "dvec3 r = la;"),
+    ("dvec_from_u64vec_implicit", "dvec3 r = lb;"),
+    ("dvec_from_f16vec_explicit", "dvec3 r = dvec3(h);"),
+    ("dvec_from_bvec", "dvec3 r = dvec3(bb);"),
+    ("dmat_ctor", "dmat3 r = dmat3(da, db, dc);"),
+    ("f64mat_alias", "f64mat3 r = dm;"),
+    ("dmat_from_mat_implicit", "dmat3 r = m;"),
+    ("mat_from_dmat_implicit", "mat3 r = dm;"),
+    ("mat_from_dmat_explicit", "mat3 r = mat3(dm);"),
+    ("dvec_arith", "dvec3 r = da + db * 2.0 - ds;"),
+    ("dvec_plus_vec", "dvec3 r = da + a;"),
+    ("dvec_plus_i64vec", "dvec3 r = da + la;"),
+    ("dvec_add_assign_vec", "dvec3 r = da; r += a;"),
+    ("vec_add_assign_dvec_err", "vec3 r = a; r += da;"),
+    ("dvec_eq_vec", "bool r = da == a;"),
+    ("dmat_ops", "dmat3 r = dm + m; dmat3 p = dm * m + m * dm;"),
+    ("dmat_vec_mixed", "dvec3 r = dm * a + a * dm + m * da + da * m;"),
+    ("dmat_compound_mat", "dmat3 r = dm; r += m; r *= m;"),
+    ("mat_compound_dmat_err", "mat3 r = m; r += dm;"),
+    ("dmat_eq_mat", "bool r = dm == m;"),
+    ("dmat_fns", "double d = determinant(dm); dmat3 r = inverse(dm) + transpose(dm) + matrixCompMult(dm, m) + outerProduct(da, a);"),
+    ("dvec_native_fns", "dvec3 r = abs(da) + sign(da) + floor(da) + ceil(da) + trunc(da) + round(da) + roundEven(da) + fract(da) + mod(da, a) + min(da, a) + max(da, a) + clamp(da, s, dt) + mix(da, a, dt) + mix(da, a, bb) + step(a, da) + smoothstep(a, b, dc) + sqrt(da) + inversesqrt(da) + fma(da, a, dc);"),
+    ("dvec_geom_fns", "double d = dot(da, a) + length(da) + distance(da, a); dvec3 v = cross(da, a) + normalize(da) + reflect(da, a) + refract(da, a, s) + faceforward(da, a, b);"),
+    ("dvec_cmp_fns", "bvec3 r = equal(da, a); bvec3 q = lessThan(da, a);"),
+    ("dvec_modf_frexp_ldexp", "dvec3 ip; ivec3 e; dvec3 r = modf(da, ip) + frexp(da, e) + ldexp(da, ia);"),
+    ("dvec_classify", "bvec3 r = isnan(da); bvec3 q = isinf(da);"),
+    ("dvec_sin_err", "dvec3 r = sin(da);"),
+    ("dvec_exp_err", "dvec3 r = exp(da);"),
+    ("dvec_pow_err", "dvec3 r = pow(da, db);"),
+    ("dvec_radians_err", "dvec3 r = radians(da);"),
+    ("dvec_asinh_err", "dvec3 r = asinh(da);"),
+    ("double_pack_unpack", "double r = packDouble2x32(ua.xy) + packDouble2x32(ia.xy); uvec2 u = unpackDouble2x32(ds) + unpackDouble2x32(s);"),
+    ("double_bitcasts", "i64vec3 i = doubleBitsToInt64(da) + doubleBitsToInt64(a); u64vec3 u = doubleBitsToUint64(da); dvec3 d = int64BitsToDouble(la) + int64BitsToDouble(ia) + uint64BitsToDouble(lb);"),
+    ("double_bitcasts_scalar", "int64_t i = doubleBitsToInt64(ds); double d = int64BitsToDouble(la.x);"),
+    ("double_scalar_fns", "double r = abs(ds) + floor(ds) + sqrt(ds) + inversesqrt(ds) + fract(ds) + mod(ds, dt) + mix(ds, dt, 0.5) + step(0.5, ds) + smoothstep(0.0, 1.0, ds) + fma(ds, dt, ds) + min(ds, 2) + max(1.0, 2.0);"),
+]:
+    G("double", cid, body)
+
 for cid, body in [
     ("oos_double", "double r = 1.0lf;"),
-    ("oos_dvec3", "dvec3 r = dvec3(a);"),
 ]:
     G("out_of_scope", cid, body)
 

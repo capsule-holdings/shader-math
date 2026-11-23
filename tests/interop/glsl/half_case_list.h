@@ -4,4 +4,6 @@
     X(half_products, case_half_products(IN_A, IN_B))                      \
     X(bits_int_widths, case_bits_int_widths(IN_A, IN_B))                  \
     X(bits_width_bitfns, case_bits_width_bitfns(IN_A, IN_B))              \
-    X(bits_int16_literal, case_bits_int16_literal(IN_A, IN_B))
+    X(bits_int16_literal, case_bits_int16_literal(IN_A, IN_B))            \
+    X(bits_double_ops, case_bits_double_ops(IN_A, IN_B))                  \
+    X(near_double_matrix, case_near_double_matrix(IN_A, IN_B))

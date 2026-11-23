@@ -76,3 +76,41 @@ vec4 case_bits_int16_literal(vec4 af, vec4 bf)
     ivec4 w = s * 3 + (u * 4 - 7);
     return uintBitsToFloat(uvec4(w));
 }
+
+// 64-bit double vectors, exact fma, packing and 64-bit bitcasts
+vec4 case_bits_double_ops(vec4 af, vec4 bf)
+{
+    dvec4 a = dvec4(af) + dvec4(double(1.0f) / double(1048576.0f));
+    dvec4 b = dvec4(bf) - dvec4(double(1.0f) / double(524288.0f));
+    dvec4 r = fma(a, b, dvec4(af) * double(2.0f));
+    r = floor(r) + ceil(a) + trunc(b) + roundEven(dvec4(0.5f, 1.5f, 2.5f, -2.5f));
+    dvec4 ip;
+    dvec4 fr = modf(a * double(1.5f), ip);
+    ivec4 ex;
+    dvec4 mn = frexp(b, ex);
+    dvec4 rebuilt = ldexp(mn, ex);
+    r = r + fr + ip + rebuilt + mix(a, bf, lessThan(a, b));
+    double pk = packDouble2x32(unpackDouble2x32(r.x) ^ uvec2(0u, 0x00010000u));
+    u64vec4 ub = doubleBitsToUint64(dvec4(pk, r.y, r.z, r.w));
+    i64vec4 ib = doubleBitsToInt64(uint64BitsToDouble(ub));
+    dvec4 rt = int64BitsToDouble(ib);
+    u64vec4 fin = doubleBitsToUint64(rt);
+    uvec4 lo = uvec4(fin & uint64_t(0xFFFFFFFFu));
+    uvec4 hi = uvec4(fin >> uint64_t(32));
+    return uintBitsToFloat(lo ^ (hi << 1u));
+}
+
+vec4 case_near_double_matrix(vec4 af, vec4 bf)
+{
+    dmat3 dm = dmat3(double(af.x), double(af.y), double(af.z),
+                     double(af.w), double(2.0f), double(-1.0f),
+                     double(0.5f), double(-0.25f), double(3.0f));
+    mat3 fm = mat3(1.0f, 0.25f, -0.5f,
+                   0.5f, 1.5f, 0.25f,
+                   -0.25f, 0.5f, 2.0f);
+    dmat3 prod = dm * fm + transpose(dm);
+    dmat3 inv = inverse(dm);
+    dvec3 v = prod * bf.xyz + outerProduct(dvec3(af.xyz), bf.xyz)[1];
+    return vec4(float(determinant(dm)), float((inv * dm)[1][1]),
+                float(dot(v, dvec3(bf.xyz))), float(length(v)));
+}

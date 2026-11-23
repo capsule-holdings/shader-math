@@ -32,8 +32,13 @@
     X(exact_step_writes, case_exact_step_writes(IN_A))         \
     X(exact_matrix_dim1_dxil, case_exact_matrix_dim1_dxil(IN_A, IN_B))
 
+// DXC's half list adds double (shaderFloat64 is enabled with --f16)
+#define SM_DXC_HALF_CASES(X)                                   \
+    SM_INTEROP_HALF_CASES(X)                                   \
+    X(bits_double_hlsl, case_bits_double_hlsl(IN_A, IN_B))
+
 // DXIL's half list adds the 16- and 64-bit bit functions that DXC's SPIR-V
 // backend does not compile
 #define SM_DXIL_HALF_CASES(X)                                  \
-    SM_INTEROP_HALF_CASES(X)                                   \
+    SM_DXC_HALF_CASES(X)                                       \
     X(bits_int_width_firstbit, case_bits_int_width_firstbit(IN_A, IN_B))

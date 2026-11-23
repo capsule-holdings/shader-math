@@ -391,7 +391,57 @@ h_f16tof32_vec	ok
 h_f16tof32_int	ok	
 h_glsl_packHalf2x16	err	use of undeclared identifier 'packHalf2x16'
 h_glsl_unpackUnorm4x8	err	use of undeclared identifier 'unpackUnorm4x8'
-h_oos_double	ok	
+h_double_lit	ok	
+h_double3_ctor	ok	
+h_double1	ok	
+h_double_vector_template	ok	
+h_double_matrix_template	ok	
+h_double_splat	ok	
+h_double_from_float_implicit	ok	
+h_float_from_double_implicit	ok	
+h_double_from_int_implicit	ok	
+h_int_from_double_implicit	ok	
+h_double_from_int64_implicit	ok	
+h_double_from_half_explicit	ok	
+h_double_from_bool_explicit	ok	
+h_double_mat_ctor	ok	
+h_double_mat_from_float	ok	
+h_float_mat_from_double	ok	
+h_double_mat13	err	redefinition of 't' with a different type: 'double3x1' vs 'float'
+h_double_arith	ok	
+h_double_plus_float	ok	
+h_double_plus_int	ok	
+h_double_compound	ok	
+h_double_compare	ok	
+h_double_mod_err	err	modulo cannot be used with doubles, cast to float first
+h_double_mod_assign_err	err	modulo cannot be used with doubles, cast to float first
+h_double_mat_mod_err	err	modulo cannot be used with doubles, cast to float first
+h_double1_mod_err	err	modulo cannot be used with doubles, cast to float first
+h_double_mat_ops	ok	
+h_double_mul_mm	ok	
+h_double_mul_mixed	ok	
+h_double_mul_vm_mixed	ok	
+h_double_native_fns	ok	
+h_double_dot	ok	
+h_double_select	ok	
+h_double_classify	ok	
+h_double_all_any	ok	
+h_double_fma_vec	ok	
+h_double_fma_mixed_scalar	ok	
+h_double_fma_scalar	ok	
+h_double_fma_mat	ok	
+h_double_fma_mixed_vec_err	err	no matching function for call to 'fma'
+h_double_asdouble_asuint	ok	
+h_double_asdouble_int	ok	
+h_double_asdouble_scalar	ok	
+h_double_asuint_1arg_err	err	no matching function for call to 'asuint'
+h_double_float_lowered	ok	
+h_double_geom_lowered	ok	
+h_double_modf_frexp_sincos	ok	
+h_double_modf_frexp_out_double	ok	
+h_double_mat_fns	err	redefinition of 't' with a different type: 'double3x3' vs 'float'
+h_double_scalar_fns	ok	
+h_double_scalar_lowered	ok	
 h_oos_ddx	ok	
 h_mat_ctor_from_vec4	ok	
 h_mat_implicit_from_vec4	ok	
@@ -820,8 +870,49 @@ g_unpackUnorm4x8	ok
 g_unpackSnorm4x8	ok	
 g_unpack_float_arg	err	g_unpack_float_arg.comp:4: 'unpackHalf2x16' : no matching overloaded function found
 g_hlsl_f32tof16	err	g_hlsl_f32tof16.comp:4: 'f32tof16' : no matching overloaded function found
+g_dvec3_ctor	ok	
+g_f64vec3_alias	ok	
+g_float64_t_alias	ok	
+g_dvec_from_vec_implicit	ok	
+g_vec_from_dvec_implicit	err	g_vec_from_dvec_implicit.comp:4: '=' : cannot convert from ' in 3-component vector of double' to ' temp highp 3-componen
+g_dvec_from_ivec_implicit	ok	
+g_dvec_from_i16vec_implicit	ok	
+g_dvec_from_i64vec_implicit	ok	
+g_dvec_from_u64vec_implicit	ok	
+g_dvec_from_f16vec_explicit	ok	
+g_dvec_from_bvec	ok	
+g_dmat_ctor	ok	
+g_f64mat_alias	ok	
+g_dmat_from_mat_implicit	ok	
+g_mat_from_dmat_implicit	err	g_mat_from_dmat_implicit.comp:4: '=' : cannot convert from ' in 3X3 matrix of double' to ' temp highp 3X3 matrix of floa
+g_mat_from_dmat_explicit	ok	
+g_dvec_arith	ok	
+g_dvec_plus_vec	ok	
+g_dvec_plus_i64vec	ok	
+g_dvec_add_assign_vec	ok	
+g_vec_add_assign_dvec_err	err	g_vec_add_assign_dvec_err.comp:4: 'assign' : cannot convert from ' in 3-component vector of double' to ' temp highp 3-co
+g_dvec_eq_vec	ok	
+g_dmat_ops	ok	
+g_dmat_vec_mixed	ok	
+g_dmat_compound_mat	ok	
+g_mat_compound_dmat_err	err	g_mat_compound_dmat_err.comp:4: 'assign' : cannot convert from ' in 3X3 matrix of double' to ' temp highp 3X3 matrix of 
+g_dmat_eq_mat	ok	
+g_dmat_fns	ok	
+g_dvec_native_fns	ok	
+g_dvec_geom_fns	ok	
+g_dvec_cmp_fns	ok	
+g_dvec_modf_frexp_ldexp	ok	
+g_dvec_classify	ok	
+g_dvec_sin_err	err	g_dvec_sin_err.comp:4: 'sin' : no matching overloaded function found
+g_dvec_exp_err	err	g_dvec_exp_err.comp:4: 'exp' : no matching overloaded function found
+g_dvec_pow_err	err	g_dvec_pow_err.comp:4: 'pow' : no matching overloaded function found
+g_dvec_radians_err	err	g_dvec_radians_err.comp:4: 'radians' : no matching overloaded function found
+g_dvec_asinh_err	err	g_dvec_asinh_err.comp:4: 'asinh' : no matching overloaded function found
+g_double_pack_unpack	ok	
+g_double_bitcasts	ok	
+g_double_bitcasts_scalar	ok	
+g_double_scalar_fns	ok	
 g_oos_double	ok	
-g_oos_dvec3	ok	
 g_ctor_vec2_unused_arg	err	g_ctor_vec2_unused_arg.comp:4: 'constructor' : too many arguments
 g_ctor_s_v2	ok	
 g_ctor_v3_v3	ok	
