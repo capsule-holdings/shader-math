@@ -297,9 +297,19 @@ h_asuint	ok
 h_asfloat	ok	
 h_asfloat_int	ok	
 h_asuint_scalar	ok	
+h_countbits	ok	
+h_countbits_vec	ok	
+h_countbits_int	ok	
+h_countbits_float	ok	
+h_firstbithigh	ok	
+h_firstbithigh_to_int	ok	
+h_firstbitlow	ok	
+h_reversebits	ok	
+h_reversebits_scalar	ok	
+h_glsl_bitCount	err	use of undeclared identifier 'bitCount'
+h_glsl_findMSB	err	use of undeclared identifier 'findMSB'
 h_oos_f32tof16	ok	
 h_oos_double	ok	
-h_oos_countbits	ok	
 h_oos_ddx	ok	
 h_mat_ctor_from_vec4	ok	
 h_mat_implicit_from_vec4	ok	
@@ -599,10 +609,27 @@ g_floatBitsToUint	ok
 g_intBitsToFloat	ok	
 g_uintBitsToFloat	ok	
 g_intBitsToFloat_uvec	err	g_intBitsToFloat_uvec.comp:4: 'intBitsToFloat' : no matching overloaded function found
+g_bitCount	ok	
+g_bitCount_vec	ok	
+g_bitCount_to_uvec	ok	
+g_bitCount_float	err	g_bitCount_float.comp:4: 'bitCount' : no matching overloaded function found
+g_findMSB	ok	
+g_findLSB	ok	
+g_bitfieldReverse	ok	
+g_bitfieldExtract	ok	
+g_bitfieldExtract_uint_offset	err	g_bitfieldExtract_uint_offset.comp:4: 'bitfieldExtract' : no matching overloaded function found
+g_bitfieldExtract_scalar	ok	
+g_bitfieldInsert	ok	
+g_uaddCarry	ok	
+g_uaddCarry_ivec	err	g_uaddCarry_ivec.comp:4: 'uaddCarry' : no matching overloaded function found
+g_usubBorrow	ok	
+g_umulExtended	ok	
+g_imulExtended	ok	
+g_uaddCarry_scalar	ok	
+g_hlsl_countbits	err	g_hlsl_countbits.comp:4: 'countbits' : no matching overloaded function found
 g_oos_packHalf2x16	ok	
 g_oos_double	ok	
 g_oos_dvec3	ok	
-g_oos_bitCount	ok	
 g_ctor_vec2_unused_arg	err	g_ctor_vec2_unused_arg.comp:4: 'constructor' : too many arguments
 g_ctor_s_v2	ok	
 g_ctor_v3_v3	ok	

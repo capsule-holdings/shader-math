@@ -1690,6 +1690,108 @@ SHADER_MATH_INLINE vec_elem_t<A> idot(const A& a0, const B& b0) {
     return static_cast<T>(s);
 }
 
+// f applied to each int / uint lane of a, giving R lanes (the bit functions)
+template <class R, class A, class F>
+SHADER_MATH_INLINE fvec<vec_size_v<A>, R, vec_lang_t<A>> map_int_lanes(const A& a, F f) {
+    constexpr int n = vec_size_v<A>;
+    const vec_t<A> v = to_vec(a);
+    R out[4] = {R(0), R(0), R(0), R(0)};
+    for (int i = 0; i < n; ++i) out[i] = f(v[i]);
+    return fvec<n, R, vec_lang_t<A>>(vops<R>::load4(out));
+}
+
+// The argument of an HLSL bit function: int / uint lanes as they are, float
+// lanes converted to uint (HLSL converts them implicitly; countbits(float3))
+template <class A>
+    requires(VecLike<A> && is_num32_v<vec_elem_t<A>>)
+SHADER_MATH_INLINE auto bits_vec(const A& a) {
+    if constexpr (std::is_same_v<vec_elem_t<A>, float>)
+        return fvec<vec_size_v<A>, std::uint32_t, vec_lang_t<A>>(to_vec(a));
+    else
+        return vec_t<A>(to_vec(a));
+}
+// ... and of a scalar (an integer, a floating-point value, or one component)
+template <class S>
+inline constexpr bool is_bits_scalar_v =
+    !VecLike<S> &&
+    ((std::is_integral_v<typename scalar_value<std::remove_cvref_t<S>>::type> &&
+      !std::is_same_v<typename scalar_value<std::remove_cvref_t<S>>::type, bool>) ||
+     std::is_floating_point_v<typename scalar_value<std::remove_cvref_t<S>>::type>);
+template <class S>
+    requires is_bits_scalar_v<S>
+SHADER_MATH_INLINE auto bits_scalar(const S& s) {
+    using V = typename scalar_value<std::remove_cvref_t<S>>::type;
+    const V v = static_cast<V>(s);
+    if constexpr (std::is_floating_point_v<V>)
+        return elem_cast<std::uint32_t>(static_cast<float>(v));
+    else if constexpr (std::is_signed_v<V>)
+        return static_cast<std::int32_t>(v);
+    else
+        return static_cast<std::uint32_t>(v);
+}
+
+// Lanes of the bit functions (hlsl countbits / firstbithigh / firstbitlow /
+// reversebits, glsl bitCount / findMSB / findLSB / bitfieldExtract ...)
+struct popcount_fn {
+    SHADER_MATH_INLINE std::uint32_t operator()(auto x) const {
+        return int_lane::popcount(static_cast<std::uint32_t>(x));
+    }
+};
+// on int, the highest bit that differs from the sign bit
+struct high_fn {
+    SHADER_MATH_INLINE std::uint32_t operator()(auto x) const {
+        if constexpr (std::is_same_v<decltype(x), std::int32_t>)
+            return static_cast<std::uint32_t>(int_lane::msb_s(x));
+        else
+            return static_cast<std::uint32_t>(int_lane::msb(x));
+    }
+};
+struct low_fn {
+    SHADER_MATH_INLINE std::uint32_t operator()(auto x) const {
+        return static_cast<std::uint32_t>(int_lane::lsb(static_cast<std::uint32_t>(x)));
+    }
+};
+struct reverse_fn {
+    SHADER_MATH_INLINE std::uint32_t operator()(auto x) const {
+        return int_lane::reverse(static_cast<std::uint32_t>(x));
+    }
+};
+template <class T>
+SHADER_MATH_INLINE int find_msb_lane(T x) {
+    if constexpr (std::is_same_v<T, std::int32_t>)
+        return int_lane::msb_s(x);
+    else
+        return int_lane::msb(x);
+}
+template <class T>
+SHADER_MATH_INLINE T extract_lane(T x, int offset, int bits) {
+    if constexpr (std::is_same_v<T, std::int32_t>)
+        return int_lane::extract_s(x, offset, bits);
+    else
+        return int_lane::extract_u(x, offset, bits);
+}
+// an int or uint scalar, or one component of an int / uint vector
+template <class S>
+inline constexpr bool is_int32_scalar_v =
+    !VecLike<S> && is_int_elem_v<typename scalar_value<std::remove_cvref_t<S>>::type>;
+// the 64-bit products of int / uint lanes, split into high and low halves
+template <class A, class B, class T = vec_elem_t<A>>
+    requires(IntVec<A> && SameVec<A, B>)
+SHADER_MATH_INLINE void mul_extended(const A& x, const B& y, vec_t<A>& msb, vec_t<A>& lsb) {
+    using W = std::conditional_t<std::is_same_v<T, std::int32_t>, std::int64_t, std::uint64_t>;
+    const vec_t<A> a = to_vec(x);
+    const vec_t<A> b = to_vec(y);
+    T hi[4] = {T(0), T(0), T(0), T(0)};
+    T lo[4] = {T(0), T(0), T(0), T(0)};
+    for (int i = 0; i < vec_size_v<A>; ++i) {
+        const auto p = static_cast<std::uint64_t>(static_cast<W>(a[i]) * static_cast<W>(b[i]));
+        hi[i] = static_cast<T>(static_cast<std::uint32_t>(p >> 32));
+        lo[i] = static_cast<T>(static_cast<std::uint32_t>(p));
+    }
+    msb = vec_t<A>(vops<T>::load4(hi));
+    lsb = vec_t<A>(vops<T>::load4(lo));
+}
+
 // Integer vector arguments of a floating-point function as float vectors (HLSL
 // converts them implicitly: sqrt(int3) is a float3); other arguments as is
 template <class A>

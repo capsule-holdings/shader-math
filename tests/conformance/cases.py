@@ -336,6 +336,17 @@ for cid, body in [
     ("asfloat", "float3 r = asfloat(uint3(1, 2, 3));"),
     ("asfloat_int", "float3 r = asfloat(ia);"),
     ("asuint_scalar", "uint r = asuint(s);"),
+    ("countbits", "uint r = countbits(1u);"),
+    ("countbits_vec", "uint3 r = countbits(ua);"),
+    ("countbits_int", "uint3 r = countbits(ia);"),
+    ("countbits_float", "uint3 r = countbits(a);"),
+    ("firstbithigh", "uint3 r = firstbithigh(ia) + firstbithigh(ua);"),
+    ("firstbithigh_to_int", "int3 r = firstbithigh(ia);"),
+    ("firstbitlow", "uint3 r = firstbitlow(ua);"),
+    ("reversebits", "uint3 r = reversebits(ua) + reversebits(ia);"),
+    ("reversebits_scalar", "uint r = reversebits(ka);"),
+    ("glsl_bitCount", "uint3 r = bitCount(ua);"),
+    ("glsl_findMSB", "int3 r = findMSB(ia);"),
 ]:
     H("int", cid, body)
 
@@ -343,7 +354,6 @@ for cid, body in [
 for cid, body in [
     ("oos_f32tof16", "uint r = f32tof16(s);"),
     ("oos_double", "double r = 1.0L;"),
-    ("oos_countbits", "uint r = countbits(1u);"),
     ("oos_ddx", "float3 r = ddx(a);"),
 ]:
     H("out_of_scope", cid, body)
@@ -689,6 +699,24 @@ for cid, body in [
     ("intBitsToFloat", "vec3 r = intBitsToFloat(ia);"),
     ("uintBitsToFloat", "vec3 r = uintBitsToFloat(ua);"),
     ("intBitsToFloat_uvec", "vec3 r = intBitsToFloat(ua);"),
+    ("bitCount", "int r = bitCount(1);"),
+    ("bitCount_vec", "ivec3 r = bitCount(ia) + bitCount(ua);"),
+    ("bitCount_to_uvec", "uvec3 r = bitCount(ua);"),
+    ("bitCount_float", "ivec3 r = bitCount(a);"),
+    ("findMSB", "ivec3 r = findMSB(ia) + findMSB(ua);"),
+    ("findLSB", "ivec3 r = findLSB(ua);"),
+    ("bitfieldReverse", "ivec3 r = bitfieldReverse(ia);"),
+    ("bitfieldExtract", "ivec3 r = bitfieldExtract(ia, 4, ka);"),
+    ("bitfieldExtract_uint_offset", "ivec3 r = bitfieldExtract(ia, 4u, 2);"),
+    ("bitfieldExtract_scalar", "uint r = bitfieldExtract(7u, 1, 2);"),
+    ("bitfieldInsert", "uvec3 r = bitfieldInsert(ua, ua.yzx, 3, 4);"),
+    ("uaddCarry", "uvec3 cy; uvec3 r = uaddCarry(ua, ua, cy);"),
+    ("uaddCarry_ivec", "ivec3 cy; ivec3 r = uaddCarry(ia, ia, cy);"),
+    ("usubBorrow", "uvec3 cy; uvec3 r = usubBorrow(ua, ua, cy);"),
+    ("umulExtended", "uvec3 hi, lo; umulExtended(ua, ua, hi, lo);"),
+    ("imulExtended", "ivec3 hi, lo; imulExtended(ia, ia, hi, lo);"),
+    ("uaddCarry_scalar", "uint cy; uint r = uaddCarry(1u, 2u, cy);"),
+    ("hlsl_countbits", "uvec3 r = countbits(ua);"),
 ]:
     G("int", cid, body)
 
@@ -696,7 +724,6 @@ for cid, body in [
     ("oos_packHalf2x16", "uint r = packHalf2x16(a2);"),
     ("oos_double", "double r = 1.0lf;"),
     ("oos_dvec3", "dvec3 r = dvec3(a);"),
-    ("oos_bitCount", "int r = bitCount(1);"),
 ]:
     G("out_of_scope", cid, body)
 
