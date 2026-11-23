@@ -746,12 +746,14 @@ struct matrix
     {
         if constexpr (R == 1 && C == 1) {
             return row_[0];
-        } else {
+        } else if constexpr (R * C <= 4) {
             T a[R * C];
             detail::pack_dense<R, C>(row_, a);
             T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
             for (int i = 0; i < R * C; ++i) t[i] = a[i];
             return detail::hvec<R * C, T>(detail::vops<T>::load4(t));
+        } else {
+            return {};
         }
     }
     SHADER_MATH_INLINE operator T() const
@@ -798,8 +800,12 @@ struct matrix<bool, R, C> {
     SHADER_MATH_INLINE matrix(const detail::bvec<flat_bvec_n, lang_tag>& v)
         requires(R * C >= 2 && R * C <= 4 && !(R == 1 && C == R * C))
     {
-        for (int r = 0; r < R; ++r)
-            for (int c = 0; c < C; ++c) row_[r][c] = v[r * C + c];
+        if constexpr (R * C >= 2 && R * C <= 4) {
+            for (int r = 0; r < R; ++r)
+                for (int c = 0; c < C; ++c) row_[r][c] = v[r * C + c];
+        } else {
+            (void)v;
+        }
     }
 
     SHADER_MATH_INLINE row_t& operator[](int r) { return row_[r]; }
@@ -808,19 +814,27 @@ struct matrix<bool, R, C> {
     SHADER_MATH_INLINE operator bool() const
         requires(R == 1 && C == 1)
     {
-        return static_cast<bool>(row_[0]);
+        if constexpr (R == 1 && C == 1)
+            return static_cast<bool>(row_[0]);
+        else
+            return false;
     }
     SHADER_MATH_INLINE operator detail::fvec<1, bool, lang_tag>() const
         requires(R == 1 && C == 1)
     {
-        return row_[0];
+        if constexpr (R == 1 && C == 1)
+            return row_[0];
+        else
+            return {};
     }
     SHADER_MATH_INLINE operator detail::bvec<flat_bvec_n, lang_tag>() const
         requires(R * C >= 2 && R * C <= 4)
     {
         detail::bvec<flat_bvec_n, lang_tag> v;
-        for (int r = 0; r < R; ++r)
-            for (int c = 0; c < C; ++c) v[r * C + c] = static_cast<bool>(row_[r][c]);
+        if constexpr (R * C >= 2 && R * C <= 4) {
+            for (int r = 0; r < R; ++r)
+                for (int c = 0; c < C; ++c) v[r * C + c] = static_cast<bool>(row_[r][c]);
+        }
         return v;
     }
 };
@@ -957,7 +971,11 @@ SHADER_MATH_INLINE matrix<T, R, C>::matrix(
     const glsl::matrix<(C >= 2 ? C : 2), (R >= 2 ? R : 2), T>& g)
     requires(R >= 2 && C >= 2)
 SM_HMAT_INIT {
-    detail::transpose_regs<C, R>(g.col_, row_);
+    if constexpr (R >= 2 && C >= 2) {
+        detail::transpose_regs<C, R>(g.col_, row_);
+    } else {
+        (void)g;
+    }
 }
 }  // namespace hlsl
 #undef SM_HMAT_INIT
