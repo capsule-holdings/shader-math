@@ -1,5 +1,5 @@
 // Matrix types.
-//   hlsl::matrix<R,C,T> : R rows x C cols, row-register storage, row-major ctor fill.
+//   hlsl::matrix<T, R, C> : R rows x C cols, row-register storage, row-major ctor fill.
 //   glsl::matrix<C,R,T> : C cols x R rows, column-register storage, column-major fill.
 // The two are distinct types (operator* differs); conversion is explicit.
 // hlsl floatRxC corresponds to glsl matCxR (same mathematical object); the
@@ -282,7 +282,7 @@ struct vec_traits<mmswz<T, R, F...>> {
           _m##a##b##_m##e##f##_m##g##h, _##a1##b1##_##e1##f1##_##g1##h1;
 #  define SM_MX_MULTI(R, C) SM_MX_RA##R(R, C, SM_MX_AT1)
 
-// Storage of hlsl::matrix<R, C, T> with the multi-element members of its
+// Storage of hlsl::matrix<T, R, C> with the multi-element members of its
 // shape (the base keeps the union; the matrix names row_ / flat_ from it).
 template <int R, int C, class T>
 struct hmat_store;
@@ -584,7 +584,8 @@ SHADER_MATH_INLINE void transpose_regs(const fvec<LI, T, LgI>* in, fvec<NI, T, L
 // ============================ hlsl::matrix ==================================
 namespace hlsl {
 
-template <int R, int C, class T = float>
+// matrix<T, R, C>: HLSL's template (element type, rows, columns)
+template <class T = float, int R = 4, int C = 4>
 struct matrix
 #if defined(SHADER_MATH_MATRIX_SWIZZLE)
     : detail::hmat_store<R, C, T>
@@ -659,7 +660,7 @@ struct matrix
     // not provided (HLSL has no widening matrix cast).
     template <int R2, int C2>
         requires(R2 >= R && C2 >= C && !(R2 == R && C2 == C))
-    SHADER_MATH_INLINE explicit matrix(const matrix<R2, C2, T>& o) SM_HMAT_INIT {
+    SHADER_MATH_INLINE explicit matrix(const matrix<T, R2, C2>& o) SM_HMAT_INIT {
         for (int r = 0; r < R; ++r) {
             T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
             for (int c = 0; c < C; ++c) t[c] = o.row_[r][c];
@@ -671,12 +672,12 @@ struct matrix
     // converts them implicitly, as for vectors), explicit for half
     template <class U>
         requires(detail::implicit_elem_v<U, T, hlsl::lang_tag>)
-    SHADER_MATH_INLINE matrix(const matrix<R, C, U>& o) SM_HMAT_INIT {
+    SHADER_MATH_INLINE matrix(const matrix<U, R, C>& o) SM_HMAT_INIT {
         for (int r = 0; r < R; ++r) row_[r] = detail::hvec<C, T>(o.row_[r]);
     }
     template <class U>
         requires(!std::is_same_v<U, T> && !detail::implicit_elem_v<U, T, hlsl::lang_tag>)
-    SHADER_MATH_INLINE explicit matrix(const matrix<R, C, U>& o) SM_HMAT_INIT {
+    SHADER_MATH_INLINE explicit matrix(const matrix<U, R, C>& o) SM_HMAT_INIT {
         for (int r = 0; r < R; ++r) row_[r] = detail::hvec<C, T>(o.row_[r]);
     }
 
@@ -782,7 +783,7 @@ struct matrix {
     }
 
     // Explicit conversion from the corresponding HLSL matrix (same math object).
-    SHADER_MATH_INLINE explicit matrix(const hlsl::matrix<Rn, Cn, T>& h);
+    SHADER_MATH_INLINE explicit matrix(const hlsl::matrix<T, Rn, Cn>& h);
 
     SHADER_MATH_INLINE detail::gvec<Rn, T>& operator[](int c) { return col_[c]; }
     SHADER_MATH_INLINE const detail::gvec<Rn, T>& operator[](int c) const { return col_[c]; }
@@ -807,11 +808,11 @@ struct matrix {
 // ---- matrices as component-list arguments (detail::mat_traits) --------------
 namespace detail {
 template <int R, int C, class T>
-struct mat_traits<hlsl::matrix<R, C, T>> {
+struct mat_traits<hlsl::matrix<T, R, C>> {
     static constexpr int size = R * C;
     using elem = T;
     using lang = hlsl::lang_tag;
-    static SHADER_MATH_INLINE T at(const hlsl::matrix<R, C, T>& m, int i) {
+    static SHADER_MATH_INLINE T at(const hlsl::matrix<T, R, C>& m, int i) {
         return m.row_[i / C][i % C];
     }
 };
@@ -830,8 +831,8 @@ struct mat_traits<glsl::matrix<Cn, Rn, T>> {
 // Crossing the storage direction (rows <-> columns of the same mathematical
 // object) is exactly a register-array transpose.
 namespace hlsl {
-template <int R, int C, class T>
-SHADER_MATH_INLINE matrix<R, C, T>::matrix(const glsl::matrix<C, R, T>& g) SM_HMAT_INIT {
+template <class T, int R, int C>
+SHADER_MATH_INLINE matrix<T, R, C>::matrix(const glsl::matrix<C, R, T>& g) SM_HMAT_INIT {
     detail::transpose_regs<C, R>(g.col_, row_);
 }
 }  // namespace hlsl
@@ -840,7 +841,7 @@ SHADER_MATH_INLINE matrix<R, C, T>::matrix(const glsl::matrix<C, R, T>& g) SM_HM
 
 namespace glsl {
 template <int Cn, int Rn, class T>
-SHADER_MATH_INLINE matrix<Cn, Rn, T>::matrix(const hlsl::matrix<Rn, Cn, T>& h) {
+SHADER_MATH_INLINE matrix<Cn, Rn, T>::matrix(const hlsl::matrix<T, Rn, Cn>& h) {
     detail::transpose_regs<Rn, Cn>(h.row_, col_);
 }
 }  // namespace glsl
@@ -849,7 +850,7 @@ namespace detail {
 // The hlsl matrix whose R rows are vectors of type V (the component-wise
 // intrinsics on matrices take their result element from the row result)
 template <int R, class V>
-using hmat_of_rows = hlsl::matrix<R, vec_size_v<V>, vec_elem_t<V>>;
+using hmat_of_rows = hlsl::matrix<vec_elem_t<V>, R, vec_size_v<V>>;
 }  // namespace detail
 
 }  // namespace shader_math
