@@ -53,7 +53,8 @@ void glsl_side() {
     整数のスカラーはその言語での型を持つ: GLSL はすべての整数に型がある（`ivec3 * 2u` は `uvec3`、`i16vec3 * 2` は `ivec3`、
     `i16vec3 *= 2` はエラー）。HLSL は `2u` と成分に型があり（`int3 * 2u` は `uint3` で、比較もシフトも uint として行う）、
     接尾辞の無いリテラルはベクトルの型になる（`int16_t3 * 2` は `int16_t3` のまま。HLSL では型を持つ `int` の変数も、ここでは
-    そのリテラルとして扱う）。
+    そのリテラルとして扱う）。スカラーを取る関数（`min`、`max`、`clamp`、HLSL の `select` と `mul`）と HLSL の整数行列も
+    同じ規則に従う（`clamp(ivec3, 0, 5u)` は `uvec3`、`int3x3 * 2u` は `uint3x3`）。
     HLSL では浮動小数点の関数が int ベクトルを float として受け取る（`sqrt(int3)` は `float3`）。bool ↔ int、half ↔ int、
     もう一方の言語との変換は明示的なまま。コンストラクタは変換する（`int3(a)`、`int4(i.xy, 2.9f, k)`）
   - 関数: `abs` `sign`（int のみ）`min` `max` `clamp`、HLSL の `dot` `mul(v, v)` `all` `any` `select` `asint` `asuint`

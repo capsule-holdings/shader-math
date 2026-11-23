@@ -53,7 +53,8 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
     language's type: GLSL types every integer (`ivec3 * 2u` is a `uvec3`, `i16vec3 * 2` an `ivec3`, and `i16vec3 *= 2` is an
     error); HLSL types `2u` and a component (`int3 * 2u` is a `uint3`, compared and shifted as uint), while an unsuffixed
     literal takes the vector's type (`int16_t3 * 2` stays `int16_t3`; an `int` variable, which HLSL types, counts as such a
-    literal here). In HLSL the floating-point functions
+    literal here). The functions taking a scalar (`min`, `max`, `clamp`, HLSL `select` and `mul`) and HLSL's integer
+    matrices follow the same rule (`clamp(ivec3, 0, 5u)` is a `uvec3`, `int3x3 * 2u` a `uint3x3`). In HLSL the floating-point functions
     take int vectors as float (`sqrt(int3)` is a `float3`). bool ↔ int, half ↔ int and the other language stay explicit.
     Constructors convert (`int3(a)`, `int4(i.xy, 2.9f, k)`)
   - Functions: `abs` `sign` (int only) `min` `max` `clamp`; HLSL `dot` `mul(v, v)` `all` `any` `select` `asint` `asuint`

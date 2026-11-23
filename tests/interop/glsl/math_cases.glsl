@@ -341,7 +341,8 @@ vec4 case_bits_int_scalar_types(vec4 a, vec4 b)
     ivec4 i = ivec4(a * 4.0f) - 6 + ivec4(b);  // -1, -12, 9, -5
     uvec4 u = (i * 2u) >> 1u;
     uvec4 m = (i & 0xF0u) + (2u - i);
-    return uintBitsToFloat(u ^ (m << 3));
+    uvec4 f = min(i, 7u) + (clamp(i, 1, 6u) << 4) + (max(i, 3u) << 8);
+    return uintBitsToFloat(u ^ (m << 3) ^ (f << 12));
 }
 
 // integer functions (GLSL 8.8); fields stay inside the 32 bits, where GLSL

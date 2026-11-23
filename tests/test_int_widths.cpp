@@ -64,6 +64,26 @@ static_assert(std::is_same_v<sum_t<h::int3, unsigned>, h::uint3> && std::is_same
 static_assert(std::is_same_v<sum_t<h::int16_t3, decltype(std::declval<h::int3&>().x)>, h::int3>);
 static_assert(std::is_same_v<decltype(std::declval<h::int3>() % 2u), h::uint3>);
 static_assert(MulAssign<h::int3, unsigned> && MulAssign<h::int16_t3, unsigned>);
+// ... in the functions taking a scalar and on HLSL's integer matrices too
+static_assert(std::is_same_v<decltype(g::min(g::i16vec3(), 2)), g::ivec3> &&
+              std::is_same_v<decltype(g::min(g::u16vec3(), 2)), g::ivec3>);
+static_assert(std::is_same_v<decltype(g::clamp(g::ivec3(), 0, 5u)), g::uvec3> &&
+              std::is_same_v<decltype(g::max(g::i64vec3(), 2u)), g::i64vec3>);
+static_assert(std::is_same_v<decltype(g::clamp(g::i16vec3(), std::int16_t(0), std::int16_t(5))), g::i16vec3>);
+static_assert(std::is_same_v<decltype(h::min(h::int3(), 2u)), h::uint3> &&
+              std::is_same_v<decltype(h::min(h::int16_t3(), 2)), h::int16_t3>);
+static_assert(std::is_same_v<decltype(h::clamp(h::int3(), 0, 5u)), h::uint3> &&
+              std::is_same_v<decltype(h::mul(h::int3(), 2u)), h::uint3>);
+static_assert(std::is_same_v<decltype(h::select(h::bool3(), h::int3(), 2u)), h::uint3>);
+static_assert(std::is_same_v<decltype(h::int3x3() * 2u), h::uint3x3> &&
+              std::is_same_v<decltype(2u - h::int3x3()), h::uint3x3>);
+static_assert(std::is_same_v<decltype(h::int3x3() & 1u), h::uint3x3> &&
+              std::is_same_v<decltype(h::int3x3() % 2u), h::uint3x3>);
+static_assert(std::is_same_v<decltype(h::int3x3() << 1u), h::int3x3> &&
+              std::is_same_v<decltype(h::int3x3() * 2), h::int3x3>);
+static_assert(std::is_same_v<decltype(h::min(h::int3x3(), 2u)), h::uint3x3> &&
+              std::is_same_v<decltype(h::clamp(h::int3x3(), 0u, 5u)), h::uint3x3>);
+static_assert(MulAssign<h::int3x3, unsigned>);
 
 // The bit functions at every width: HLSL counts give uint and reversebits
 // keeps the type; GLSL counts give a signed integer of the argument's width,
@@ -147,6 +167,12 @@ static void test_int_scalars_hlsl() {
     CHECK(u.x == 0x7FFFFFFCu && u.y == 4u);
     const int16_t2 w = int16_t2(int16_t(32767), int16_t(1)) * 2;  // the literal takes int16_t
     CHECK(w.x == -2);
+    // min / clamp with 2u compare as uint: -1 is the largest
+    const uint3 m = min(int3(-1, 1, 7), 2u);
+    CHECK(m.x == 2u && m.y == 1u && m.z == 2u);
+    CHECK(clamp(int3(-1, 1, 7), 0, 5u).x == 5u);
+    const uint3x3 im = int3x3(-1, 0, 0, 0, 1, 0, 0, 0, 2) & 0xFFu;
+    CHECK(im[0].x == 0xFFu && im[2].z == 2u);
 }
 
 static void test_int64() {
@@ -192,6 +218,8 @@ static void test_widths_glsl() {
     CHECK(pu.x == 0xFFFFFFFCu && pu.y == 8u);
     const ivec3 pi = i16vec3(int16_t(32767), int16_t(-2), int16_t(3)) * 2;  // as int: no 16-bit wrap
     CHECK(pi.x == 65534 && pi.y == -4);
+    const uvec3 pc = clamp(ivec3(-1, 1, 7), 0, 5u);  // as uint: -1 clamps to 5
+    CHECK(pc.x == 5u && pc.y == 1u && pc.z == 5u);
     const ivec3 a = i16vec3(int16_t(1), int16_t(2), int16_t(3)) + ivec3(10, 20, 30);
     CHECK(a.z == 33);
     const i64vec3 b = uvec3(0xFFFFFFFFu, 1u, 2u) + i64vec3(1, 1, 1);

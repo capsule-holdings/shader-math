@@ -347,7 +347,8 @@ float4 case_bits_int_scalar_types(float4 a, float4 b)
     uint4 u = (i * 2u) >> 1u;
     uint4 m = i % 3u;
     bool4 c = i < 2u;
-    return asfloat(u ^ m ^ (uint4(c) << 5u) ^ ((2u - i) << 9u) ^ (i & 0xF0u));
+    return asfloat(u ^ m ^ (uint4(c) << 5u) ^ ((2u - i) << 9u) ^ (i & 0xF0u) ^
+                   (min(i, 7u) << 13u) ^ (clamp(i, 1, 6u) << 17u) ^ (select(c, i, 3u) << 21u));
 }
 
 // bit functions; firstbithigh on int counts from the sign (negative lanes)
