@@ -31,6 +31,7 @@ CI runs this in the `linux-x64-glsl-interop` job.
 | `near_mod` | `mod` is floor-based and takes the sign of y (the opposite of HLSL's `fmod`); `mix`, `modf`, `fma` |
 | `near_geometry` | `reflect` `refract` `faceforward` `distance` `inversesqrt` `smoothstep` |
 | `near_edges` | `mod` with a negative dividend / divisor, `step` at an equal boundary (it returns 1), `fract(-0)` |
+| `bits_int_*` / `bits_uint_wrap` | `ivec` / `uvec` arithmetic (wrapping on uint), `/` and `%` (non-negative operands for `%`), bitwise operators and shifts (vector and scalar counts, arithmetic `>>` on int), comparison functions and `mix(ivec, ivec, bvec)`, conversions to and from float, `floatBitsToUint`, `frexp` / `ldexp` with int exponents |
 | `approx_transcend` | `atan(y, x)`, inverse trigonometric, trigonometric, exponential, and logarithmic functions, `pow`, `radians` `degrees` |
 
 ## half (`f16vec` / `f16mat`)
@@ -58,6 +59,9 @@ built with this macro (`glsl_interop_nested_check`).
 - `near_`: relative 1e-5 (multiply-add and division).
 - `approx_`: relative 1e-4 (transcendental functions; the lavapipe implementation differs from libm by about 1e-5).
 - `half_`: relative 2e-3 (the binary16 ulp, plus rounding in the path that widens to f32 for the computation).
+- `bits_`: identical bit patterns, NaN patterns included. Integer results return through `intBitsToFloat` /
+  `uintBitsToFloat`; the cases avoid what GLSL leaves undefined (division by zero, signed overflow, shifts by 32 or
+  more, `%` with a negative operand).
 
 ## Writing the shared files
 

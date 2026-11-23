@@ -22,4 +22,9 @@
     X(exact_lane_writes, case_exact_lane_writes(IN_A, IN_B))              \
     X(exact_index_matrix_args, case_exact_index_matrix_args(IN_A, IN_B))  \
     X(approx_transcend, case_approx_transcend(IN_A, IN_B))                \
-    X(approx_scalar, case_approx_scalar(IN_A, IN_B))
+    X(approx_scalar, case_approx_scalar(IN_A, IN_B))                      \
+    X(bits_int_arith, case_bits_int_arith(IN_A, IN_B))                    \
+    X(bits_uint_wrap, case_bits_uint_wrap(IN_A, IN_B))                    \
+    X(bits_int_bitwise, case_bits_int_bitwise(IN_A, IN_B))                \
+    X(bits_int_compare, case_bits_int_compare(IN_A, IN_B))                \
+    X(bits_int_convert, case_bits_int_convert(IN_A, IN_B))
