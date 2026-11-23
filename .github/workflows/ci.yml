@@ -100,6 +100,7 @@ jobs:
           - name: windows-arm64-msvc
             runner: windows-11-arm
             cxx: cl
+            msvc_ninja: arm64
           # source-based coverage of include/ over the SIMD and scalar test
           # binaries; the report goes to the job summary (nothing is gated)
           - name: linux-x64-clang-coverage
@@ -235,10 +236,28 @@ jobs:
             -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} -DSHADER_MATH_WARNINGS_AS_ERRORS=ON \
             ${{ matrix.cmake_extra }}
 
+      # Ninja instead of the Visual Studio generator: no MSBuild project per
+      # compiler check at configure time, and one pool of compile jobs across
+      # all targets. vcvarsall puts cl and VS's bundled ninja on PATH.
+      - name: MSVC environment (Ninja jobs)
+        if: matrix.msvc_ninja
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          cmd /c "`"$vs\VC\Auxiliary\Build\vcvarsall.bat`" ${{ matrix.msvc_ninja }} >nul && set" |
+            Where-Object { $_ -match '^[^=]+=' } | Add-Content -Path $env:GITHUB_ENV
+          (Get-Command ninja).Source
+
       - name: Configure (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && !matrix.msvc_ninja
         # Boost headers are fetched by CMake (FetchContent) when not installed.
         run: cmake -S . -B build -DSHADER_MATH_WARNINGS_AS_ERRORS=ON ${{ matrix.cmake_extra }}
+
+      - name: Configure (Windows, Ninja)
+        if: matrix.msvc_ninja
+        run: >-
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=cl
+          -DSHADER_MATH_WARNINGS_AS_ERRORS=ON ${{ matrix.cmake_extra }}
 
       # One compile job per CPU (cmake --build alone is serial with Unix
       # Makefiles and with MSBuild). CL=-MP also runs MSVC's compiles of one
@@ -251,6 +270,13 @@ jobs:
         run: |
           jobs=${NUMBER_OF_PROCESSORS:-$(getconf _NPROCESSORS_ONLN)}
           cmake --build build --config ${{ matrix.build_type || 'Release' }} --parallel $jobs
+
+      - name: Slowest compiles (experiment)
+        if: matrix.msvc_ninja
+        shell: bash
+        run: |
+          cmake --version | head -1; ninja --version; echo "cpus=$NUMBER_OF_PROCESSORS"
+          awk 'NR>1{printf "%6d ms  %s\n", $2-$1, $4}' build/.ninja_log | sort -rn | head -20
 
       - name: Test
         # read only by -fprofile-instr-generate binaries (the coverage job)
