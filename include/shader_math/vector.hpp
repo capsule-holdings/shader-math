@@ -311,8 +311,7 @@ struct SHADER_MATH_MAY_ALIAS swz
 {
     static constexpr int M = static_cast<int>(sizeof...(Is));
     static constexpr int idx[M] = {Is...};
-    static constexpr bool in_range = ((Is >= 0 && Is < N) && ...);
-    static constexpr bool writable = in_range && swz_unique<Is...>();
+    static constexpr bool writable = swz_unique<Is...>();
 #if defined(SHADER_MATH_NESTED_SWIZZLE)
     using swz_store<M, T, N, Lg, Is...>::d;
 #else
@@ -328,8 +327,6 @@ struct SHADER_MATH_MAY_ALIAS swz
     SHADER_MATH_INLINE operator T() const
         requires(M == 1)
     {
-        static_assert(in_range,
-                      "shader-math: swizzle component out of range for this vector width");
         return d[idx[0]];
     }
     // Width is clamped in the *declaration* so that fvec<1, ...> is never named:
@@ -339,8 +336,6 @@ struct SHADER_MATH_MAY_ALIAS swz
     SHADER_MATH_INLINE operator fvec<(M >= 2 ? M : 2), T, Lg>() const
         requires(M >= 2)
     {
-        static_assert(in_range,
-                      "shader-math: swizzle component out of range for this vector width");
         return fvec<(M >= 2 ? M : 2), T, Lg>(d[Is]...);
     }
 
@@ -426,84 +421,130 @@ struct SHADER_MATH_MAY_ALIAS swz
 };
 
 // ---- swizzle member generation ------------------------------------------
-// All names over {x,y,z,w} / {r,g,b,a} are declared for every vector width;
-// out-of-range components fail at the point of use.
+// A vector of width K declares every swizzle of 1 to 4 components over its
+// first K letters of each set (xyzw, rgba and, for glsl, stpq), so a
+// component past the width (float2(...).z) is not a member at all. Swizzles
+// that select the same lanes share one proxy type, whichever set names them.
+// The letters arrive as arguments L0..; the parameters (pre, i0..i2, L0..L3)
+// never share a spelling with them.
 #define SM_SW1(name, i0) ::shader_math::detail::swz<T, N, Lg, i0> name;
 #define SM_SW2(name, i0, i1) ::shader_math::detail::swz<T, N, Lg, i0, i1> name;
 #define SM_SW3(name, i0, i1, i2) ::shader_math::detail::swz<T, N, Lg, i0, i1, i2> name;
 #define SM_SW4(name, i0, i1, i2, i3) ::shader_math::detail::swz<T, N, Lg, i0, i1, i2, i3> name;
 
-// NOTE: index parameters are named i0/i1/i2 — they must never collide with the
-// pasted letter tokens (x/y/z/w/r/g/b/a).
-#define SM_ROW2(p, i0) \
-    SM_SW2(p##x, i0, 0) SM_SW2(p##y, i0, 1) SM_SW2(p##z, i0, 2) SM_SW2(p##w, i0, 3)
-#define SM_ROW3(p, i0, i1)                                                       \
-    SM_SW3(p##x, i0, i1, 0) SM_SW3(p##y, i0, i1, 1) SM_SW3(p##z, i0, i1, 2)      \
-    SM_SW3(p##w, i0, i1, 3)
-#define SM_PL3(p, i0) \
-    SM_ROW3(p##x, i0, 0) SM_ROW3(p##y, i0, 1) SM_ROW3(p##z, i0, 2) SM_ROW3(p##w, i0, 3)
-#define SM_ROW4(p, i0, i1, i2)                                                          \
-    SM_SW4(p##x, i0, i1, i2, 0) SM_SW4(p##y, i0, i1, i2, 1) SM_SW4(p##z, i0, i1, i2, 2) \
-    SM_SW4(p##w, i0, i1, i2, 3)
-#define SM_PL4(p, i0, i1)                                                       \
-    SM_ROW4(p##x, i0, i1, 0) SM_ROW4(p##y, i0, i1, 1) SM_ROW4(p##z, i0, i1, 2)  \
-    SM_ROW4(p##w, i0, i1, 3)
-#define SM_CU4(p, i0) \
-    SM_PL4(p##x, i0, 0) SM_PL4(p##y, i0, 1) SM_PL4(p##z, i0, 2) SM_PL4(p##w, i0, 3)
+#define SM_S2_R2(pre, i0, L0, L1) \
+    SM_SW2(pre##L0, i0, 0)        \
+    SM_SW2(pre##L1, i0, 1)
+#define SM_S2_R3(pre, i0, i1, L0, L1) \
+    SM_SW3(pre##L0, i0, i1, 0)        \
+    SM_SW3(pre##L1, i0, i1, 1)
+#define SM_S2_P3(pre, i0, L0, L1)    \
+    SM_S2_R3(pre##L0, i0, 0, L0, L1) \
+    SM_S2_R3(pre##L1, i0, 1, L0, L1)
+#define SM_S2_R4(pre, i0, i1, i2, L0, L1) \
+    SM_SW4(pre##L0, i0, i1, i2, 0)        \
+    SM_SW4(pre##L1, i0, i1, i2, 1)
+#define SM_S2_P4(pre, i0, i1, L0, L1)    \
+    SM_S2_R4(pre##L0, i0, i1, 0, L0, L1) \
+    SM_S2_R4(pre##L1, i0, i1, 1, L0, L1)
+#define SM_S2_C4(pre, i0, L0, L1)    \
+    SM_S2_P4(pre##L0, i0, 0, L0, L1) \
+    SM_S2_P4(pre##L1, i0, 1, L0, L1)
+#define SM_SGEN2(L0, L1)    \
+    SM_SW1(L0, 0)           \
+    SM_SW1(L1, 1)           \
+    SM_S2_R2(L0, 0, L0, L1) \
+    SM_S2_R2(L1, 1, L0, L1) \
+    SM_S2_P3(L0, 0, L0, L1) \
+    SM_S2_P3(L1, 1, L0, L1) \
+    SM_S2_C4(L0, 0, L0, L1) \
+    SM_S2_C4(L1, 1, L0, L1)
 
-#define SM_GEN_XYZW                                                     \
-    SM_SW1(x, 0) SM_SW1(y, 1) SM_SW1(z, 2) SM_SW1(w, 3)                 \
-    SM_ROW2(x, 0) SM_ROW2(y, 1) SM_ROW2(z, 2) SM_ROW2(w, 3)             \
-    SM_PL3(x, 0) SM_PL3(y, 1) SM_PL3(z, 2) SM_PL3(w, 3)                 \
-    SM_CU4(x, 0) SM_CU4(y, 1) SM_CU4(z, 2) SM_CU4(w, 3)
+#define SM_S3_R2(pre, i0, L0, L1, L2) \
+    SM_SW2(pre##L0, i0, 0)            \
+    SM_SW2(pre##L1, i0, 1)            \
+    SM_SW2(pre##L2, i0, 2)
+#define SM_S3_R3(pre, i0, i1, L0, L1, L2) \
+    SM_SW3(pre##L0, i0, i1, 0)            \
+    SM_SW3(pre##L1, i0, i1, 1)            \
+    SM_SW3(pre##L2, i0, i1, 2)
+#define SM_S3_P3(pre, i0, L0, L1, L2)    \
+    SM_S3_R3(pre##L0, i0, 0, L0, L1, L2) \
+    SM_S3_R3(pre##L1, i0, 1, L0, L1, L2) \
+    SM_S3_R3(pre##L2, i0, 2, L0, L1, L2)
+#define SM_S3_R4(pre, i0, i1, i2, L0, L1, L2) \
+    SM_SW4(pre##L0, i0, i1, i2, 0)            \
+    SM_SW4(pre##L1, i0, i1, i2, 1)            \
+    SM_SW4(pre##L2, i0, i1, i2, 2)
+#define SM_S3_P4(pre, i0, i1, L0, L1, L2)    \
+    SM_S3_R4(pre##L0, i0, i1, 0, L0, L1, L2) \
+    SM_S3_R4(pre##L1, i0, i1, 1, L0, L1, L2) \
+    SM_S3_R4(pre##L2, i0, i1, 2, L0, L1, L2)
+#define SM_S3_C4(pre, i0, L0, L1, L2)    \
+    SM_S3_P4(pre##L0, i0, 0, L0, L1, L2) \
+    SM_S3_P4(pre##L1, i0, 1, L0, L1, L2) \
+    SM_S3_P4(pre##L2, i0, 2, L0, L1, L2)
+#define SM_SGEN3(L0, L1, L2)    \
+    SM_SW1(L0, 0)               \
+    SM_SW1(L1, 1)               \
+    SM_SW1(L2, 2)               \
+    SM_S3_R2(L0, 0, L0, L1, L2) \
+    SM_S3_R2(L1, 1, L0, L1, L2) \
+    SM_S3_R2(L2, 2, L0, L1, L2) \
+    SM_S3_P3(L0, 0, L0, L1, L2) \
+    SM_S3_P3(L1, 1, L0, L1, L2) \
+    SM_S3_P3(L2, 2, L0, L1, L2) \
+    SM_S3_C4(L0, 0, L0, L1, L2) \
+    SM_S3_C4(L1, 1, L0, L1, L2) \
+    SM_S3_C4(L2, 2, L0, L1, L2)
 
-#define SM_RROW2(p, i0) \
-    SM_SW2(p##r, i0, 0) SM_SW2(p##g, i0, 1) SM_SW2(p##b, i0, 2) SM_SW2(p##a, i0, 3)
-#define SM_RROW3(p, i0, i1)                                                      \
-    SM_SW3(p##r, i0, i1, 0) SM_SW3(p##g, i0, i1, 1) SM_SW3(p##b, i0, i1, 2)      \
-    SM_SW3(p##a, i0, i1, 3)
-#define SM_RPL3(p, i0) \
-    SM_RROW3(p##r, i0, 0) SM_RROW3(p##g, i0, 1) SM_RROW3(p##b, i0, 2) SM_RROW3(p##a, i0, 3)
-#define SM_RROW4(p, i0, i1, i2)                                                         \
-    SM_SW4(p##r, i0, i1, i2, 0) SM_SW4(p##g, i0, i1, i2, 1) SM_SW4(p##b, i0, i1, i2, 2) \
-    SM_SW4(p##a, i0, i1, i2, 3)
-#define SM_RPL4(p, i0, i1)                                                        \
-    SM_RROW4(p##r, i0, i1, 0) SM_RROW4(p##g, i0, i1, 1) SM_RROW4(p##b, i0, i1, 2) \
-    SM_RROW4(p##a, i0, i1, 3)
-#define SM_RCU4(p, i0) \
-    SM_RPL4(p##r, i0, 0) SM_RPL4(p##g, i0, 1) SM_RPL4(p##b, i0, 2) SM_RPL4(p##a, i0, 3)
-
-#define SM_GEN_RGBA                                                     \
-    SM_SW1(r, 0) SM_SW1(g, 1) SM_SW1(b, 2) SM_SW1(a, 3)                 \
-    SM_RROW2(r, 0) SM_RROW2(g, 1) SM_RROW2(b, 2) SM_RROW2(a, 3)         \
-    SM_RPL3(r, 0) SM_RPL3(g, 1) SM_RPL3(b, 2) SM_RPL3(a, 3)             \
-    SM_RCU4(r, 0) SM_RCU4(g, 1) SM_RCU4(b, 2) SM_RCU4(a, 3)
-
-// GLSL's third swizzle set (texture coordinates), glsl vectors only. The
-// prefix parameter is `pre`, not `p`, so it never collides with the pasted
-// letter p.
-#define SM_SROW2(pre, i0) \
-    SM_SW2(pre##s, i0, 0) SM_SW2(pre##t, i0, 1) SM_SW2(pre##p, i0, 2) SM_SW2(pre##q, i0, 3)
-#define SM_SROW3(pre, i0, i1)                                                  \
-    SM_SW3(pre##s, i0, i1, 0) SM_SW3(pre##t, i0, i1, 1) SM_SW3(pre##p, i0, i1, 2) \
-    SM_SW3(pre##q, i0, i1, 3)
-#define SM_SPL3(pre, i0)                                                       \
-    SM_SROW3(pre##s, i0, 0) SM_SROW3(pre##t, i0, 1) SM_SROW3(pre##p, i0, 2)      \
-    SM_SROW3(pre##q, i0, 3)
-#define SM_SROW4(pre, i0, i1, i2)                                                       \
-    SM_SW4(pre##s, i0, i1, i2, 0) SM_SW4(pre##t, i0, i1, i2, 1) SM_SW4(pre##p, i0, i1, i2, 2) \
-    SM_SW4(pre##q, i0, i1, i2, 3)
-#define SM_SPL4(pre, i0, i1)                                                   \
-    SM_SROW4(pre##s, i0, i1, 0) SM_SROW4(pre##t, i0, i1, 1) SM_SROW4(pre##p, i0, i1, 2) \
-    SM_SROW4(pre##q, i0, i1, 3)
-#define SM_SCU4(pre, i0)                                                       \
-    SM_SPL4(pre##s, i0, 0) SM_SPL4(pre##t, i0, 1) SM_SPL4(pre##p, i0, 2)         \
-    SM_SPL4(pre##q, i0, 3)
-#define SM_GEN_STPQ                                                   \
-    SM_SW1(s, 0) SM_SW1(t, 1) SM_SW1(p, 2) SM_SW1(q, 3)                 \
-    SM_SROW2(s, 0) SM_SROW2(t, 1) SM_SROW2(p, 2) SM_SROW2(q, 3)         \
-    SM_SPL3(s, 0) SM_SPL3(t, 1) SM_SPL3(p, 2) SM_SPL3(q, 3)             \
-    SM_SCU4(s, 0) SM_SCU4(t, 1) SM_SCU4(p, 2) SM_SCU4(q, 3)
+#define SM_S4_R2(pre, i0, L0, L1, L2, L3) \
+    SM_SW2(pre##L0, i0, 0)                \
+    SM_SW2(pre##L1, i0, 1)                \
+    SM_SW2(pre##L2, i0, 2)                \
+    SM_SW2(pre##L3, i0, 3)
+#define SM_S4_R3(pre, i0, i1, L0, L1, L2, L3) \
+    SM_SW3(pre##L0, i0, i1, 0)                \
+    SM_SW3(pre##L1, i0, i1, 1)                \
+    SM_SW3(pre##L2, i0, i1, 2)                \
+    SM_SW3(pre##L3, i0, i1, 3)
+#define SM_S4_P3(pre, i0, L0, L1, L2, L3)    \
+    SM_S4_R3(pre##L0, i0, 0, L0, L1, L2, L3) \
+    SM_S4_R3(pre##L1, i0, 1, L0, L1, L2, L3) \
+    SM_S4_R3(pre##L2, i0, 2, L0, L1, L2, L3) \
+    SM_S4_R3(pre##L3, i0, 3, L0, L1, L2, L3)
+#define SM_S4_R4(pre, i0, i1, i2, L0, L1, L2, L3) \
+    SM_SW4(pre##L0, i0, i1, i2, 0)                \
+    SM_SW4(pre##L1, i0, i1, i2, 1)                \
+    SM_SW4(pre##L2, i0, i1, i2, 2)                \
+    SM_SW4(pre##L3, i0, i1, i2, 3)
+#define SM_S4_P4(pre, i0, i1, L0, L1, L2, L3)    \
+    SM_S4_R4(pre##L0, i0, i1, 0, L0, L1, L2, L3) \
+    SM_S4_R4(pre##L1, i0, i1, 1, L0, L1, L2, L3) \
+    SM_S4_R4(pre##L2, i0, i1, 2, L0, L1, L2, L3) \
+    SM_S4_R4(pre##L3, i0, i1, 3, L0, L1, L2, L3)
+#define SM_S4_C4(pre, i0, L0, L1, L2, L3)    \
+    SM_S4_P4(pre##L0, i0, 0, L0, L1, L2, L3) \
+    SM_S4_P4(pre##L1, i0, 1, L0, L1, L2, L3) \
+    SM_S4_P4(pre##L2, i0, 2, L0, L1, L2, L3) \
+    SM_S4_P4(pre##L3, i0, 3, L0, L1, L2, L3)
+#define SM_SGEN4(L0, L1, L2, L3)    \
+    SM_SW1(L0, 0)                   \
+    SM_SW1(L1, 1)                   \
+    SM_SW1(L2, 2)                   \
+    SM_SW1(L3, 3)                   \
+    SM_S4_R2(L0, 0, L0, L1, L2, L3) \
+    SM_S4_R2(L1, 1, L0, L1, L2, L3) \
+    SM_S4_R2(L2, 2, L0, L1, L2, L3) \
+    SM_S4_R2(L3, 3, L0, L1, L2, L3) \
+    SM_S4_P3(L0, 0, L0, L1, L2, L3) \
+    SM_S4_P3(L1, 1, L0, L1, L2, L3) \
+    SM_S4_P3(L2, 2, L0, L1, L2, L3) \
+    SM_S4_P3(L3, 3, L0, L1, L2, L3) \
+    SM_S4_C4(L0, 0, L0, L1, L2, L3) \
+    SM_S4_C4(L1, 1, L0, L1, L2, L3) \
+    SM_S4_C4(L2, 2, L0, L1, L2, L3) \
+    SM_S4_C4(L3, 3, L0, L1, L2, L3)
 
 // ---- fvec -----------------------------------------------------------------
 // The register and the swizzle members share one union, so each language's
@@ -512,39 +553,31 @@ struct SHADER_MATH_MAY_ALIAS swz
 // the copy operations of every swizzle member (front-end time).
 template <int N, class T, class Lg>
 struct fvec_store;
-template <int N, class T>
-struct fvec_store<N, T, hlsl::lang_tag> {
-    using Lg = hlsl::lang_tag;
-    union {
-        vreg<T> q_;
-        T comp_[4];
-        SM_GEN_XYZW
-        SM_GEN_RGBA
+#define SM_FVEC_STORE(W, LANG, MEMBERS)                                     \
+    template <class T>                                                      \
+    struct fvec_store<W, T, LANG> {                                         \
+        static constexpr int N = W;                                         \
+        using Lg = LANG;                                                    \
+        union {                                                             \
+            vreg<T> q_;                                                     \
+            T comp_[4];                                                     \
+            MEMBERS                                                         \
+        };                                                                  \
+        SHADER_MATH_INLINE explicit fvec_store(vreg<T> r) : q_(r) {}        \
+        SHADER_MATH_INLINE fvec_store(const fvec_store& o) : q_(o.q_) {}    \
+        SHADER_MATH_INLINE fvec_store& operator=(const fvec_store& o) {     \
+            q_ = o.q_;                                                      \
+            return *this;                                                   \
+        }                                                                   \
     };
-    SHADER_MATH_INLINE explicit fvec_store(vreg<T> r) : q_(r) {}
-    SHADER_MATH_INLINE fvec_store(const fvec_store& o) : q_(o.q_) {}
-    SHADER_MATH_INLINE fvec_store& operator=(const fvec_store& o) {
-        q_ = o.q_;
-        return *this;
-    }
-};
-template <int N, class T>
-struct fvec_store<N, T, glsl::lang_tag> {
-    using Lg = glsl::lang_tag;
-    union {
-        vreg<T> q_;
-        T comp_[4];
-        SM_GEN_XYZW
-        SM_GEN_RGBA
-        SM_GEN_STPQ
-    };
-    SHADER_MATH_INLINE explicit fvec_store(vreg<T> r) : q_(r) {}
-    SHADER_MATH_INLINE fvec_store(const fvec_store& o) : q_(o.q_) {}
-    SHADER_MATH_INLINE fvec_store& operator=(const fvec_store& o) {
-        q_ = o.q_;
-        return *this;
-    }
-};
+SM_FVEC_STORE(2, hlsl::lang_tag, SM_SGEN2(x, y) SM_SGEN2(r, g))
+SM_FVEC_STORE(3, hlsl::lang_tag, SM_SGEN3(x, y, z) SM_SGEN3(r, g, b))
+SM_FVEC_STORE(4, hlsl::lang_tag, SM_SGEN4(x, y, z, w) SM_SGEN4(r, g, b, a))
+SM_FVEC_STORE(2, glsl::lang_tag, SM_SGEN2(x, y) SM_SGEN2(r, g) SM_SGEN2(s, t))
+SM_FVEC_STORE(3, glsl::lang_tag, SM_SGEN3(x, y, z) SM_SGEN3(r, g, b) SM_SGEN3(s, t, p))
+SM_FVEC_STORE(4, glsl::lang_tag,
+              SM_SGEN4(x, y, z, w) SM_SGEN4(r, g, b, a) SM_SGEN4(s, t, p, q))
+#undef SM_FVEC_STORE
 
 template <int N, class T, class Lg>
 struct fvec : fvec_store<N, T, Lg> {
@@ -698,27 +731,27 @@ private:
 #undef SM_SW2
 #undef SM_SW3
 #undef SM_SW4
-#undef SM_ROW2
-#undef SM_ROW3
-#undef SM_PL3
-#undef SM_ROW4
-#undef SM_PL4
-#undef SM_CU4
-#undef SM_GEN_XYZW
-#undef SM_RROW2
-#undef SM_RROW3
-#undef SM_RPL3
-#undef SM_RROW4
-#undef SM_RPL4
-#undef SM_RCU4
-#undef SM_GEN_RGBA
-#undef SM_SROW2
-#undef SM_SROW3
-#undef SM_SPL3
-#undef SM_SROW4
-#undef SM_SPL4
-#undef SM_SCU4
-#undef SM_GEN_STPQ
+#undef SM_S2_R2
+#undef SM_S2_R3
+#undef SM_S2_P3
+#undef SM_S2_R4
+#undef SM_S2_P4
+#undef SM_S2_C4
+#undef SM_SGEN2
+#undef SM_S3_R2
+#undef SM_S3_R3
+#undef SM_S3_P3
+#undef SM_S3_R4
+#undef SM_S3_P4
+#undef SM_S3_C4
+#undef SM_SGEN3
+#undef SM_S4_R2
+#undef SM_S4_R3
+#undef SM_S4_P3
+#undef SM_S4_R4
+#undef SM_S4_P4
+#undef SM_S4_C4
+#undef SM_SGEN4
 
 // ---- vec_traits / concepts -------------------------------------------------
 template <int N, class T, class Lg>

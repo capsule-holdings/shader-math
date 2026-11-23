@@ -65,6 +65,16 @@ concept can_write_xy = requires(h::float3 v, const V2& u) { v.xy = u; };
 static_assert(!can_write_xx<h::float2>);
 static_assert(can_write_xy<h::float2>);
 
+// ---- a vector has the swizzles of its own width only ----------------------------
+template <class V>
+concept has_z = requires(V v) { v.z; };
+template <class V>
+concept has_xyw = requires(V v) { v.xyw; };
+template <class V>
+concept has_p = requires(V v) { v.p; };
+static_assert(!has_z<h::float2> && has_z<h::float3> && !has_xyw<h::float3> && has_xyw<h::float4>);
+static_assert(!has_z<g::vec2> && !has_p<g::vec2> && has_p<g::vec3>);
+
 // ---- swizzles of swizzles are opt-in (SHADER_MATH_NESTED_SWIZZLE) -------------
 template <class V>
 concept can_nest = requires(V v) { v.xy.yx; };
