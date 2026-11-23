@@ -186,6 +186,9 @@ macOS and Windows ARM64 are not available on Blacksmith, so they use GitHub-host
   (`SHADER_MATH_VERSION_MAJOR/MINOR/PATCH`, for users who do not use CMake).
   If they disagree, CMake configure stops with an error.
 - While the version is 0.x, only the same minor version is compatible (`SameMinorVersion` in `write_basic_package_version_file`).
+- 1.0 comes when conformance (`tests/conformance/`, docs/conformance.md) is as close to 100% as it can get: everything
+  that C++ can express agrees with the languages. Until then the version stays 0.x and minor versions may break
+  compatibility.
 - Procedure: merge the version-bump PR into `main` → wait for ci (push) on that `main` to pass →
   push the `vX.Y.Z` tag. `.github/workflows/release.yml` checks that the tag matches the version in both places, that the tag is
   on `main`, and that ci succeeded for that commit, and then generates release notes from the merged PRs
