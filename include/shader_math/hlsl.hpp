@@ -23,6 +23,10 @@ using float1 = vector<float, 1>;
 using float2 = vector<float, 2>;
 using float3 = vector<float, 3>;
 using float4 = vector<float, 4>;
+using double1 = vector<double, 1>;
+using double2 = vector<double, 2>;
+using double3 = vector<double, 3>;
+using double4 = vector<double, 4>;
 using bool1 = vector<bool, 1>;
 using bool2 = detail::bvec<2, lang_tag>;
 using bool3 = detail::bvec<3, lang_tag>;
@@ -92,6 +96,23 @@ using float4x1 = matrix<float, 4, 1>;
 using float4x2 = matrix<float, 4, 2>;
 using float4x3 = matrix<float, 4, 3>;
 using float4x4 = matrix<float, 4, 4>;
+
+using double1x1 = matrix<double, 1, 1>;
+using double1x2 = matrix<double, 1, 2>;
+using double1x3 = matrix<double, 1, 3>;
+using double1x4 = matrix<double, 1, 4>;
+using double2x1 = matrix<double, 2, 1>;
+using double2x2 = matrix<double, 2, 2>;
+using double2x3 = matrix<double, 2, 3>;
+using double2x4 = matrix<double, 2, 4>;
+using double3x1 = matrix<double, 3, 1>;
+using double3x2 = matrix<double, 3, 2>;
+using double3x3 = matrix<double, 3, 3>;
+using double3x4 = matrix<double, 3, 4>;
+using double4x1 = matrix<double, 4, 1>;
+using double4x2 = matrix<double, 4, 2>;
+using double4x3 = matrix<double, 4, 3>;
+using double4x4 = matrix<double, 4, 4>;
 
 // Half matrices (HLSL halfRxC); same ctor order and operator contract as
 // floatRxC, no implicit half/float mixing (conversion is explicit).
@@ -181,7 +202,6 @@ SHADER_MATH_LANG_FORWARD(asin)
 SHADER_MATH_LANG_FORWARD(atan)
 SHADER_MATH_LANG_FORWARD(cosh)
 SHADER_MATH_LANG_FORWARD(degrees)
-SHADER_MATH_LANG_FORWARD(modf)
 SHADER_MATH_LANG_FORWARD(radians)
 SHADER_MATH_LANG_FORWARD(sinh)
 SHADER_MATH_LANG_FORWARD(tanh)
@@ -204,59 +224,60 @@ SHADER_MATH_LANG_FORWARD(step)
 SHADER_MATH_LANG_FORWARD(tan)
 SHADER_MATH_LANG_FORWARD(trunc)
 
-// int / uint vector arguments of the floating-point functions convert to
-// float (sqrt(int3) is a float3), as HLSL converts them implicitly; GLSL does
-// not. Functions that take integer vectors themselves (abs, min, max, clamp,
-// sign, dot) keep them.
-#define SM_HLSL_INT_PROMOTE(name, impl)                                                   \
+// int / uint and double arguments of HLSL's float-only functions convert to
+// float (sqrt(int3), floor(double3), sin(double) are float), as DXC lowers
+// them; functions that natively take integer or double arguments (abs, min,
+// max, clamp, sign, dot, saturate, rcp, mad, fma) keep their type.
+#define SM_HLSL_FLOAT_PROMOTE(name, impl)                                                 \
     template <class... As>                                                                \
-        requires(detail::ArgsOf<lang_tag, As...> && (detail::IntVec<As> || ...) &&        \
+        requires(detail::ArgsOf<lang_tag, As...> && (detail::FloatPromoteArg<As> || ...) && \
                  !requires(const As&... as) { ::shader_math::detail::impl(as...); } &&    \
                  requires(const As&... as) {                                              \
                      ::shader_math::detail::impl(::shader_math::detail::float_arg(as)...); \
                  })                                                                       \
     SHADER_MATH_INLINE auto name(const As&... as) {                                       \
-        return ::shader_math::detail::impl(::shader_math::detail::float_arg(as)...);       \
+        return ::shader_math::detail::impl(::shader_math::detail::float_arg(as)...);      \
     }
-SM_HLSL_INT_PROMOTE(cross, cross)
-SM_HLSL_INT_PROMOTE(length, length)
-SM_HLSL_INT_PROMOTE(normalize, normalize)
-SM_HLSL_INT_PROMOTE(distance, distance)
-SM_HLSL_INT_PROMOTE(reflect, reflect)
-SM_HLSL_INT_PROMOTE(refract, refract)
-SM_HLSL_INT_PROMOTE(faceforward, faceforward)
-SM_HLSL_INT_PROMOTE(acos, acos)
-SM_HLSL_INT_PROMOTE(asin, asin)
-SM_HLSL_INT_PROMOTE(atan, atan)
-SM_HLSL_INT_PROMOTE(cosh, cosh)
-SM_HLSL_INT_PROMOTE(degrees, degrees)
-SM_HLSL_INT_PROMOTE(radians, radians)
-SM_HLSL_INT_PROMOTE(sinh, sinh)
-SM_HLSL_INT_PROMOTE(tanh, tanh)
-SM_HLSL_INT_PROMOTE(ceil, ceil)
-SM_HLSL_INT_PROMOTE(cos, cos)
-SM_HLSL_INT_PROMOTE(exp, exp)
-SM_HLSL_INT_PROMOTE(exp2, exp2)
-SM_HLSL_INT_PROMOTE(floor, floor)
-SM_HLSL_INT_PROMOTE(log, log)
-SM_HLSL_INT_PROMOTE(log2, log2)
-SM_HLSL_INT_PROMOTE(pow, pow)
-SM_HLSL_INT_PROMOTE(sin, sin)
-SM_HLSL_INT_PROMOTE(smoothstep, smoothstep)
-SM_HLSL_INT_PROMOTE(sqrt, sqrt)
-SM_HLSL_INT_PROMOTE(step, step)
-SM_HLSL_INT_PROMOTE(tan, tan)
-SM_HLSL_INT_PROMOTE(trunc, trunc)
-SM_HLSL_INT_PROMOTE(round, round)
-SM_HLSL_INT_PROMOTE(frac, fract_impl)
-SM_HLSL_INT_PROMOTE(saturate, saturate_impl)
-SM_HLSL_INT_PROMOTE(rcp, rcp_impl)
-SM_HLSL_INT_PROMOTE(rsqrt, rsqrt_impl)
-SM_HLSL_INT_PROMOTE(log10, log10_impl)
-SM_HLSL_INT_PROMOTE(lerp, lerp_impl)
-SM_HLSL_INT_PROMOTE(atan2, atan2_impl)
-SM_HLSL_INT_PROMOTE(fmod, fmod_impl)
-#undef SM_HLSL_INT_PROMOTE
+SM_HLSL_FLOAT_PROMOTE(cross, cross)
+SM_HLSL_FLOAT_PROMOTE(length, length)
+SM_HLSL_FLOAT_PROMOTE(normalize, normalize)
+SM_HLSL_FLOAT_PROMOTE(distance, distance)
+SM_HLSL_FLOAT_PROMOTE(reflect, reflect)
+SM_HLSL_FLOAT_PROMOTE(refract, refract)
+SM_HLSL_FLOAT_PROMOTE(faceforward, faceforward)
+SM_HLSL_FLOAT_PROMOTE(acos, acos)
+SM_HLSL_FLOAT_PROMOTE(asin, asin)
+SM_HLSL_FLOAT_PROMOTE(atan, atan)
+SM_HLSL_FLOAT_PROMOTE(cosh, cosh)
+SM_HLSL_FLOAT_PROMOTE(degrees, degrees)
+SM_HLSL_FLOAT_PROMOTE(radians, radians)
+SM_HLSL_FLOAT_PROMOTE(sinh, sinh)
+SM_HLSL_FLOAT_PROMOTE(tanh, tanh)
+SM_HLSL_FLOAT_PROMOTE(ceil, ceil)
+SM_HLSL_FLOAT_PROMOTE(cos, cos)
+SM_HLSL_FLOAT_PROMOTE(exp, exp)
+SM_HLSL_FLOAT_PROMOTE(exp2, exp2)
+SM_HLSL_FLOAT_PROMOTE(floor, floor)
+SM_HLSL_FLOAT_PROMOTE(log, log)
+SM_HLSL_FLOAT_PROMOTE(log2, log2)
+SM_HLSL_FLOAT_PROMOTE(pow, pow)
+SM_HLSL_FLOAT_PROMOTE(sin, sin)
+SM_HLSL_FLOAT_PROMOTE(smoothstep, smoothstep)
+SM_HLSL_FLOAT_PROMOTE(sqrt, sqrt)
+SM_HLSL_FLOAT_PROMOTE(step, step)
+SM_HLSL_FLOAT_PROMOTE(tan, tan)
+SM_HLSL_FLOAT_PROMOTE(trunc, trunc)
+SM_HLSL_FLOAT_PROMOTE(round, round)
+SM_HLSL_FLOAT_PROMOTE(frac, fract_impl)
+SM_HLSL_FLOAT_PROMOTE(saturate, saturate_impl)
+SM_HLSL_FLOAT_PROMOTE(rcp, rcp_impl)
+SM_HLSL_FLOAT_PROMOTE(rsqrt, rsqrt_impl)
+SM_HLSL_FLOAT_PROMOTE(log10, log10_impl)
+SM_HLSL_FLOAT_PROMOTE(lerp, lerp_impl)
+SM_HLSL_FLOAT_PROMOTE(atan2, atan2_impl)
+SM_HLSL_FLOAT_PROMOTE(fmod, fmod_impl)
+SM_HLSL_FLOAT_PROMOTE(ldexp, ldexp_impl)
+#undef SM_HLSL_FLOAT_PROMOTE
 
 // isnan / isinf / round / all / any have explicit signatures. The vector
 // forms name the vector type because the MSVC UCRT declares unconstrained
@@ -300,13 +321,16 @@ SHADER_MATH_INLINE bool isinf(A a) {
 SHADER_MATH_INLINE float round(float a) {
     return detail::round_lane(a);
 }
+SHADER_MATH_INLINE float round(double a) {
+    return detail::round_lane(static_cast<float>(a));
+}
 #if defined(SHADER_MATH_HAS_HALF)
 SHADER_MATH_INLINE detail::half_t round(detail::half_t a) {
     return detail::round_lane(a);
 }
 #endif
 template <class A>
-    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
+    requires(detail::VecOf<A, lang_tag> && detail::GlslDoubleOrFloatVec<A>)
 SHADER_MATH_INLINE auto round(const A& a) {
     return detail::round(a);
 }
@@ -351,7 +375,7 @@ SHADER_MATH_INLINE auto saturate(const A& a) {
     return detail::saturate_impl(a);
 }
 template <class A>
-    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
+    requires(detail::VecOf<A, lang_tag> && detail::NonDoubleFloatVec<A>)
 SHADER_MATH_INLINE auto frac(const A& a) {
     return detail::fract_impl(a);
 }
@@ -361,12 +385,12 @@ SHADER_MATH_INLINE auto rcp(const A& a) {
     return detail::rcp_impl(a);
 }
 template <class A>
-    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
+    requires(detail::VecOf<A, lang_tag> && detail::NonDoubleFloatVec<A>)
 SHADER_MATH_INLINE auto rsqrt(const A& a) {
     return detail::rsqrt_impl(a);
 }
 template <class A>
-    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
+    requires(detail::VecOf<A, lang_tag> && detail::NonDoubleFloatVec<A>)
 SHADER_MATH_INLINE auto log10(const A& a) {
     return detail::log10_impl(a);
 }
@@ -380,6 +404,32 @@ template <class A, int N, class T>
     requires requires(const A& a, vector<T, N>& e) { detail::frexp_impl(a, e); }
 SHADER_MATH_INLINE auto frexp(const A& a, vector<T, N>& e) {
     return detail::frexp_impl(a, e);
+}
+template <class A, int N, class U>
+    requires(detail::VecOf<A, lang_tag> && (detail::DoubleVec<A> || detail::IntVec<A>) &&
+             detail::vec_size_v<A> == N &&
+             (std::is_same_v<U, float> || std::is_same_v<U, double>))
+SHADER_MATH_INLINE vector<float, N> frexp(const A& a, vector<U, N>& e) {
+    vector<float, N> fe;
+    const vector<float, N> m = detail::frexp_impl(vector<float, N>(detail::to_vec(a)), fe);
+    e = vector<U, N>(fe);
+    return m;
+}
+template <class A, int N, class T>
+    requires(detail::VecOf<A, lang_tag> && detail::NonDoubleFloatVec<A> &&
+             std::is_same_v<detail::vec_t<A>, vector<T, N>>)
+SHADER_MATH_INLINE vector<T, N> modf(const A& a, vector<T, N>& ip) {
+    return detail::modf(a, ip);
+}
+template <class A, int N, class U>
+    requires(detail::VecOf<A, lang_tag> && (detail::DoubleVec<A> || detail::IntVec<A>) &&
+             detail::vec_size_v<A> == N &&
+             (std::is_same_v<U, float> || std::is_same_v<U, double>))
+SHADER_MATH_INLINE vector<float, N> modf(const A& a, vector<U, N>& ip) {
+    vector<float, N> fip;
+    const vector<float, N> fr = detail::modf(vector<float, N>(detail::to_vec(a)), fip);
+    ip = vector<U, N>(fip);
+    return fr;
 }
 // select(cond, a, b) (HLSL 2021): a where cond, else b; scalar a / b broadcast
 template <int N, class A, class B>
@@ -428,6 +478,34 @@ template <class A, class B, class C>
 SHADER_MATH_INLINE auto mad(const A& a, const B& b, const C& c) {
     return detail::mad_impl(a, b, c);
 }
+// fma(a, b, c): HLSL defines fma for double only (exact single rounding).
+template <class A, class B, class C,
+          int N = (detail::vec_size_v<A> > 0
+                       ? detail::vec_size_v<A>
+                       : (detail::vec_size_v<B> > 0 ? detail::vec_size_v<B>
+                                                    : detail::vec_size_v<C>))>
+    requires(N >= 2 && detail::ArgsOf<lang_tag, A, B, C> &&
+             (detail::DoubleVec<A> || (!detail::VecLike<A> && detail::ScalarFor<A, double>)) &&
+             (detail::DoubleVec<B> || (!detail::VecLike<B> && detail::ScalarFor<B, double>)) &&
+             (detail::DoubleVec<C> || (!detail::VecLike<C> && detail::ScalarFor<C, double>)) &&
+             (detail::vec_size_v<A> == 0 || detail::vec_size_v<A> == N) &&
+             (detail::vec_size_v<B> == 0 || detail::vec_size_v<B> == N) &&
+             (detail::vec_size_v<C> == 0 || detail::vec_size_v<C> == N))
+SHADER_MATH_INLINE vector<double, N> fma(const A& a, const B& b, const C& c) {
+    auto reg = [](const auto& x) {
+        if constexpr (detail::VecLike<std::remove_cvref_t<decltype(x)>>)
+            return detail::to_vec(x).q_;
+        else
+            return detail::dops::splat(static_cast<double>(x));
+    };
+    return vector<double, N>(detail::dops::fmadd(reg(a), reg(b), reg(c)));
+}
+template <class A, class B, class C>
+    requires(detail::ScalarCall<A, B, C> &&
+             std::is_same_v<detail::scalar_call_t<A, B, C>, double>)
+SHADER_MATH_INLINE double fma(const A& a, const B& b, const C& c) {
+    return std::fma(static_cast<double>(a), static_cast<double>(b), static_cast<double>(c));
+}
 // fvec / swz parameters for the same reason as detail::isnan (MSVC UCRT)
 template <int N, class T>
     requires(N >= 2 && !detail::is_int_elem_v<T>)
@@ -445,6 +523,16 @@ template <class A, int N, class T>
     }
 SHADER_MATH_INLINE void sincos(const A& a, vector<T, N>& s, vector<T, N>& c) {
     detail::sincos_impl(a, s, c);
+}
+template <class A, int N, class U>
+    requires(detail::VecOf<A, lang_tag> && (detail::DoubleVec<A> || detail::IntVec<A>) &&
+             detail::vec_size_v<A> == N &&
+             (std::is_same_v<U, float> || std::is_same_v<U, double>))
+SHADER_MATH_INLINE void sincos(const A& a, vector<U, N>& s, vector<U, N>& c) {
+    vector<float, N> fs, fc;
+    detail::sincos_impl(vector<float, N>(detail::to_vec(a)), fs, fc);
+    s = vector<U, N>(fs);
+    c = vector<U, N>(fc);
 }
 
 // isfinite on scalars (by value, see detail::isnan)
@@ -503,20 +591,58 @@ SHADER_MATH_SCALAR_FN2(fmod)
 SHADER_MATH_SCALAR_FN2(ldexp)
 SHADER_MATH_SCALAR_FN3(mad)
 template <class A, class T>
-    requires(detail::FloatScalarCall<A> && std::is_same_v<T, detail::scalar_call_t<A>>)
+    requires(detail::FloatScalarCall<A> && std::is_same_v<T, detail::scalar_call_t<A>> &&
+             !std::is_same_v<T, double>)
+SHADER_MATH_INLINE T modf(const A& a, T& ip) {
+    return detail::modf(a, ip);
+}
+template <class A, class U>
+    requires(!detail::VecLike<A> &&
+             std::is_same_v<typename detail::scalar_value<std::remove_cvref_t<A>>::type, double> &&
+             (std::is_same_v<U, float> || std::is_same_v<U, double>))
+SHADER_MATH_INLINE float modf(const A& a, U& ip) {
+    float fip = 0.0f;
+    const float fr = detail::modf(static_cast<float>(static_cast<double>(a)), fip);
+    ip = static_cast<U>(fip);
+    return fr;
+}
+template <class A, class T>
+    requires(detail::FloatScalarCall<A> && std::is_same_v<T, detail::scalar_call_t<A>> &&
+             !std::is_same_v<T, double>)
 SHADER_MATH_INLINE T frexp(const A& a, T& e) {
     vector<T, 2> ev;
     const T m = frexp(detail::lane1<T, lang_tag>(a), ev)[0];
     e = ev[0];
     return m;
 }
+template <class A, class U>
+    requires(!detail::VecLike<A> &&
+             std::is_same_v<typename detail::scalar_value<std::remove_cvref_t<A>>::type, double> &&
+             (std::is_same_v<U, float> || std::is_same_v<U, double>))
+SHADER_MATH_INLINE float frexp(const A& a, U& e) {
+    float fe = 0.0f;
+    const float m = frexp(static_cast<float>(static_cast<double>(a)), fe);
+    e = static_cast<U>(fe);
+    return m;
+}
 template <class A, class T>
-    requires(detail::FloatScalarCall<A> && std::is_same_v<T, detail::scalar_call_t<A>>)
+    requires(detail::FloatScalarCall<A> && std::is_same_v<T, detail::scalar_call_t<A>> &&
+             !std::is_same_v<T, double>)
 SHADER_MATH_INLINE void sincos(const A& a, T& s, T& c) {
     vector<T, 2> sv, cv;
     sincos(detail::lane1<T, lang_tag>(a), sv, cv);
     s = sv[0];
     c = cv[0];
+}
+template <class A, class U>
+    requires(!detail::VecLike<A> &&
+             std::is_same_v<typename detail::scalar_value<std::remove_cvref_t<A>>::type, double> &&
+             (std::is_same_v<U, float> || std::is_same_v<U, double>))
+SHADER_MATH_INLINE void sincos(const A& a, U& s, U& c) {
+    float fs = 0.0f, fc = 0.0f;
+    sincos(static_cast<float>(static_cast<double>(a)), fs, fc);
+    s = static_cast<U>(fs);
+    c = static_cast<U>(fc);
 }
 template <class A, class B>
     requires detail::ScalarCall<A, B>
@@ -786,9 +912,10 @@ SHADER_MATH_INLINE auto operator%(const A& a, const B& b) {
     using M = detail::mixed_t<A, B>;
     return detail::fmod_impl(M(detail::to_vec(a)), M(detail::to_vec(b)));
 }
-// matrices: row by row (fmod on float rows, the truncating % on int rows)
+// matrices: row by row (fmod on float rows, the truncating % on int rows;
+// rejected for double, matching HLSL)
 template <int R, int C, class T>
-    requires(!std::is_same_v<T, bool>)
+    requires(!std::is_same_v<T, bool> && !std::is_same_v<T, double>)
 SHADER_MATH_INLINE matrix<T, R, C> operator%(const matrix<T, R, C>& a, const matrix<T, R, C>& b) {
     matrix<T, R, C> o;
     for (int r = 0; r < R; ++r)
@@ -797,7 +924,7 @@ SHADER_MATH_INLINE matrix<T, R, C> operator%(const matrix<T, R, C>& a, const mat
     return o;
 }
 template <int R, int C, class T, class S>
-    requires(!std::is_same_v<T, bool> && detail::ScalarFor<S, T>)
+    requires(!std::is_same_v<T, bool> && !std::is_same_v<T, double> && detail::ScalarFor<S, T>)
 SHADER_MATH_INLINE auto operator%(const matrix<T, R, C>& a, const S& s) {
     detail::hmat_of_rows<R, C, decltype(detail::hmat_row_in(a.row_[0]) % s)> o;
     for (int r = 0; r < R; ++r) detail::hmat_row_out(o.row_[r], detail::hmat_row_in(a.row_[r]) % s);
@@ -812,9 +939,10 @@ SHADER_MATH_INLINE vector<T, N>& operator%=(vector<T, N>& a, const B& b) {
     return a;
 }
 template <int R, int C, class T, class B>
-    requires(!std::is_same_v<T, bool> && requires(const matrix<T, R, C>& a, const B& b) {
-        { a % b } -> std::convertible_to<matrix<T, R, C>>;
-    })
+    requires(!std::is_same_v<T, bool> && !std::is_same_v<T, double> &&
+             requires(const matrix<T, R, C>& a, const B& b) {
+                 { a % b } -> std::convertible_to<matrix<T, R, C>>;
+             })
 SHADER_MATH_INLINE matrix<T, R, C>& operator%=(matrix<T, R, C>& a, const B& b) {
     a = a % b;
     return a;
@@ -900,6 +1028,14 @@ SHADER_MATH_INLINE matrix<T, R, C>& operator%=(matrix<T, R, C>& a, const B& b) {
             detail::hmat_brow_out<C>(                                                    \
                 o.row_[r], detail::hmat_row_in(a.row_[r]) sym detail::hmat_row_in(b.row_[r])); \
         return o;                                                                        \
+    }                                                                                    \
+    template <int R, int C, class T, class U>                                            \
+        requires(!std::is_same_v<T, bool> && !std::is_same_v<U, bool> &&                 \
+                 detail::MixedElems<T, U, lang_tag>)                                     \
+    SHADER_MATH_INLINE matrix<bool, R, C> operator sym(const matrix<T, R, C>& a,         \
+                                                       const matrix<U, R, C>& b) {       \
+        using E = detail::common_elem_t<T, U, lang_tag>;                                 \
+        return matrix<E, R, C>(a) sym matrix<E, R, C>(b);                                \
     }                                                                                    \
     template <int R, int C, class T, class V>                                            \
         requires(!std::is_same_v<T, bool> && R * C >= 2 && R * C <= 4 &&                 \
@@ -1025,6 +1161,65 @@ SM_HLSL_BITCAST(asuint, uint)
 SM_HLSL_BITCAST(asfloat, float)
 #undef SM_HLSL_BITCAST
 
+// asdouble(lo, hi) and 3-arg asuint(d, out lo, out hi): reinterpret a 64-bit
+// double as low and high 32-bit halves (uint or int, scalar or vector).
+template <class Lo, class Hi>
+    requires(detail::is_int32_scalar_v<Lo> && detail::is_int32_scalar_v<Hi>)
+SHADER_MATH_INLINE double asdouble(const Lo& lo, const Hi& hi) {
+    const std::uint64_t bits =
+        static_cast<std::uint64_t>(static_cast<uint>(lo)) |
+        (static_cast<std::uint64_t>(static_cast<uint>(hi)) << 32);
+    return detail::bitcast_lane<double>(bits);
+}
+template <class Lo, class Hi>
+    requires(detail::VecOf<Lo, lang_tag> && detail::VecOf<Hi, lang_tag> &&
+             detail::Int32Vec<Lo> && detail::Int32Vec<Hi> &&
+             detail::vec_size_v<Lo> == detail::vec_size_v<Hi>)
+SHADER_MATH_INLINE auto asdouble(const Lo& lo0, const Hi& hi0) {
+    constexpr int n = detail::vec_size_v<Lo>;
+    const auto lo = detail::to_vec(lo0);
+    const auto hi = detail::to_vec(hi0);
+    double out[4] = {0.0, 0.0, 0.0, 0.0};
+    for (int i = 0; i < n; ++i)
+        out[i] = asdouble(static_cast<uint>(lo[i]), static_cast<uint>(hi[i]));
+    return vector<double, n>(detail::dops::load4(out));
+}
+template <class D, class U>
+    requires(!detail::VecLike<D> &&
+             std::is_same_v<typename detail::scalar_value<std::remove_cvref_t<D>>::type, double> &&
+             detail::is_int32_elem_v<U>)
+SHADER_MATH_INLINE void asuint(const D& d0, U& lo, U& hi) {
+    const std::uint64_t bits = detail::bitcast_lane<std::uint64_t>(static_cast<double>(d0));
+    lo = static_cast<U>(static_cast<uint>(bits));
+    hi = static_cast<U>(static_cast<uint>(bits >> 32));
+}
+template <class D, class U>
+    requires(!detail::VecLike<D> &&
+             std::is_same_v<typename detail::scalar_value<std::remove_cvref_t<D>>::type, double> &&
+             detail::is_int32_elem_v<U>)
+SHADER_MATH_INLINE void asuint(const D& d0, vector<U, 1>& lo, vector<U, 1>& hi) {
+    U l = U(0), h = U(0);
+    asuint(d0, l, h);
+    lo = vector<U, 1>(l);
+    hi = vector<U, 1>(h);
+}
+template <class D, int N, class U>
+    requires(N >= 2 && detail::VecOf<D, lang_tag> &&
+             std::is_same_v<detail::vec_elem_t<D>, double> && detail::vec_size_v<D> == N &&
+             detail::is_int32_elem_v<U>)
+SHADER_MATH_INLINE void asuint(const D& d0, vector<U, N>& lo, vector<U, N>& hi) {
+    const auto d = detail::to_vec(d0);
+    U l[4] = {U(0), U(0), U(0), U(0)};
+    U h[4] = {U(0), U(0), U(0), U(0)};
+    for (int i = 0; i < N; ++i) {
+        const std::uint64_t bits = detail::bitcast_lane<std::uint64_t>(d[i]);
+        l[i] = static_cast<U>(static_cast<uint>(bits));
+        h[i] = static_cast<U>(static_cast<uint>(bits >> 32));
+    }
+    lo = vector<U, N>(detail::vops<U>::load4(l));
+    hi = vector<U, N>(detail::vops<U>::load4(h));
+}
+
 // asint16 / asuint16 / asfloat16: the same bits as another 16-bit type
 // (int16_t, uint16_t, half vectors and scalars)
 #define SM_HLSL_BITCAST16(name, U)                                                       \
@@ -1110,10 +1305,12 @@ SHADER_MATH_INLINE float f16tof32(const S& s) {
 }
 
 // ---- mul: the 9 official overloads ------------------------------------------
-SHADER_MATH_INLINE float mul(float a, float b) { return a * b; }
-#if defined(SHADER_MATH_HAS_HALF)
-SHADER_MATH_INLINE detail::half_t mul(detail::half_t a, detail::half_t b) { return a * b; }
-#endif
+template <class A, class B>
+    requires detail::ScalarCall<A, B>
+SHADER_MATH_INLINE auto mul(const A& a, const B& b) {
+    using T = detail::scalar_call_t<A, B>;
+    return static_cast<T>(static_cast<T>(a) * static_cast<T>(b));
+}
 
 template <class V, class S>
     requires(detail::VecOf<V, lang_tag> && detail::ScalarFor<S, detail::vec_elem_t<V>>)
@@ -1147,6 +1344,12 @@ SHADER_MATH_INLINE detail::vec_elem_t<A> mul(const A& a, const B& b) {
     else
         return detail::dot(a, b);
 }
+template <class A, class B>
+    requires(detail::MixedVec<A, B> && detail::VecOf<A, lang_tag>)
+SHADER_MATH_INLINE auto mul(const A& a, const B& b) {
+    using M = detail::mixed_t<A, B>;
+    return mul(M(detail::to_vec(a)), M(detail::to_vec(b)));
+}
 
 // row vector x matrix
 template <class V, int M, int N2, class T>
@@ -1165,6 +1368,13 @@ SHADER_MATH_INLINE vector<T, N2> mul(const V& v0, const matrix<T, M, N2>& m) {
         return vector<T, N2>(detail::mad_accum<M>(v.q_, m.row_));
     }
 }
+template <class V, int M, int N2, class T>
+    requires(!std::is_same_v<T, bool> && detail::VecOf<V, lang_tag> && detail::vec_size_v<V> == M &&
+             detail::MixedElems<detail::vec_elem_t<V>, T, lang_tag>)
+SHADER_MATH_INLINE auto mul(const V& v, const matrix<T, M, N2>& m) {
+    using E = detail::common_elem_t<detail::vec_elem_t<V>, T, lang_tag>;
+    return mul(vector<E, M>(detail::to_vec(v)), matrix<E, M, N2>(m));
+}
 
 // matrix x column vector
 template <int M, int K, class T, class V>
@@ -1182,6 +1392,13 @@ SHADER_MATH_INLINE vector<T, M> mul(const matrix<T, M, K>& m, const V& v0) {
         return vector<T, 1>(t[0]);
     else
         return vector<T, M>(detail::vops<T>::load4(t));
+}
+template <int M, int K, class T, class V>
+    requires(!std::is_same_v<T, bool> && detail::VecOf<V, lang_tag> && detail::vec_size_v<V> == K &&
+             detail::MixedElems<T, detail::vec_elem_t<V>, lang_tag>)
+SHADER_MATH_INLINE auto mul(const matrix<T, M, K>& m, const V& v) {
+    using E = detail::common_elem_t<T, detail::vec_elem_t<V>, lang_tag>;
+    return mul(matrix<E, M, K>(m), vector<E, K>(detail::to_vec(v)));
 }
 
 // matrix x matrix: inner dimensions must match (enforced by the signature)
@@ -1206,6 +1423,13 @@ SHADER_MATH_INLINE matrix<T, M, N2> mul(const matrix<T, M, K>& a, const matrix<T
             o.row_[r] = vector<T, N2>(detail::mad_accum<K>(a.row_[r].q_, b.row_));
     }
     return o;
+}
+template <int M, int K, int N2, class T, class U>
+    requires(!std::is_same_v<T, bool> && !std::is_same_v<U, bool> &&
+             detail::MixedElems<T, U, lang_tag>)
+SHADER_MATH_INLINE auto mul(const matrix<T, M, K>& a, const matrix<U, K, N2>& b) {
+    using E = detail::common_elem_t<T, U, lang_tag>;
+    return mul(matrix<E, M, K>(a), matrix<E, K, N2>(b));
 }
 
 #if defined(SHADER_MATH_HAS_AVX_2ROW)
@@ -1252,7 +1476,7 @@ template <int R, int C, class T>
     requires(!std::is_same_v<T, bool>)
 SHADER_MATH_INLINE auto determinant(const matrix<T, R, C>& m) {
     static_assert(R == C, "shader-math: determinant requires a square matrix");
-    if constexpr (detail::is_int_elem_v<T>)  // converted to float, as HLSL does
+    if constexpr (detail::is_int_elem_v<T> || std::is_same_v<T, double>)  // converted to float, as HLSL does
         return detail::det_regs<R>(matrix<float, R, C>(m).row_);
     else
         return detail::det_regs<R>(m.row_);
@@ -1289,6 +1513,7 @@ SM_HLSL_MAT_UNARY(rcp)
 SM_HLSL_MAT_UNARY(exp)
 SM_HLSL_MAT_UNARY(exp2)
 SM_HLSL_MAT_UNARY(log)
+SM_HLSL_MAT_UNARY(log10)
 SM_HLSL_MAT_UNARY(log2)
 SM_HLSL_MAT_UNARY(sin)
 SM_HLSL_MAT_UNARY(cos)
@@ -1337,8 +1562,10 @@ SM_HLSL_MAT_BINARY(fmod)
 template <int R, int C, class T>
     requires(!std::is_same_v<T, bool> &&
              requires(const detail::hmat_row_op_t<C, T>& v) { atan2(v, v); })
-SHADER_MATH_INLINE matrix<T, R, C> atan2(const matrix<T, R, C>& y, const matrix<T, R, C>& x) {
-    matrix<T, R, C> o;
+SHADER_MATH_INLINE auto atan2(const matrix<T, R, C>& y, const matrix<T, R, C>& x) {
+    detail::hmat_of_rows<R, C, decltype(atan2(detail::hmat_row_in(y.row_[0]),
+                                              detail::hmat_row_in(x.row_[0])))>
+        o;
     for (int r = 0; r < R; ++r)
         detail::hmat_row_out(
             o.row_[r], atan2(detail::hmat_row_in(y.row_[r]), detail::hmat_row_in(x.row_[r])));
@@ -1349,8 +1576,10 @@ SHADER_MATH_INLINE matrix<T, R, C> atan2(const matrix<T, R, C>& y, const matrix<
 template <int R, int C, class T>
     requires(!std::is_same_v<T, bool> &&
              requires(const detail::hmat_row_op_t<C, T>& v) { step(v, v); })
-SHADER_MATH_INLINE matrix<T, R, C> step(const matrix<T, R, C>& edge, const matrix<T, R, C>& x) {
-    matrix<T, R, C> o;
+SHADER_MATH_INLINE auto step(const matrix<T, R, C>& edge, const matrix<T, R, C>& x) {
+    detail::hmat_of_rows<R, C, decltype(step(detail::hmat_row_in(edge.row_[0]),
+                                             detail::hmat_row_in(x.row_[0])))>
+        o;
     for (int r = 0; r < R; ++r)
         detail::hmat_row_out(
             o.row_[r], step(detail::hmat_row_in(edge.row_[r]), detail::hmat_row_in(x.row_[r])));
@@ -1358,9 +1587,9 @@ SHADER_MATH_INLINE matrix<T, R, C> step(const matrix<T, R, C>& edge, const matri
 }
 template <int R, int C, class T, class S>
     requires(!std::is_same_v<T, bool> && detail::ScalarFor<S, T> &&
-             requires(const detail::hmat_row_op_t<C, T>& v) { step(v, v); })
-SHADER_MATH_INLINE matrix<T, R, C> step(const S& edge, const matrix<T, R, C>& x) {
-    matrix<T, R, C> o;
+             requires(const detail::hmat_row_op_t<C, T>& v, const S& s) { step(s, v); })
+SHADER_MATH_INLINE auto step(const S& edge, const matrix<T, R, C>& x) {
+    detail::hmat_of_rows<R, C, decltype(step(edge, detail::hmat_row_in(x.row_[0])))> o;
     for (int r = 0; r < R; ++r)
         detail::hmat_row_out(o.row_[r], step(edge, detail::hmat_row_in(x.row_[r])));
     return o;
@@ -1369,9 +1598,12 @@ SHADER_MATH_INLINE matrix<T, R, C> step(const S& edge, const matrix<T, R, C>& x)
 template <int R, int C, class T>
     requires(!std::is_same_v<T, bool> &&
              requires(const detail::hmat_row_op_t<C, T>& v) { lerp(v, v, v); })
-SHADER_MATH_INLINE matrix<T, R, C> lerp(const matrix<T, R, C>& a, const matrix<T, R, C>& b,
-                                        const matrix<T, R, C>& t) {
-    matrix<T, R, C> o;
+SHADER_MATH_INLINE auto lerp(const matrix<T, R, C>& a, const matrix<T, R, C>& b,
+                             const matrix<T, R, C>& t) {
+    detail::hmat_of_rows<R, C, decltype(lerp(detail::hmat_row_in(a.row_[0]),
+                                             detail::hmat_row_in(b.row_[0]),
+                                             detail::hmat_row_in(t.row_[0])))>
+        o;
     for (int r = 0; r < R; ++r)
         detail::hmat_row_out(o.row_[r],
                              lerp(detail::hmat_row_in(a.row_[r]), detail::hmat_row_in(b.row_[r]),
@@ -1380,10 +1612,11 @@ SHADER_MATH_INLINE matrix<T, R, C> lerp(const matrix<T, R, C>& a, const matrix<T
 }
 template <int R, int C, class T, class S>
     requires(!std::is_same_v<T, bool> && detail::ScalarFor<S, T> &&
-             requires(const detail::hmat_row_op_t<C, T>& v) { lerp(v, v, v); })
-SHADER_MATH_INLINE matrix<T, R, C> lerp(const matrix<T, R, C>& a, const matrix<T, R, C>& b,
-                                        const S& t) {
-    matrix<T, R, C> o;
+             requires(const detail::hmat_row_op_t<C, T>& v, const S& s) { lerp(v, v, s); })
+SHADER_MATH_INLINE auto lerp(const matrix<T, R, C>& a, const matrix<T, R, C>& b, const S& t) {
+    detail::hmat_of_rows<R, C, decltype(lerp(detail::hmat_row_in(a.row_[0]),
+                                             detail::hmat_row_in(b.row_[0]), t))>
+        o;
     for (int r = 0; r < R; ++r)
         detail::hmat_row_out(
             o.row_[r], lerp(detail::hmat_row_in(a.row_[r]), detail::hmat_row_in(b.row_[r]), t));
@@ -1413,10 +1646,12 @@ SHADER_MATH_INLINE auto clamp(const matrix<T, R, C>& x, const SL& lo, const SH& 
 template <int R, int C, class T>
     requires(!std::is_same_v<T, bool> &&
              requires(const detail::hmat_row_op_t<C, T>& v) { smoothstep(v, v, v); })
-SHADER_MATH_INLINE matrix<T, R, C> smoothstep(const matrix<T, R, C>& lo,
-                                              const matrix<T, R, C>& hi,
-                                              const matrix<T, R, C>& x) {
-    matrix<T, R, C> o;
+SHADER_MATH_INLINE auto smoothstep(const matrix<T, R, C>& lo, const matrix<T, R, C>& hi,
+                                   const matrix<T, R, C>& x) {
+    detail::hmat_of_rows<R, C, decltype(smoothstep(detail::hmat_row_in(lo.row_[0]),
+                                                   detail::hmat_row_in(hi.row_[0]),
+                                                   detail::hmat_row_in(x.row_[0])))>
+        o;
     for (int r = 0; r < R; ++r)
         detail::hmat_row_out(o.row_[r],
                              smoothstep(detail::hmat_row_in(lo.row_[r]),
@@ -1426,10 +1661,11 @@ SHADER_MATH_INLINE matrix<T, R, C> smoothstep(const matrix<T, R, C>& lo,
 }
 template <int R, int C, class T, class SL, class SH>
     requires(!std::is_same_v<T, bool> && detail::ScalarFor<SL, T> && detail::ScalarFor<SH, T> &&
-             requires(const detail::hmat_row_op_t<C, T>& v) { smoothstep(v, v, v); })
-SHADER_MATH_INLINE matrix<T, R, C> smoothstep(const SL& lo, const SH& hi,
-                                              const matrix<T, R, C>& x) {
-    matrix<T, R, C> o;
+             requires(const detail::hmat_row_op_t<C, T>& v, const SL& sl, const SH& sh) {
+                 smoothstep(sl, sh, v);
+             })
+SHADER_MATH_INLINE auto smoothstep(const SL& lo, const SH& hi, const matrix<T, R, C>& x) {
+    detail::hmat_of_rows<R, C, decltype(smoothstep(lo, hi, detail::hmat_row_in(x.row_[0])))> o;
     for (int r = 0; r < R; ++r)
         detail::hmat_row_out(o.row_[r], smoothstep(lo, hi, detail::hmat_row_in(x.row_[r])));
     return o;
@@ -1444,6 +1680,17 @@ SHADER_MATH_INLINE matrix<T, R, C> mad(const matrix<T, R, C>& a, const matrix<T,
     for (int r = 0; r < R; ++r)
         detail::hmat_row_out(o.row_[r],
                              mad(detail::hmat_row_in(a.row_[r]), detail::hmat_row_in(b.row_[r]),
+                                 detail::hmat_row_in(c.row_[r])));
+    return o;
+}
+template <int R, int C>
+SHADER_MATH_INLINE matrix<double, R, C> fma(const matrix<double, R, C>& a,
+                                            const matrix<double, R, C>& b,
+                                            const matrix<double, R, C>& c) {
+    matrix<double, R, C> o;
+    for (int r = 0; r < R; ++r)
+        detail::hmat_row_out(o.row_[r],
+                             fma(detail::hmat_row_in(a.row_[r]), detail::hmat_row_in(b.row_[r]),
                                  detail::hmat_row_in(c.row_[r])));
     return o;
 }

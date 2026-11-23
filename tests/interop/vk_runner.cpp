@@ -97,16 +97,19 @@ int main(int argc, char** argv) {
     if (want_f16) {
         feats.pNext = &f16;
         vkGetPhysicalDeviceFeatures2(phys, &feats);
-        if (!f16.shaderFloat16 || !feats.features.shaderInt16 || !feats.features.shaderInt64) {
-            std::fprintf(stderr, "SKIP: %s lacks shaderFloat16, shaderInt16 or shaderInt64\n",
+        if (!f16.shaderFloat16 || !feats.features.shaderInt16 || !feats.features.shaderInt64 ||
+            !feats.features.shaderFloat64) {
+            std::fprintf(stderr,
+                         "SKIP: %s lacks shaderFloat16, shaderInt16, shaderInt64 or shaderFloat64\n",
                          props.deviceName);
             return 77;
         }
         f16.shaderInt8 = VK_FALSE;
-        const VkBool32 i16 = VK_TRUE, i64 = VK_TRUE;
+        const VkBool32 i16 = VK_TRUE, i64 = VK_TRUE, f64 = VK_TRUE;
         feats.features = VkPhysicalDeviceFeatures{};
         feats.features.shaderInt16 = i16;
         feats.features.shaderInt64 = i64;
+        feats.features.shaderFloat64 = f64;
     }
 
     const float prio = 1.0f;

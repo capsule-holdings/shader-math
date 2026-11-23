@@ -32,6 +32,10 @@ void test_ostream() {
 #if defined(SHADER_MATH_HAS_HALF)
     CHECK(str(h::half2(0.5f, 2.0f)) == "(0.5, 2)");
 #endif
+    CHECK(str(h::double3(1.0, -2.5, 3.0)) == "(1, -2.5, 3)");
+    CHECK(str(g::dvec2(1.0, 2.5)) == "(1, 2.5)");
+    CHECK(str(h::double2x2(1.0, 2.0, 3.0, 4.0)) == "((1, 2), (3, 4))");
+    CHECK(str(g::dmat2(1.0, 2.0, 3.0, 4.0)) == "((1, 2), (3, 4))");
 }
 
 void test_format() {
@@ -47,6 +51,9 @@ void test_format() {
 #  if defined(SHADER_MATH_HAS_HALF)
     CHECK(std::format("{}", h::half2(0.5f, 2.0f)) == "(0.5, 2)");
 #  endif
+    CHECK(std::format("{:.12f}", h::double2(1.000000000001, 2.0)) ==
+          "(1.000000000001, 2.000000000000)");
+    CHECK(std::format("{:.1f}", g::dmat2(1.0, 2.0, 3.0, 4.0)) == "((1.0, 2.0), (3.0, 4.0))");
 #endif
 }
 
@@ -96,6 +103,19 @@ void test_hash() {
     // pad lanes past N never take part
     h::float4 wide(1.0f, 2.0f, 3.0f, 99.0f);
     CHECK(ids.count(h::float3(wide)) == 1);
+
+    // double vectors hash and compare at full double precision
+    std::unordered_map<h::double3, int> dids;
+    dids[h::double3(1.0, 2.0, 3.0)] = 1;
+    dids[h::double3(1.0 + 1e-12, 2.0, 3.0)] = 2;
+    CHECK(dids.size() == 2);
+    CHECK(dids.at(h::double3(1.0, 2.0, 3.0)) == 1);
+    CHECK(dids.at(h::double3(1.0 + 1e-12, 2.0, 3.0)) == 2);
+    CHECK(dids.count(h::double3(-0.0 + 1.0, 2.0, 3.0)) == 1);
+    std::unordered_set<shader_math::glsl::dvec2> ds;
+    ds.insert(shader_math::glsl::dvec2(0.0, 1.0));
+    ds.insert(shader_math::glsl::dvec2(-0.0, 1.0));
+    CHECK(ds.size() == 1);
 }
 
 void test_load_store() {
@@ -132,6 +152,15 @@ void test_load_store() {
     double d[3] = {};
     shader_math::store(v, d);
     CHECK(d[2] == 4.0);
+
+    const double ddata[4] = {1.000000000001, 2.0, 3.0, 4.0};
+    const auto dv = shader_math::load<h::double3>(ddata);
+    CHECK(dv[0] == 1.000000000001);
+    const auto dm = shader_math::load<g::dmat2>(ddata);
+    CHECK(dm[0][0] == 1.000000000001 && dm[1][1] == 4.0);
+    double dout[4] = {};
+    shader_math::store(dm, dout);
+    CHECK(dout[0] == 1.000000000001 && dout[3] == 4.0);
 }
 
 }  // namespace

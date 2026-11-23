@@ -30,6 +30,10 @@ using namespace shader_math::hlsl;
 #  include "dxc/dxc_cases.hlsli"
 #  include "dxc/dxc_case_list.h"
 #  define SM_HARNESS_CASES SM_DXIL_HALF_CASES
+#elif defined(SM_INTEROP_ENABLE_HALF) && defined(SM_INTEROP_DXC)
+#  include "dxc/dxc_cases.hlsli"
+#  include "dxc/dxc_case_list.h"
+#  define SM_HARNESS_CASES SM_DXC_HALF_CASES
 #elif defined(SM_INTEROP_ENABLE_HALF)
 #  define SM_HARNESS_CASES SM_INTEROP_HALF_CASES
 #elif defined(SM_INTEROP_DXIL)

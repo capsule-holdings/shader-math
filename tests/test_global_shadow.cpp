@@ -23,10 +23,16 @@ static_assert(std::is_same_v<decltype(isfinite(float4())), bool4>);
 static_assert(std::is_same_v<decltype(isfinite(float4().xyz)), bool3>);
 static_assert(std::is_same_v<decltype(isnan(float3x3())), bool3x3>);
 static_assert(std::is_same_v<decltype(isfinite(float2x4())), bool2x4>);
+static_assert(std::is_same_v<decltype(isnan(double4())), bool4>);
+static_assert(std::is_same_v<decltype(isinf(double4().xy)), bool2>);
+static_assert(std::is_same_v<decltype(isfinite(double4())), bool4>);
+static_assert(std::is_same_v<decltype(isnan(double3x3())), bool3x3>);
 }  // namespace hlsl_shadow
 
 namespace glsl_shadow {
 using namespace shader_math::glsl;
 static_assert(std::is_same_v<decltype(isnan(vec3())), bvec3>);
 static_assert(std::is_same_v<decltype(isinf(vec3().xy)), bvec2>);
+static_assert(std::is_same_v<decltype(isnan(dvec3())), bvec3>);
+static_assert(std::is_same_v<decltype(isinf(dvec3().xy)), bvec2>);
 }  // namespace glsl_shadow

@@ -30,9 +30,10 @@ namespace shader_math {
 namespace detail {
 
 // Element type as written: half prints, formats and hashes through float;
-// int and uint stay integers.
+// int, uint and double keep their own type.
 template <class T>
-using written_t = std::conditional_t<is_int_elem_v<T>, T, float>;
+using written_t =
+    std::conditional_t<is_int_elem_v<T> || std::is_same_v<T, double>, T, float>;
 template <class T>
 SHADER_MATH_INLINE written_t<T> as_written(T v) {
     return static_cast<written_t<T>>(v);

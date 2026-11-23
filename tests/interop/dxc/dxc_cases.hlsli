@@ -152,4 +152,48 @@ float4 case_bits_int_width_firstbit(float4 af, float4 bf)
     r += firstbithigh(int16_t4(0, -1, 1, -32768)) + firstbitlow(uint64_t4(0, 8, 1, 0));
     return asfloat(r + firstbithigh(int64_t4(bf * 4.0f)));
 }
+
+// 64-bit double vectors, exact fma, asdouble / 3-arg asuint, and double matrices
+// (DXC SPIR-V; DXC's DXIL backend lowers double mad / mul to dx.op.tertiary.f64
+// FMad, which inbox Windows WARP lacks and removes the device on).
+float4 case_bits_double_hlsl(float4 af, float4 bf)
+{
+    double4 a = double4(af) + double4(1.0 / 1048576.0, -1.0 / 524288.0, 1.0 / 262144.0, 0.0);
+    double4 b = double4(bf);
+    double4 r = fma(a, b, double4(1.0, -2.0, 0.5, 3.0));
+    r = abs(r) + min(a, b) + max(a, bf) + saturate(a) + mad(a, b, double4(0.25, 0.25, 0.25, 0.25));
+    double2x2 dm = double2x2(a.x, a.y, b.x, b.y);
+    float2x2 fm = float2x2(1.0f, 0.5f, -0.5f, 2.0f);
+    double2x2 pm = mul(dm, fm) + transpose(dm);
+    double1x3 r13 = a.xyz;
+    double3x1 c31 = b.xyz;
+    double1x1 d11 = mul(r13, c31);
+    r = r + double4(pm[0].x, pm[0].y, pm[1].x, pm[1].y) + double4(double(d11), a.x * b.x + a.y * b.y, 0.0, 0.0);
+    uint4 lo, hi;
+    asuint(r, lo, hi);
+    double4 rt = asdouble(lo, hi);
+    uint4 lo2, hi2;
+    asuint(rt, lo2, hi2);
+    return asfloat(lo2 ^ (hi2 << 1u));
+}
+
+// 64-bit double vectors, exact fma, asdouble / 3-arg asuint and double matrix
+// transpose / add using only the DXIL double ops inbox Windows WARP implements
+// (Fma, FAbs, FMin, FMax, MakeDouble, SplitDouble; no double FMad / Saturate).
+float4 case_bits_double_dxil(float4 af, float4 bf)
+{
+    double4 a = double4(af) + double4(1.0 / 1048576.0, -1.0 / 524288.0, 1.0 / 262144.0, 0.0);
+    double4 b = double4(bf);
+    double4 r = fma(a, b, double4(1.0, -2.0, 0.5, 3.0));
+    r = abs(r) + min(a, b) + max(a, bf);
+    double2x2 dm = double2x2(a.x, a.y, b.x, b.y);
+    double2x2 tm = transpose(dm) + double2x2(1.0, 0.5, -0.5, 2.0);
+    r = r + double4(tm[0].x, tm[0].y, tm[1].x, tm[1].y);
+    uint4 lo, hi;
+    asuint(r, lo, hi);
+    double4 rt = asdouble(lo, hi);
+    uint4 lo2, hi2;
+    asuint(rt, lo2, hi2);
+    return asfloat(lo2 ^ (hi2 << 1u));
+}
 #endif

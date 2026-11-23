@@ -30,6 +30,10 @@ template <class T, int R, int C, int RI, int CI>
 struct scalar_value<mswz<T, R, C, RI, CI>> {
     using type = T;
 };
+template <class T, int R, int C, int RI, int CI>
+struct scalar_lang<mswz<T, R, C, RI, CI>> {
+    using type = hlsl::lang_tag;
+};
 
 template <class T, int R, int C, int RI, int CI>
 struct SHADER_MATH_MAY_ALIAS mswz {
@@ -693,11 +697,11 @@ struct matrix
 
     // HLSL cast-style shrink from a bigger matrix (upper-left cut). Growth is
     // not provided (HLSL has no widening matrix cast).
-    template <int R2, int C2>
-        requires(R2 >= R && C2 >= C && !(R2 == R && C2 == C))
-    SHADER_MATH_INLINE explicit matrix(const matrix<T, R2, C2>& o) SM_HMAT_INIT {
+    template <class U, int R2, int C2>
+        requires(!std::is_same_v<U, bool> && R2 >= R && C2 >= C && !(R2 == R && C2 == C))
+    SHADER_MATH_INLINE explicit matrix(const matrix<U, R2, C2>& o) SM_HMAT_INIT {
         for (int r = 0; r < R; ++r)
-            for (int c = 0; c < C; ++c) row_[r][c] = o.row_[r][c];
+            for (int c = 0; c < C; ++c) row_[r][c] = detail::elem_cast<T>(o.row_[r][c]);
     }
 
     // Element-type conversion: implicit between int, uint and float (HLSL
@@ -899,20 +903,27 @@ struct matrix {
     // GLSL matrix-from-matrix resize: result starts as identity, then the
     // overlapping upper-left region is copied (grow fills from identity,
     // shrink cuts the upper-left submatrix).
-    template <int C2, int R2>
+    template <int C2, int R2, class U>
         requires(!(C2 == Cn && R2 == Rn))
-    SHADER_MATH_INLINE explicit matrix(const matrix<C2, R2, T>& o) {
+    SHADER_MATH_INLINE explicit matrix(const matrix<C2, R2, U>& o) {
         constexpr int d = Cn < Rn ? Cn : Rn;
         for (int i = 0; i < d; ++i) col_[i][i] = T(1.0f);
         constexpr int cc = Cn < C2 ? Cn : C2;
         constexpr int rr = Rn < R2 ? Rn : R2;
         for (int c = 0; c < cc; ++c)
-            for (int r = 0; r < rr; ++r) col_[c][r] = o.col_[c][r];
+            for (int r = 0; r < rr; ++r) col_[c][r] = detail::elem_cast<T>(o.col_[c][r]);
     }
 
-    // Explicit element-type conversion (half <-> float); no implicit mixing.
+    // Element-type conversion: implicit when GLSL widens (float -> double),
+    // explicit otherwise (double -> float, half <-> float/double). Two
+    // constrained constructors rather than explicit(cond) for Apple Clang.
     template <class U>
-        requires(!std::is_same_v<U, T>)
+        requires(detail::implicit_elem_v<U, T, glsl::lang_tag>)
+    SHADER_MATH_INLINE matrix(const matrix<Cn, Rn, U>& o) {
+        for (int c = 0; c < Cn; ++c) col_[c] = detail::gvec<Rn, T>(o.col_[c]);
+    }
+    template <class U>
+        requires(!std::is_same_v<U, T> && !detail::implicit_elem_v<U, T, glsl::lang_tag>)
     SHADER_MATH_INLINE explicit matrix(const matrix<Cn, Rn, U>& o) {
         for (int c = 0; c < Cn; ++c) col_[c] = detail::gvec<Rn, T>(o.col_[c]);
     }

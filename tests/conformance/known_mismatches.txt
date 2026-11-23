@@ -24,7 +24,6 @@ h_size_mismatch_trunc
 h_size_mismatch_2_3
 h_mul_shape_mismatch
 h_mul_vec_size_mismatch
-h_s_double_lit_max
 h_int_from_bool_implicit
 h_int16_plus_half
 h_oos_ddx
@@ -42,10 +41,8 @@ g_half_times_float
 g_swz_on_scalar
 g_swz_nested
 g_v_not
-g_s_double_lit_max
 g_i16_plus_f16
 g_oos_double
-g_oos_dvec3
 
 # GLSL: language rejects, shader-math accepts
 g_cast_c_style

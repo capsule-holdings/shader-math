@@ -4,7 +4,7 @@
 
 正本は英語版の README.md。この日本語版は追従が遅れることがある。
 
-HLSL / GLSL 互換のベクトル・行列ライブラリ（C++20、ヘッダオンリー、SIMD）。float / half のベクトルと行列、int / uint のベクトルを扱う。
+HLSL / GLSL 互換のベクトル・行列ライブラリ（C++20、ヘッダオンリー、SIMD）。float / double / half のベクトルと行列、int / uint のベクトルを扱う。
 
 シェーダに書いた式を、そのままの意味で `.cpp` に書けることを目的とする。`operator*` の意味が HLSL（成分ごと）と GLSL（行列積）で逆であるため、公開 API を二重名前空間に分離している。
 
@@ -40,10 +40,12 @@ void glsl_side() {
 - ベクトル: `hlsl::float2/3/4` と `glsl::vec2/3/4`（**別型**。中身と成分ごとの演算は同じ）。
   相互変換は explicit（`glsl::vec3(f)` / `hlsl::float3(v)`）で、混ぜた演算はコンパイルエラー
 - half ベクトル: `hlsl::half2/3/4` と `glsl::f16vec2/3/4`（同じく別型）。スカラーは `hlsl::half` / `glsl::float16_t`
-- 1 成分のベクトル（HLSL のみ）: `float1`、`half1`、`int1`、`uint1`、`bool1` と 16 / 64 ビットのもの（`vector<T, 1>`）。ベクトルの
+- double ベクトルと行列: `hlsl::double1/2/3/4`、`hlsl::double1x1`〜`double4x4`、`glsl::dvec2/3/4`（`f64vec2/3/4`）、`glsl::dmat2`〜`dmat4x4`（`f64mat2`〜`f64mat4x4`）、`glsl::float64_t`（言語ごとに別型、言語間の変換は explicit）。
+  HLSL は `double`・`float`・整数の間を双方向に暗黙変換し、double への `%` / `%=` をエラーとし、算術・比較・`abs` `sign` `min` `max` `clamp` `saturate` `rcp` `mad` `dot` `select` `mul` `transpose` `ext::inverse`・`fma`（double 専用、単一丸め）・`asdouble(lo, hi)` / 3 引数 `asuint(d, lo, hi)` を double 精度のまま計算し、その他の数学/超越関数と `determinant` は DXC と同じく `float` 経由で計算する。
+  GLSL は `float` および全整数幅（16 / 32 / 64 ビット）から `double` への拡幅のみ暗黙変換し（`dmat3 = mat3`、`dvec`/`vec` や `dmat`/`mat` の混在演算）、縮小は明示のみ、超越関数（`sin`、`exp`、`pow` など）の double 引数をエラーとし、`floor` `ceil` `trunc` `round` `roundEven` `fract` `mod` `mix` `step` `smoothstep` `sqrt` `inversesqrt` `fma` `modf` `frexp` `ldexp` `determinant` `inverse`・幾何関数を double 精度のまま計算する。さらに `packDouble2x32` / `unpackDouble2x32` と `doubleBitsToInt64` / `doubleBitsToUint64` / `int64BitsToDouble` / `uint64BitsToDouble` を提供する
+- 1 成分のベクトル（HLSL のみ）: `float1`、`double1`、`half1`、`int1`、`uint1`、`bool1` と 16 / 64 ビットのもの（`vector<T, 1>`）。ベクトルの
   綴りをしたスカラーで、要素型とは双方向に暗黙変換し、どの演算にもスカラーとして加わる（`float1 + float3` は `float3`）。
-  `.x` / `.r`、`.xx`〜`.xxxx`、`[0]` で読める。スカラーの結果はスカラーのまま（`float1 + float1` は `float` で、代入で戻る）。
-  未対応: 次元が 1 の行列（`float1x3`）
+  `.x` / `.r`、`.xx`〜`.xxxx`、`[0]` で読める。スカラーの結果はスカラーのまま（`float1 + float1` は `float` で、代入で戻る）
 - 整数ベクトル: `hlsl::int2/3/4` / `uint2/3/4` と `glsl::ivec2/3/4` / `uvec2/3/4`（別型。スカラーの別名は `uint`、HLSL は
   `dword` も）。算術は折り返し、言語が未定義とする場合も全バックエンドで同じ結果になる: `x / 0` と `x % 0` は全ビット 1
   （int では `-1`）、`INT_MIN / -1` は折り返し、シフト量は 32 で割った余り、float → int は 0 方向への切り捨てで NaN → 0、
@@ -94,7 +96,7 @@ void glsl_side() {
   - half と float の**暗黙混合演算は不可**（`half3 * float3` / `half3 * 2.0f` はコンパイルエラー、変換は explicit）。コンストラクタ引数は変換する（`half3(1.0f, 2.0f, 3.0f)`、`float4(v2, h2)` は可）
   - コンパイラ下限: gcc/clang は C++ で使える `_Float16` が必要（x86 では gcc 12+ / clang 15+、AArch64 では gcc 13+）。MSVC はビット格納のソフトウェア型で対応。未対応コンパイラでは half 型群は定義されない（float 面は無影響）
   - ARM ターゲットでは `arm_neon.h` がグローバル `float16_t` を定義するため、`using namespace glsl` 下の非修飾 `float16_t` は曖昧になる。`glsl::float16_t` と修飾するか `hlsl::half` を使う
-- 行列: HLSL は R,C ∈ {1,2,3,4} の全16形（`float1x1`〜`float4x4`、`half1x1`〜`half4x4`、`int1x1`〜`uint4x4`、`bool1x1`〜`bool4x4`、`matrix<T, R, C>`）、GLSL は C,R ∈ {2,3,4} の全9形。`hlsl::floatRxC`（行格納・行優先 ctor）と `glsl::matCxR`（列格納・列優先 ctor）は **別型**、相互変換は explicit（R,C ≥ 2 の形）
+- 行列: HLSL は R,C ∈ {1,2,3,4} の全16形（`float1x1`〜`float4x4`、`double1x1`〜`double4x4`、`half1x1`〜`half4x4`、`int1x1`〜`uint4x4`、`bool1x1`〜`bool4x4`、`matrix<T, R, C>`）、GLSL は C,R ∈ {2,3,4} の全9形。`hlsl::floatRxC`（行格納・行優先 ctor）と `glsl::matCxR`（列格納・列優先 ctor）は **別型**、相互変換は explicit（R,C ≥ 2 の形）
 - 対応関係は非正方で入れ替わる: `float3x4`（3行4列）≡ `mat4x3`（4列3行）
 - 比較結果: `hlsl::bool1/2/3/4` と `glsl::bvec2/3/4`（別型）、`hlsl::boolRxC`（`matrix<bool, R, C>`）。算術なし・bool への暗黙変換なし（1成分の `bool1` / `bool1x1` を除く）。
   float ベクトルとは明示的に変換できる（`float3(b)` は真で 1、`bool3(v)` / `bvec3(v)` は 0 以外で真）。暗黙の変換は無い
@@ -208,8 +210,9 @@ shader_math::store(m, ptr);                // 行列はコンストラクタの�
 （float ベクトルは算術スカラー可、half ベクトルは half のみ）。
 
 スカラーにも効く（`max(dot(n, l), 0.0)`、`saturate(v.x)`、`lerp(a, b, 0.5f)`）。ベクトル引数が無く、
-少なくとも 1 つが float / half / 1 成分の swizzle（`v.x`）/ 行列の要素（`m._11`）の呼び出しがスカラー版になり、
-ほかの引数は上と同じ規則で変換される（`2.0` だけの呼び出しは対象外なので `2.0f` と書く）。中身はベクトル版を
+少なくとも 1 つが float / double / half / 1 成分の swizzle（`v.x`）/ 行列の要素（`m._11`）の呼び出しがスカラー版になり、
+ほかの引数は上と同じ規則で変換される（`0.5` のような素の `double` リテラルと `float` が混ざる場合は `float` のまま、
+`max(1.0, 2.0)` のように double のみの呼び出しは `double` になる）。中身はベクトル版を
 1 レーンで実行するので、丸めや境界値の扱いはベクトルと同じ。`dot` / `length` / `distance` と、
 `modf` / `frexp` / `sincos`（出力引数もスカラー）、`select(bool, a, b)`、`mix(x, y, bool)` もスカラーで使える。
 `isnan` / `isinf` / `isfinite`、幾何関数の `normalize` / `reflect` / `refract` / `faceforward` もスカラーで使える。
@@ -379,8 +382,8 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
   （`bench/compile_time.py` の実測で gcc・clang とも 3.2 倍）。既定で無効なのはこのため
 - GLSL の `not()` は C++ の代替トークン（`!`）と衝突するため `not_()`
 - `v.x` はプロキシ型（可変長引数に直接渡すときは `float(v.x)` にする）
-- 対象は float と half（ベクトルと行列）、16 / 32 / 64 ビットの int / uint ベクトル、HLSL の int / uint 行列。`double`、`1xN` 行列、
-  HLSL の 8 ビットのパック（`pack_u8`、`int8_t4_packed` など）、GPU 専用機能（テクスチャ・微分・atomic）は対象外
+- 対象は float・double・half（ベクトルと行列）、16 / 32 / 64 ビットの int / uint ベクトル、HLSL の 32 ビット int / uint・bool 行列（1..4 × 1..4 の全形）。
+  16 / 64 ビットの整数行列、HLSL の 8 ビットのパック（`pack_u8`、`int8_t4_packed` など）、GPU 専用機能（テクスチャ・微分・atomic）は対象外
 - 言語互換であってメモリ ABI 互換ではない（`sizeof(float3) == 16`。定数バッファのパッキングとは別物）
 - 成分アクセス・swizzle は SIMD レジスタとの union による型パンニングで実装している。
   ISO C++ では未定義動作で、gcc / clang / MSVC の実装上の扱いに依存する（gcc / clang ではプロキシ型に

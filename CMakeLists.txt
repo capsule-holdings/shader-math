@@ -145,6 +145,7 @@ if(SHADER_MATH_BUILD_TESTS)
         tests/test_int_vectors.cpp
         tests/test_int_widths.cpp
         tests/test_half.cpp
+        tests/test_double.cpp
         tests/test_funcs.cpp
         tests/test_global_shadow.cpp
         tests/test_pad_lanes.cpp
@@ -440,7 +441,7 @@ if(SHADER_MATH_BUILD_TESTS)
             add_executable(dxc_vk_runner_half ${SM_INTEROP_DIR}/vk_runner.cpp)
             target_include_directories(dxc_vk_runner_half PRIVATE ${SM_INTEROP_DIR})
             target_compile_definitions(dxc_vk_runner_half PRIVATE
-                "SM_VK_CASES_HEADER=\"shared/case_list.h\"" SM_VK_CASES=SM_INTEROP_HALF_CASES)
+                "SM_VK_CASES_HEADER=\"dxc/dxc_case_list.h\"" SM_VK_CASES=SM_DXC_HALF_CASES)
             target_link_libraries(dxc_vk_runner_half PRIVATE Vulkan::Vulkan)
             shader_math_warnings(dxc_vk_runner_half)
             add_executable(dxc_vk_runner_matrix_swizzle ${SM_INTEROP_DIR}/vk_runner.cpp)
@@ -456,7 +457,9 @@ if(SHADER_MATH_BUILD_TESTS)
             target_link_libraries(shader_math_dxc_cpp PRIVATE shader_math)
             shader_math_warnings(shader_math_dxc_cpp)
             add_executable(shader_math_dxc_cpp_half ${SM_INTEROP_DIR}/cpp_harness.cpp)
-            target_compile_definitions(shader_math_dxc_cpp_half PRIVATE SM_INTEROP_ENABLE_HALF)
+            target_compile_definitions(shader_math_dxc_cpp_half PRIVATE
+                SM_INTEROP_ENABLE_HALF SM_INTEROP_DXC)
+            target_include_directories(shader_math_dxc_cpp_half PRIVATE ${SM_INTEROP_DIR})
             target_link_libraries(shader_math_dxc_cpp_half PRIVATE shader_math)
             shader_math_warnings(shader_math_dxc_cpp_half)
             add_executable(shader_math_dxc_cpp_matrix_swizzle ${SM_INTEROP_DIR}/cpp_harness.cpp)

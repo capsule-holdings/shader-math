@@ -16,6 +16,13 @@ namespace glsl {
 using vec2 = detail::gvec<2>;
 using vec3 = detail::gvec<3>;
 using vec4 = detail::gvec<4>;
+using float64_t = double;
+using dvec2 = detail::gvec<2, double>;
+using dvec3 = detail::gvec<3, double>;
+using dvec4 = detail::gvec<4, double>;
+using f64vec2 = dvec2;
+using f64vec3 = dvec3;
+using f64vec4 = dvec4;
 using bvec2 = detail::bvec<2, lang_tag>;
 using bvec3 = detail::bvec<3, lang_tag>;
 using bvec4 = detail::bvec<4, lang_tag>;
@@ -73,6 +80,31 @@ using mat3x4 = matrix<3, 4>;
 using mat4x2 = matrix<4, 2>;
 using mat4x3 = matrix<4, 3>;
 using mat4x4 = matrix<4, 4>;
+
+using dmat2 = matrix<2, 2, double>;
+using dmat3 = matrix<3, 3, double>;
+using dmat4 = matrix<4, 4, double>;
+using dmat2x2 = matrix<2, 2, double>;
+using dmat2x3 = matrix<2, 3, double>;
+using dmat2x4 = matrix<2, 4, double>;
+using dmat3x2 = matrix<3, 2, double>;
+using dmat3x3 = matrix<3, 3, double>;
+using dmat3x4 = matrix<3, 4, double>;
+using dmat4x2 = matrix<4, 2, double>;
+using dmat4x3 = matrix<4, 3, double>;
+using dmat4x4 = matrix<4, 4, double>;
+using f64mat2 = dmat2;
+using f64mat3 = dmat3;
+using f64mat4 = dmat4;
+using f64mat2x2 = dmat2x2;
+using f64mat2x3 = dmat2x3;
+using f64mat2x4 = dmat2x4;
+using f64mat3x2 = dmat3x2;
+using f64mat3x3 = dmat3x3;
+using f64mat3x4 = dmat3x4;
+using f64mat4x2 = dmat4x2;
+using f64mat4x3 = dmat4x3;
+using f64mat4x4 = dmat4x4;
 
 // Half matrices (GLSL f16matCxR); non-square shape correspondence with the
 // HLSL halfRxC aliases is the same as for float (f16mat4x3 == half3x4 math).
@@ -171,13 +203,16 @@ SHADER_MATH_INLINE bool isinf(A a) {
 SHADER_MATH_INLINE float round(float a) {
     return detail::round_lane(a);
 }
+SHADER_MATH_INLINE double round(double a) {
+    return detail::round_lane(a);
+}
 #if defined(SHADER_MATH_HAS_HALF)
 SHADER_MATH_INLINE detail::half_t round(detail::half_t a) {
     return detail::round_lane(a);
 }
 #endif
 template <class A>
-    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
+    requires(detail::VecOf<A, lang_tag> && detail::GlslDoubleOrFloatVec<A>)
 SHADER_MATH_INLINE auto round(const A& a) {
     return detail::round(a);
 }
@@ -214,17 +249,17 @@ SHADER_MATH_INLINE auto roundEven(const A& a) {
     return detail::round_even_impl(a);
 }
 template <class A>
-    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
+    requires(detail::VecOf<A, lang_tag> && detail::NonDoubleFloatVec<A>)
 SHADER_MATH_INLINE auto asinh(const A& a) {
     return detail::asinh_impl(a);
 }
 template <class A>
-    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
+    requires(detail::VecOf<A, lang_tag> && detail::NonDoubleFloatVec<A>)
 SHADER_MATH_INLINE auto acosh(const A& a) {
     return detail::acosh_impl(a);
 }
 template <class A>
-    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
+    requires(detail::VecOf<A, lang_tag> && detail::NonDoubleFloatVec<A>)
 SHADER_MATH_INLINE auto atanh(const A& a) {
     return detail::atanh_impl(a);
 }
@@ -265,33 +300,48 @@ SHADER_MATH_INLINE auto frexp(const A& a, detail::gvec<N, int>& e) {
     const detail::vec_t<A> v = detail::to_vec(a);
     T m[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
     int ex[4] = {0, 0, 0, 0};
-    for (int i = 0; i < N; ++i) m[i] = static_cast<T>(std::frexp(static_cast<float>(v[i]), &ex[i]));
+    for (int i = 0; i < N; ++i) {
+        if constexpr (std::is_same_v<T, double>)
+            m[i] = std::frexp(v[i], &ex[i]);
+        else
+            m[i] = static_cast<T>(std::frexp(static_cast<float>(v[i]), &ex[i]));
+    }
     e = detail::gvec<N, int>(detail::vops<int>::load4(ex));
     return detail::vec_t<A>(detail::vops<T>::load4(m));
 }
 template <class A, class T = detail::scalar_call_t<A>>
     requires detail::FloatScalarCall<A>
 SHADER_MATH_INLINE T frexp(const A& a, int& e) {
-    return static_cast<T>(std::frexp(static_cast<float>(static_cast<T>(a)), &e));
+    if constexpr (std::is_same_v<T, double>)
+        return std::frexp(static_cast<double>(a), &e);
+    else
+        return static_cast<T>(std::frexp(static_cast<float>(static_cast<T>(a)), &e));
 }
 // ldexp(x, e) = x * 2^e with an int exponent
 template <class A, class B>
     requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A> && detail::VecOf<B, lang_tag> &&
-             std::is_same_v<detail::vec_elem_t<B>, int> &&
+             detail::arg_elem_v<detail::vec_elem_t<B>, int, lang_tag> &&
              detail::vec_size_v<A> == detail::vec_size_v<B>)
 SHADER_MATH_INLINE auto ldexp(const A& a, const B& b) {
     using T = detail::vec_elem_t<A>;
     const detail::vec_t<A> v = detail::to_vec(a);
-    const detail::vec_t<B> e = detail::to_vec(b);
+    const detail::gvec<detail::vec_size_v<A>, int> e(detail::to_vec(b));
     T r[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
-    for (int i = 0; i < detail::vec_size_v<A>; ++i)
-        r[i] = static_cast<T>(std::ldexp(static_cast<float>(v[i]), e[i]));
+    for (int i = 0; i < detail::vec_size_v<A>; ++i) {
+        if constexpr (std::is_same_v<T, double>)
+            r[i] = std::ldexp(v[i], e[i]);
+        else
+            r[i] = static_cast<T>(std::ldexp(static_cast<float>(v[i]), e[i]));
+    }
     return detail::vec_t<A>(detail::vops<T>::load4(r));
 }
 template <class A, class I, class T = detail::scalar_call_t<A>>
     requires(detail::FloatScalarCall<A> && detail::is_int_scalar_v<I>)
 SHADER_MATH_INLINE T ldexp(const A& a, I e) {
-    return static_cast<T>(std::ldexp(static_cast<float>(static_cast<T>(a)), static_cast<int>(e)));
+    if constexpr (std::is_same_v<T, double>)
+        return std::ldexp(static_cast<double>(a), static_cast<int>(e));
+    else
+        return static_cast<T>(std::ldexp(static_cast<float>(static_cast<T>(a)), static_cast<int>(e)));
 }
 
 // floatBitsToInt / floatBitsToUint / intBitsToFloat / uintBitsToFloat: the
@@ -338,6 +388,29 @@ SM_GLSL_BITCAST16(int16BitsToFloat16, int16_t, float16_t)
 SM_GLSL_BITCAST16(uint16BitsToFloat16, uint16_t, float16_t)
 #undef SM_GLSL_BITCAST16
 #endif
+
+// doubleBitsToInt64 / doubleBitsToUint64 / int64BitsToDouble /
+// uint64BitsToDouble (GL_EXT_shader_explicit_arithmetic_types): the same
+// bits as another 64-bit type
+#define SM_GLSL_BITCAST64(name, From, U)                                                       \
+    template <class A>                                                                         \
+        requires(detail::VecOf<A, lang_tag> &&                                                 \
+                 detail::arg_elem_v<detail::vec_elem_t<A>, From, lang_tag>)                    \
+    SHADER_MATH_INLINE auto name(const A& a) {                                                 \
+        return detail::map_int_lanes<U>(                                                       \
+            detail::gvec<detail::vec_size_v<A>, From>(detail::to_vec(a)),                      \
+            [](From x) { return detail::bitcast_lane<U>(x); });                                \
+    }                                                                                          \
+    template <class S, class V = typename detail::scalar_value<std::remove_cvref_t<S>>::type>  \
+        requires(!detail::VecLike<S> && detail::arg_elem_v<V, From, lang_tag>)                 \
+    SHADER_MATH_INLINE U name(const S& s) {                                                    \
+        return detail::bitcast_lane<U>(static_cast<From>(static_cast<V>(s)));                  \
+    }
+SM_GLSL_BITCAST64(doubleBitsToInt64, double, int64_t)
+SM_GLSL_BITCAST64(doubleBitsToUint64, double, uint64_t)
+SM_GLSL_BITCAST64(int64BitsToDouble, int64_t, double)
+SM_GLSL_BITCAST64(uint64BitsToDouble, uint64_t, double)
+#undef SM_GLSL_BITCAST64
 
 // ---- integer functions (GLSL 8.8) -------------------------------------------
 // bitCount / findMSB / findLSB take integers of 16, 32 and 64 bits and give a
@@ -613,6 +686,20 @@ SM_GLSL_UNPACK(unpackFloat2x16, uint, float16_t, 2)
 #undef SM_GLSL_PACK
 #undef SM_GLSL_UNPACK
 
+// packDouble2x32 / unpackDouble2x32 (GLSL 8.4): low 32 bits in x, high in y
+template <class A>
+    requires detail::VecArg<A, uint, 2, lang_tag>
+SHADER_MATH_INLINE double packDouble2x32(const A& a) {
+    return detail::bitcast_lane<double>(
+        detail::pack_lanes<uint64_t>(detail::gvec<2, uint>(detail::to_vec(a))));
+}
+template <class S>
+    requires detail::ScalarArg<S, double, lang_tag>
+SHADER_MATH_INLINE uvec2 unpackDouble2x32(const S& s) {
+    return detail::unpack_lanes<uint, 2, lang_tag>(
+        detail::bitcast_lane<uint64_t>(static_cast<double>(s)));
+}
+
 // scalar arguments (detail::ScalarCall): GLSL-only spellings
 SHADER_MATH_SCALAR_FN3(mix)
 SHADER_MATH_SCALAR_FN1(fract)
@@ -641,6 +728,13 @@ SHADER_MATH_INLINE auto mix(const A& x, const B& y, bool c) {
             return detail::vops<T>::fn(a.col_[c].q_, b.col_[c].q_);                      \
         });                                                                              \
         return o;                                                                        \
+    }                                                                                    \
+    template <int Cn, int Rn, class T, class U>                                          \
+        requires detail::MixedElems<T, U, lang_tag>                                      \
+    SHADER_MATH_INLINE auto operator sym(const matrix<Cn, Rn, T>& a,                     \
+                                         const matrix<Cn, Rn, U>& b) {                   \
+        using E = detail::common_elem_t<T, U, lang_tag>;                                 \
+        return matrix<Cn, Rn, E>(a) sym matrix<Cn, Rn, E>(b);                            \
     }                                                                                    \
     template <int Cn, int Rn, class T, class S>                                          \
         requires detail::ScalarFor<S, T>                                                 \
@@ -711,6 +805,12 @@ SHADER_MATH_INLINE matrix<C2, R1, T> operator*(const matrix<C1, R1, T>& a,
         o.col_[j] = detail::gvec<R1, T>(detail::mad_accum<C1>(b.col_[j].q_, a.col_));
     return o;
 }
+template <int C1, int R1, int C2, class T, class U>
+    requires detail::MixedElems<T, U, lang_tag>
+SHADER_MATH_INLINE auto operator*(const matrix<C1, R1, T>& a, const matrix<C2, C1, U>& b) {
+    using E = detail::common_elem_t<T, U, lang_tag>;
+    return matrix<C1, R1, E>(a) * matrix<C2, C1, E>(b);
+}
 
 #if defined(SHADER_MATH_HAS_AVX_2ROW)
 // float mat4 product on the shared YMM kernel (AVX1 + FMA3, bit-identical to
@@ -730,6 +830,13 @@ SHADER_MATH_INLINE detail::gvec<Rn, T> operator*(const matrix<Cn, Rn, T>& m, con
     const detail::gvec<Cn, T> v = detail::to_vec(v0);
     return detail::gvec<Rn, T>(detail::mad_accum<Cn>(v.q_, m.col_));
 }
+template <int Cn, int Rn, class T, class V>
+    requires(detail::VecOf<V, lang_tag> && detail::vec_size_v<V> == Cn &&
+             detail::MixedElems<T, detail::vec_elem_t<V>, lang_tag>)
+SHADER_MATH_INLINE auto operator*(const matrix<Cn, Rn, T>& m, const V& v) {
+    using E = detail::common_elem_t<T, detail::vec_elem_t<V>, lang_tag>;
+    return matrix<Cn, Rn, E>(m) * detail::gvec<Cn, E>(detail::to_vec(v));
+}
 
 // row vector * matrix
 template <class V, int Cn, int Rn, class T>
@@ -739,6 +846,13 @@ SHADER_MATH_INLINE detail::gvec<Cn, T> operator*(const V& v0, const matrix<Cn, R
     T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
     for (int c = 0; c < Cn; ++c) t[c] = detail::dot(v, m.col_[c]);
     return detail::gvec<Cn, T>(detail::vops<T>::load4(t));
+}
+template <class V, int Cn, int Rn, class T>
+    requires(detail::VecOf<V, lang_tag> && detail::vec_size_v<V> == Rn &&
+             detail::MixedElems<detail::vec_elem_t<V>, T, lang_tag>)
+SHADER_MATH_INLINE auto operator*(const V& v, const matrix<Cn, Rn, T>& m) {
+    using E = detail::common_elem_t<detail::vec_elem_t<V>, T, lang_tag>;
+    return detail::gvec<Rn, E>(detail::to_vec(v)) * matrix<Cn, Rn, E>(m);
 }
 
 // scalar scaling
@@ -763,6 +877,13 @@ SHADER_MATH_INLINE detail::gvec<N, T>& operator*=(detail::gvec<N, T>& v,
     v = v * m;
     return v;
 }
+template <int N, class T, class U>
+    requires detail::implicit_elem_v<U, T, lang_tag>
+SHADER_MATH_INLINE detail::gvec<N, T>& operator*=(detail::gvec<N, T>& v,
+                                                 const matrix<N, N, U>& m) {
+    v = v * matrix<N, N, T>(m);
+    return v;
+}
 
 // compound assignment
 template <int Cn, int Rn, class T>
@@ -771,10 +892,24 @@ SHADER_MATH_INLINE matrix<Cn, Rn, T>& operator+=(matrix<Cn, Rn, T>& a,
     a = a + b;
     return a;
 }
+template <int Cn, int Rn, class T, class U>
+    requires detail::implicit_elem_v<U, T, lang_tag>
+SHADER_MATH_INLINE matrix<Cn, Rn, T>& operator+=(matrix<Cn, Rn, T>& a,
+                                                 const matrix<Cn, Rn, U>& b) {
+    a = a + matrix<Cn, Rn, T>(b);
+    return a;
+}
 template <int Cn, int Rn, class T>
 SHADER_MATH_INLINE matrix<Cn, Rn, T>& operator-=(matrix<Cn, Rn, T>& a,
                                                  const matrix<Cn, Rn, T>& b) {
     a = a - b;
+    return a;
+}
+template <int Cn, int Rn, class T, class U>
+    requires detail::implicit_elem_v<U, T, lang_tag>
+SHADER_MATH_INLINE matrix<Cn, Rn, T>& operator-=(matrix<Cn, Rn, T>& a,
+                                                 const matrix<Cn, Rn, U>& b) {
+    a = a - matrix<Cn, Rn, T>(b);
     return a;
 }
 template <int Cn, int Rn, class T>
@@ -783,11 +918,25 @@ SHADER_MATH_INLINE matrix<Cn, Rn, T>& operator/=(matrix<Cn, Rn, T>& a,
     a = a / b;
     return a;
 }
+template <int Cn, int Rn, class T, class U>
+    requires detail::implicit_elem_v<U, T, lang_tag>
+SHADER_MATH_INLINE matrix<Cn, Rn, T>& operator/=(matrix<Cn, Rn, T>& a,
+                                                 const matrix<Cn, Rn, U>& b) {
+    a = a / matrix<Cn, Rn, T>(b);
+    return a;
+}
 // m *= n requires the product to keep m's shape, i.e. square n (GLSL rule)
 template <int Cn, int Rn, class T>
 SHADER_MATH_INLINE matrix<Cn, Rn, T>& operator*=(matrix<Cn, Rn, T>& a,
                                                  const matrix<Cn, Cn, T>& b) {
     a = a * b;
+    return a;
+}
+template <int Cn, int Rn, class T, class U>
+    requires detail::implicit_elem_v<U, T, lang_tag>
+SHADER_MATH_INLINE matrix<Cn, Rn, T>& operator*=(matrix<Cn, Rn, T>& a,
+                                                 const matrix<Cn, Cn, U>& b) {
+    a = a * matrix<Cn, Cn, T>(b);
     return a;
 }
 template <int Cn, int Rn, class T, class S>
@@ -825,7 +974,13 @@ SHADER_MATH_INLINE bool operator==(const A& a, const B& b) {
                               n);
 }
 template <class A, class B>
-    requires(detail::SameVec<A, B> && detail::VecOf<A, lang_tag>)
+    requires(detail::MixedVec<A, B> && detail::VecOf<A, lang_tag>)
+SHADER_MATH_INLINE bool operator==(const A& a, const B& b) {
+    using M = detail::mixed_t<A, B>;
+    return M(detail::to_vec(a)) == M(detail::to_vec(b));
+}
+template <class A, class B>
+    requires((detail::SameVec<A, B> || detail::MixedVec<A, B>) && detail::VecOf<A, lang_tag>)
 SHADER_MATH_INLINE bool operator!=(const A& a, const B& b) {
     return !(a == b);
 }
@@ -836,8 +991,19 @@ SHADER_MATH_INLINE bool operator==(const matrix<Cn, Rn, T>& a, const matrix<Cn, 
             return false;
     return true;
 }
+template <int Cn, int Rn, class T, class U>
+    requires detail::MixedElems<T, U, lang_tag>
+SHADER_MATH_INLINE bool operator==(const matrix<Cn, Rn, T>& a, const matrix<Cn, Rn, U>& b) {
+    using E = detail::common_elem_t<T, U, lang_tag>;
+    return matrix<Cn, Rn, E>(a) == matrix<Cn, Rn, E>(b);
+}
 template <int Cn, int Rn, class T>
 SHADER_MATH_INLINE bool operator!=(const matrix<Cn, Rn, T>& a, const matrix<Cn, Rn, T>& b) {
+    return !(a == b);
+}
+template <int Cn, int Rn, class T, class U>
+    requires detail::MixedElems<T, U, lang_tag>
+SHADER_MATH_INLINE bool operator!=(const matrix<Cn, Rn, T>& a, const matrix<Cn, Rn, U>& b) {
     return !(a == b);
 }
 template <int N>
@@ -862,6 +1028,12 @@ SHADER_MATH_INLINE bool operator!=(const detail::bvec<N, lang_tag>& a,
         using T = detail::vec_elem_t<A>;                                                 \
         return detail::bvec<n, lang_tag>(                                                \
             detail::vops<T>::fn(detail::to_vec(a).q_, detail::to_vec(b).q_));            \
+    }                                                                                    \
+    template <class A, class B>                                                          \
+        requires(detail::MixedVec<A, B> && detail::VecOf<A, lang_tag>)                   \
+    SHADER_MATH_INLINE auto name(const A& a, const B& b) {                               \
+        using M = detail::mixed_t<A, B>;                                                 \
+        return name(M(detail::to_vec(a)), M(detail::to_vec(b)));                         \
     }
 
 SM_GLSL_CMP_FN(equal, cmp_eq)
@@ -887,6 +1059,12 @@ SHADER_MATH_INLINE matrix<Cn, Rn, T> matrixCompMult(const matrix<Cn, Rn, T>& a,
         o.col_, [&](int c) { return detail::vops<T>::mul(a.col_[c].q_, b.col_[c].q_); });
     return o;
 }
+template <int Cn, int Rn, class T, class U>
+    requires detail::MixedElems<T, U, lang_tag>
+SHADER_MATH_INLINE auto matrixCompMult(const matrix<Cn, Rn, T>& a, const matrix<Cn, Rn, U>& b) {
+    using E = detail::common_elem_t<T, U, lang_tag>;
+    return matrixCompMult(matrix<Cn, Rn, E>(a), matrix<Cn, Rn, E>(b));
+}
 
 // outerProduct(c, r): c is a column (Rx1), r is a row (1xC) -> matCxR
 template <class A, class B>
@@ -904,6 +1082,16 @@ outerProduct(const A& c0, const B& r0) {
         return detail::vops<T>::mul(c.q_, detail::vops<T>::splat(r[j]));
     });
     return o;
+}
+template <class A, class B>
+    requires(detail::VecOf<A, lang_tag> && detail::VecOf<B, lang_tag> &&
+             detail::MixedElems<detail::vec_elem_t<A>, detail::vec_elem_t<B>, lang_tag> &&
+             !detail::is_int_elem_v<
+                 detail::common_elem_t<detail::vec_elem_t<A>, detail::vec_elem_t<B>, lang_tag>>)
+SHADER_MATH_INLINE auto outerProduct(const A& c, const B& r) {
+    using E = detail::common_elem_t<detail::vec_elem_t<A>, detail::vec_elem_t<B>, lang_tag>;
+    return outerProduct(detail::gvec<detail::vec_size_v<A>, E>(detail::to_vec(c)),
+                        detail::gvec<detail::vec_size_v<B>, E>(detail::to_vec(r)));
 }
 
 template <int Cn, int Rn, class T>

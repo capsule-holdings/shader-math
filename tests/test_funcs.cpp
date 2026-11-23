@@ -563,7 +563,8 @@ static void test_funcs_scalar() {
     }
 #endif
     static_assert(std::same_as<decltype(shader_math::hlsl::max(1.0f, 2)), float>);
-    static_assert(!hlsl_max_ok<double, double>);  // at least one float / half
+    static_assert(std::same_as<decltype(shader_math::hlsl::max(1.0, 2.0)), double>);
+    static_assert(std::same_as<decltype(shader_math::hlsl::max(1.0, 2.0f)), float>);
     static_assert(!hlsl_max_ok<int, int>);
 }
 

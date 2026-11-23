@@ -2,7 +2,7 @@
 
 English | [日本語](README.ja.md)
 
-A vector and matrix library compatible with HLSL / GLSL (C++20, header-only, SIMD): float and half vectors and matrices, and int / uint vectors.
+A vector and matrix library compatible with HLSL / GLSL (C++20, header-only, SIMD): float, double and half vectors and matrices, and int / uint vectors.
 
 The goal is to let you write an expression from a shader in a `.cpp` file with the same meaning. Because `operator*` has opposite meanings in HLSL (component-wise) and GLSL (matrix product), the public API is split into two namespaces.
 
@@ -38,10 +38,13 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
 - Vectors: `hlsl::float2/3/4` and `glsl::vec2/3/4` (**distinct types**; the contents and the component-wise operations are the same).
   Conversion between them is explicit (`glsl::vec3(f)` / `hlsl::float3(v)`), and mixing them in an operation is a compile error
 - Half vectors: `hlsl::half2/3/4` and `glsl::f16vec2/3/4` (also distinct types). The scalars are `hlsl::half` / `glsl::float16_t`
-- One-component vectors (HLSL only): `float1`, `half1`, `int1`, `uint1`, `bool1` and the 16- / 64-bit ones (`vector<T, 1>`). They
+- Double vectors and matrices: `hlsl::double1/2/3/4`, `hlsl::double1x1`–`double4x4`, `glsl::dvec2/3/4` (`f64vec2/3/4`), `glsl::dmat2`–`dmat4x4` (`f64mat2`–`f64mat4x4`), and `glsl::float64_t` (distinct per language, explicit conversion across languages).
+  HLSL converts between `double`, `float` and integers implicitly either way, rejects `%` / `%=` on doubles, keeps native double precision for arithmetic, comparisons, `abs` `sign` `min` `max` `clamp` `saturate` `rcp` `mad` `dot` `select` `mul` `transpose` `ext::inverse`, `fma` (double-only, exact single rounding), and `asdouble(lo, hi)` / 3-arg `asuint(d, lo, hi)`, and lowers other math/transcendental intrinsics and `determinant` through `float` (matching DXC).
+  GLSL widens implicitly from `float` and all integer widths (16 / 32 / 64 bits) to `double` (`dmat3 = mat3`, mixed `dvec`/`vec` and `dmat`/`mat` operations), keeps narrowing explicit, rejects transcendentals (`sin`, `exp`, `pow`, …) on `double`, keeps native double precision for `floor` `ceil` `trunc` `round` `roundEven` `fract` `mod` `mix` `step` `smoothstep` `sqrt` `inversesqrt` `fma` `modf` `frexp` `ldexp` `determinant` `inverse` and geometry, and provides `packDouble2x32` / `unpackDouble2x32` and `doubleBitsToInt64` / `doubleBitsToUint64` / `int64BitsToDouble` / `uint64BitsToDouble`
+- One-component vectors (HLSL only): `float1`, `double1`, `half1`, `int1`, `uint1`, `bool1` and the 16- / 64-bit ones (`vector<T, 1>`). They
   are scalars spelled as vectors: they convert to and from their element type implicitly and take part in every operation as a
   scalar (`float1 + float3` is a `float3`), with `.x` / `.r`, `.xx` to `.xxxx` and `[0]`. A scalar result stays a scalar
-  (`float1 + float1` is a `float`, which converts back). Not covered: the matrices with a dimension of 1 (`float1x3`)
+  (`float1 + float1` is a `float`, which converts back)
 - Integer vectors: `hlsl::int2/3/4` / `uint2/3/4` and `glsl::ivec2/3/4` / `uvec2/3/4` (distinct types; the scalar aliases are
   `uint`, and `dword` in HLSL). Arithmetic wraps, and the cases the languages leave undefined give the same result on every backend:
   `x / 0` and `x % 0` give all bits set (`-1` for int), `INT_MIN / -1` wraps, shift counts are taken modulo 32, and float → int
@@ -95,7 +98,7 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
   - **Implicit mixed half / float arithmetic is not allowed** (`half3 * float3` / `half3 * 2.0f` are compile errors; conversion is explicit). Constructor arguments are converted (`half3(1.0f, 2.0f, 3.0f)` and `float4(v2, h2)` are allowed)
   - Minimum compilers: gcc/clang need a `_Float16` that works in C++ (gcc 12+ / clang 15+ on x86, gcc 13+ on AArch64). MSVC is supported with a software type that stores the bits. On unsupported compilers the half types are not defined (the float surface is unaffected)
   - On ARM targets, `arm_neon.h` defines a global `float16_t`, so an unqualified `float16_t` under `using namespace glsl` is ambiguous. Qualify it as `glsl::float16_t` or use `hlsl::half`
-- Matrices: HLSL has all 16 shapes with R, C ∈ {1,2,3,4} (`float1x1`–`float4x4`, `half1x1`–`half4x4`, `int1x1`–`uint4x4`, `bool1x1`–`bool4x4`, `matrix<T, R, C>`); GLSL has all 9 shapes with C, R ∈ {2,3,4}. `hlsl::floatRxC` (stored by rows, row-major ctor) and `glsl::matCxR` (stored by columns, column-major ctor) are **distinct types**; conversion between them is explicit (for shapes with R, C ≥ 2)
+- Matrices: HLSL has all 16 shapes with R, C ∈ {1,2,3,4} (`float1x1`–`float4x4`, `double1x1`–`double4x4`, `half1x1`–`half4x4`, `int1x1`–`uint4x4`, `bool1x1`–`bool4x4`, `matrix<T, R, C>`); GLSL has all 9 shapes with C, R ∈ {2,3,4}. `hlsl::floatRxC` (stored by rows, row-major ctor) and `glsl::matCxR` (stored by columns, column-major ctor) are **distinct types**; conversion between them is explicit (for shapes with R, C ≥ 2)
 - The correspondence swaps for non-square shapes: `float3x4` (3 rows, 4 columns) ≡ `mat4x3` (4 columns, 3 rows)
 - Comparison results: `hlsl::bool1/2/3/4` and `glsl::bvec2/3/4` (distinct types), and `hlsl::boolRxC` (`matrix<bool, R, C>`). No arithmetic and no implicit conversion to bool (except 1-component `bool1` / `bool1x1`).
   They can be converted explicitly to and from float vectors (`float3(b)` gives 1 where true; `bool3(v)` / `bvec3(v)` are true where nonzero). There is no implicit conversion
@@ -209,8 +212,9 @@ Component-wise functions on vectors (float / half). Scalar second / third argume
 (float vectors accept arithmetic scalars, half vectors accept half only).
 
 They also work on scalars (`max(dot(n, l), 0.0)`, `saturate(v.x)`, `lerp(a, b, 0.5f)`). A call with no vector argument and
-at least one float / half / one-component swizzle (`v.x`) / matrix element (`m._11`) argument becomes the scalar version,
-and the other arguments are converted by the same rules as above (a call with only `2.0` is not covered, so write `2.0f`). Internally it runs the vector version
+at least one float / double / half / one-component swizzle (`v.x`) / matrix element (`m._11`) argument becomes the scalar version,
+and the other arguments are converted by the same rules as above (when a plain `double` literal like `0.5` is mixed with `float`,
+the result stays `float`; all-double calls like `max(1.0, 2.0)` resolve to `double`). Internally it runs the vector version
 on one lane, so rounding and edge-case handling are the same as for vectors. `dot` / `length` / `distance`,
 `modf` / `frexp` / `sincos` (the output arguments are scalars too), `select(bool, a, b)` and `mix(x, y, bool)` can also be used on scalars.
 `isnan` / `isinf` / `isfinite` and the geometric functions `normalize` / `reflect` / `refract` / `faceforward` can also be used on scalars.
@@ -381,8 +385,8 @@ MSVC and Apple Clang are checked only at the CI runners' default versions.
   (measured with `bench/compile_time.py`: 3.2x on both gcc and clang). This is why it is disabled by default
 - GLSL's `not()` is `not_()` because `not` is a C++ alternative token (for `!`)
 - `v.x` is a proxy type (when passing it directly to variadic arguments, write `float(v.x)`)
-- The covered types are float and half (vectors and matrices), 16- / 32- / 64-bit int / uint vectors, and HLSL's int / uint matrices. `double`,
-  `1xN` matrices, HLSL's 8-bit packing (`pack_u8`, `int8_t4_packed`, …) and GPU-only features (textures, derivatives, atomics) are out of scope
+- The covered types are float, double and half (vectors and matrices), 16- / 32- / 64-bit int / uint vectors, and HLSL's 32-bit int / uint and bool matrices (all 1..4 × 1..4 shapes).
+  16- / 64-bit integer matrices, HLSL's 8-bit packing (`pack_u8`, `int8_t4_packed`, …) and GPU-only features (textures, derivatives, atomics) are out of scope
 - Language-compatible, not memory-ABI-compatible (`sizeof(float3) == 16`; this is unrelated to constant buffer packing)
 - Component access and swizzles are implemented with type punning through a union with the SIMD register.
   This is undefined behavior in ISO C++ and depends on how gcc / clang / MSVC handle it in practice (on gcc / clang the proxy types

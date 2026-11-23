@@ -1,8 +1,8 @@
 # HLSL / GLSL / shader-math compatibility mapping
 
 This is a list of how the constructs you can write in shaders are written in shader-math (`hlsl::` / `glsl::`). The
-scope is float / half vectors and matrices, int / uint vectors, their operations, and built-in functions (double,
-textures, and so on are listed under "Out of scope" at the end).
+scope is float / double / half vectors and matrices, int / uint vectors, their operations, and built-in functions (textures,
+derivatives, and so on are listed under "Out of scope" at the end).
 
 - Symbols: **○** can be written as is, with the same meaning / **△** can be written, but the rules or the syntax
   differ (see the notes) / **×** valid in the language but cannot be written in shader-math (reason given) / **−**
@@ -20,13 +20,16 @@ textures, and so on are listed under "Out of scope" at the end).
 | Template syntax | `vector<float, 3>` | − | ○ | `hlsl::vector<T = float, N = 4>`. `vector` without `<>` is △ (accepted by clang, rejected by gcc) |
 | half vector | `half2` to `half4` (when 16-bit types are enabled) | `f16vec2` to `f16vec4` (`GL_EXT_shader_explicit_arithmetic_types`) | ○ / ○ | Requires `_Float16` usable in C++ ("Types" in the README) |
 | half scalar | `half` | `float16_t` | ○ / △ | On ARM this is ambiguous with `::float16_t` from `arm_neon.h`, so write `glsl::float16_t` |
+| double vector | `double1` to `double4` | `dvec2` to `dvec4`, `f64vec2` to `f64vec4` | ○ / ○ | `sizeof(double3) == 32` (4 lanes). Distinct per language, explicit conversion across languages |
+| double scalar | `double` | `double`, `float64_t` | ○ / ○ | GLSL `1.0lf` literal suffix is invalid C++ (use plain `1.0` or `double(...)`) |
 | bool vector | `bool2` to `bool4` | `bvec2` to `bvec4` | ○ / ○ | Type of comparison results. No arithmetic (same in both languages) |
 | Matrix | `floatRxC` (R rows, C columns) | `matCxR` (C columns, R rows) | ○ / ○ | `float3x4` and `mat4x3` have the same shape. They are distinct types, and conversion is explicit |
+| double matrix | `doubleRxC` | `dmatCxR`, `f64matCxR` | ○ / ○ | HLSL covers all 1..4 × 1..4 shapes; GLSL covers 2..4 × 2..4 (`dmat3 = mat3` implicit widening) |
 | half matrix | `halfRxC` | `f16matCxR` | ○ / ○ | |
 | bool matrix | `boolRxC` | − | ○ / − | Result of HLSL matrix comparisons |
 | Matrix template syntax | `matrix<float, R, C>`, `matrix<>` (float4x4) | − | ○ / − | |
-| Single component | `float1`, `int1`, `vector<float, 1>`, etc. | − | ○ / − | A scalar spelled as a vector; scalar results stay scalars (`float1 + float1` is a `float`) |
-| 1xN, Nx1, 1x1 matrices | `float1x3`, `float3x1`, `float1x1`, etc. | − | ○ / − | `float`, `half`, `int`, `uint`, `bool` (`matrix<T, R, C>` with R, C ∈ {1..4}) |
+| Single component | `float1`, `double1`, `int1`, `vector<float, 1>`, etc. | − | ○ / − | A scalar spelled as a vector; scalar results stay scalars (`float1 + float1` is a `float`) |
+| 1xN, Nx1, 1x1 matrices | `float1x3`, `float3x1`, `float1x1`, etc. | − | ○ / − | `float`, `double`, `half`, `int`, `uint`, `bool` (`matrix<T, R, C>` with R, C ∈ {1..4}) |
 | Language of a type | − | − | `hlsl::lang_tag` / `glsl::lang_tag` | Internal to shader-math. Used so that operators and language-specific functions are found by ADL |
 
 ## Constructors and conversions
@@ -86,7 +89,7 @@ textures, and so on are listed under "Out of scope" at the end).
 | Unary `-` `+` | ○ | ○ | ○ / ○ | `+b` on a bool vector is also allowed |
 | `++` `--` (vectors and matrices) | ○ | ○ | ○ / ○ | |
 | Operations on vectors of different widths `a3 + a4` | ○ (truncated; DXC warns) | Error | × / ○ | Rejected on purpose |
-| `%`, `%=` (float) | ○ (same as `fmod`; sign of x) | − | ○ / − | GLSL uses `mod()` (sign of y) |
+| `%`, `%=` (float) | ○ (same as `fmod`; sign of x; error on `double`) | − | ○ / − | GLSL uses `mod()` (sign of y). HLSL rejects `%` / `%=` on `double` (matching DXC) |
 | `==` `!=` | Per-component bool vector | bool that is true when all components are equal | ○ / ○ | Found with the meaning that matches the type, even without `using` |
 | `<` `<=` `>` `>=` | Per-component bool vector | Not available for vectors (`lessThan()` and others) | ○ / ○ | |
 | `if (a == b)` (vectors) | Error (`all()` / `any()`) | ○ (bool) | ○ / ○ | |
@@ -123,10 +126,11 @@ matrices is HLSL only (GLSL functions take only genType).
 | − | `asinh` `acosh` `atanh` | − / ○ | |
 | `atan2(y, x)` | `atan(y, x)` | ○ / ○ | y comes first in both |
 | `degrees` `radians` | Same names | ○ / ○ | |
-| `mad` | `fma` | ○ / ○ | Fused on backends with FMA. HLSL `fma` is double-only (an error for float; same in shader-math) |
+| `mad`, `fma` (`double` only) | `fma` | ○ / ○ | Fused on backends with FMA (`double` always uses `std::fma`). HLSL `fma` is double-only (error for float; same in shader-math) |
+| `asdouble(lo, hi)`, `asuint(d, out lo, out hi)` | `packDouble2x32`, `unpackDouble2x32`, `doubleBitsToInt64` / `Uint64`, `int64` / `uint64BitsToDouble` | ○ / ○ | 64-bit double bit reinterpretation and packing |
 | `modf(x, out ip)` | Same name | ○ / ○ | The fractional part of ±inf is ±0 |
-| `frexp(x, out e)` (exponent is float) | `frexp(x, out ivec e)` | ○ / × | The GLSL version takes an int vector (out of scope) |
-| `ldexp(x, e)` (exponent is float) | `ldexp(x, ivec e)` | ○ / × | Same as above |
+| `frexp(x, out e)` (exponent is float) | `frexp(x, out ivec e)` | ○ / ○ | GLSL uses int exponents; works for float, double and half |
+| `ldexp(x, e)` (exponent is float) | `ldexp(x, ivec e)` | ○ / ○ | Same as above |
 | `isnan` `isinf` | Same names | ○ / ○ | Scalars are also allowed. Under `-ffast-math`, NaN checks may be removed |
 | `isfinite` | − | ○ / − | |
 | `sincos(x, out s, out c)` | − | ○ / − | |
@@ -142,9 +146,8 @@ matrices is HLSL only (GLSL functions take only genType).
 
 Differences caused by C++ syntax:
 
-- A call with only double literals (`max(1.0, 2.0)`) does not resolve to the scalar version (write `1.0f`; `1.0` is
-  also fine if there is a float argument or a vector)
 - `out` / `inout` parameters are taken by reference (`ip` in `modf(x, ip)` must be an lvalue)
+- GLSL `1.0lf` double literals are invalid C++ syntax (use plain `1.0` or `double(...)`)
 
 ## Integer vectors
 
@@ -194,8 +197,8 @@ Constructs that are errors in the language but compile, because C++ cannot disti
 | `if (s)`, `!s`, `&&` on floats, `?:` with a float condition, `int i = 1.5` | GLSL | Scalars are plain C++ `float`, so C++ conversions to bool and narrowing conversions apply |
 | `vec3{1, 2, 3}`, `float3{1, 2, 3}` | Both | C++ brace initialization (exists in neither language) |
 
-Constructs that cannot be written because of C++ syntax: swizzles on scalars (`s.xxx`), `float1`, `not()` / `and()` /
-`or()`, calls with only double literals (`max(1.0, 2.0)`), HLSL scalar `s % t` (write `fmod`), `v.x` passed to
+Constructs that cannot be written because of C++ syntax: swizzles on scalars (`s.xxx`), `not()` / `and()` /
+`or()`, GLSL `1.0lf` double literal suffix, HLSL scalar `s % t` (write `fmod`), `v.x` passed to
 variadic arguments, and `out` / `inout` (taken by reference).
 
 Differences that appear only in values: in a scalar-only expression, `1.0` is a double in C++, so `s * (1.0 / 3.0)` is
@@ -257,29 +260,31 @@ GPU ABI. Shader compilers also differ from each other (Slang's CPU `round`, DXC'
 
 | Category | Examples |
 | --- | --- |
-| Other numeric types | `double` / `dvec3`, `1.0L` / `1.0lf`, 16- / 64-bit integer matrices, 8-bit integers |
+| Other numeric types | GLSL `1.0lf` literal suffix, 16- / 64-bit integer matrices, 8-bit integers |
 | 8-bit packing (HLSL SM 6.6) | `pack_u8` `pack_s8` `unpack_s8s32` `int8_t4_packed` |
 | GPU-only | Derivatives (`ddx` / `dFdx`), textures, wave / subgroup, atomics, `clip` / `discard` |
 | Qualifiers and layout | `precise`, semantics, `cbuffer` / `uniform` packing (`sizeof(float3) == 16` is not the GPU ABI) |
 
 ## Conformance rate (2026-11-23)
 
-The fraction of the 826 cases in `tests/conformance/` (HLSL 432, GLSL 394) for which shader-math accepts and rejects
-the same code as the language. The values exclude the out-of-scope categories. The int / uint cases were added with
-the integer vectors; the earlier columns cover the float / half cases only.
+The fraction of the 955 cases in `tests/conformance/` (HLSL 520, GLSL 435) for which shader-math accepts and rejects
+the same code as the language. The values exclude the out-of-scope categories. The int / uint and double cases were
+added with those features; the earlier columns cover the float / half cases only.
 
 | | v0.5.0 | before int / uint | main |
 | --- | --- | --- | --- |
-| HLSL float / half (305) | 74.8% | 91.6% | 92.5% |
-| GLSL float / half (256) | 78.5% | 96.1% | 96.9% |
-| HLSL int / uint (77) | − | − | 98.7% |
+| HLSL float / half (340) | 74.8% | 91.6% | 93.5% |
+| GLSL float / half (256) | 78.5% | 96.1% | 97.3% |
+| HLSL int / uint (80) | − | − | 98.8% |
 | GLSL int / uint (63) | − | − | 100.0% |
 | HLSL 16- / 64-bit (40) | − | − | 97.5% |
 | GLSL 16- / 64-bit (58) | − | − | 98.3% |
 | HLSL packing (8) | − | − | 100.0% |
 | GLSL packing (15) | − | − | 100.0% |
-| HLSL total (430) | − | − | 94.2% |
-| GLSL total (392) | − | − | 97.7% |
+| HLSL double (51) | − | − | 100.0% |
+| GLSL double (42) | − | − | 100.0% |
+| HLSL total (519) | − | − | 95.4% |
+| GLSL total (434) | − | − | 98.2% |
 
 The one int / uint mismatch is HLSL's implicit bool → int (`int3 r = bb;`), kept explicit like bool → float. The
 16- / 64-bit mismatches are 16-bit integers mixed with half (both languages). GLSL's float / half cases went up with `frexp` / `ldexp` taking int exponents.
