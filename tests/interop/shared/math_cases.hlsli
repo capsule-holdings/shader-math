@@ -408,4 +408,22 @@ float4 case_half_products(float4 af, float4 bf)
     half2 v = mul(b.xy, hm);
     return float4(float(d), float(l.y + m.z), float(half(v.x)), float(half(v.y)));
 }
+
+// 16- and 64-bit integers (here because they need -enable-16bit-types and the
+// device features of the half kernels): wrapping at their width, division,
+// shifts, conversions across widths; 64-bit results return as two halves
+float4 case_bits_int_widths(float4 af, float4 bf)
+{
+    int16_t4 s = int16_t4(af * 4000.0f);  // 5000, -10000, 15000, 2000
+    s = s * int16_t(7) + int16_t(30000);
+    uint16_t4 u = uint16_t4(s) >> uint16_t(3);
+    int64_t4 l = int64_t4(af * 1000000000.0f) * int64_t(123457) - int64_t4(bf * 4.0f);
+    l = l / int64_t(1000) + l % int64_t(7) + (l >> int64_t(3));
+    uint64_t k = (uint64_t(0x9E3779B9u) << uint64_t(32)) | uint64_t(0x7F4A7C15u);
+    uint64_t4 ul = uint64_t4(l) * k;
+    int4 m = int4(s) + int4(u);
+    uint4 lo = uint4(ul & uint64_t(0xFFFFFFFFu));
+    uint4 hi = uint4(ul >> uint64_t(32));
+    return asfloat(uint4(m) ^ lo ^ (hi << 1u));
+}
 #endif

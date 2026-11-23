@@ -74,44 +74,109 @@ struct vops_for<std::uint32_t> {
     using ops_t = uops;
     using reg = ireg;
 };
+template <>
+struct vops_for<std::int16_t> {
+    using ops_t = narrow_ops<std::int16_t>;
+    using reg = nreg<std::int16_t>;
+};
+template <>
+struct vops_for<std::uint16_t> {
+    using ops_t = narrow_ops<std::uint16_t>;
+    using reg = nreg<std::uint16_t>;
+};
+template <>
+struct vops_for<std::int64_t> {
+    using ops_t = wide_ops<std::int64_t>;
+    using reg = wreg<std::int64_t>;
+};
+template <>
+struct vops_for<std::uint64_t> {
+    using ops_t = wide_ops<std::uint64_t>;
+    using reg = wreg<std::uint64_t>;
+};
 template <class T>
 using vops = typename vops_for<T>::ops_t;
 template <class T>
 using vreg = typename vops_for<T>::reg;
 
 // Element kinds: the floating-point functions take float and half vectors,
-// the integer operators int and uint vectors (docs/design/int_vectors.md)
+// the integer operators the int / uint vectors of 16, 32 and 64 bits
+// (docs/design/int_vectors.md); the bit casts, bit functions and packing
+// functions take the 32-bit ones
+template <class T>
+inline constexpr bool is_int32_elem_v =
+    std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>;
 template <class T>
 inline constexpr bool is_int_elem_v =
-    std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>;
+    is_int32_elem_v<T> || std::is_same_v<T, std::int16_t> || std::is_same_v<T, std::uint16_t> ||
+    std::is_same_v<T, std::int64_t> || std::is_same_v<T, std::uint64_t>;
 
-// Implicit conversions between 32-bit element types, per language: HLSL
-// converts between int, uint and float either way; GLSL only widens (int ->
-// uint, int / uint -> float). half and bool always convert explicitly.
+// Implicit conversions between the integer and float element types, per
+// language: HLSL converts between any of them either way; GLSL widens only
+// (to an integer of more bits or of the same bits unsigned, and to float from
+// 32 bits or fewer). half and bool always convert explicitly.
 template <class T>
-inline constexpr bool is_num32_v = std::is_same_v<T, float> || is_int_elem_v<T>;
+inline constexpr bool is_num32_v = std::is_same_v<T, float> || is_int32_elem_v<T>;
+template <class T>
+inline constexpr bool is_num_v = std::is_same_v<T, float> || is_int_elem_v<T>;
 template <class U, class T, class Lg>
 constexpr bool implicit_elem() {
-    if constexpr (std::is_same_v<U, T> || !is_num32_v<U> || !is_num32_v<T>) {
+    if constexpr (std::is_same_v<U, T> || !is_num_v<U> || !is_num_v<T>) {
         return false;
     } else if constexpr (is_glsl_v<Lg>) {
-        return is_int_elem_v<U> &&
-               (std::is_same_v<T, float> ||
-                (std::is_same_v<U, std::int32_t> && std::is_same_v<T, std::uint32_t>));
+        if constexpr (std::is_same_v<U, float>)
+            return false;
+        else if constexpr (std::is_same_v<T, float>)
+            return sizeof(U) <= 4;
+        else
+            return sizeof(T) > sizeof(U) ||
+                   (sizeof(T) == sizeof(U) && std::is_signed_v<U> && std::is_unsigned_v<T>);
     } else {
         return true;
     }
 }
 template <class U, class T, class Lg>
 inline constexpr bool implicit_elem_v = implicit_elem<U, T, Lg>();
-// two different element types among int, uint and float (mixed operands)
-template <class T, class U>
-concept MixedElems = !std::is_same_v<T, U> && is_num32_v<T> && is_num32_v<U>;
-// The type mixed int / uint / float operands compute in (both languages):
-// float when either is float, else uint
-template <class A, class B>
-using common_elem_t =
-    std::conditional_t<std::is_same_v<A, float> || std::is_same_v<B, float>, float, std::uint32_t>;
+// The type mixed operands compute in: HLSL takes float when either is float,
+// else the wider integer, unsigned when either is (uint16 + int is a uint);
+// GLSL converts one to the other implicitly (uint16 + int is an int, int64 +
+// float does not compile). void where there is none.
+template <class A, class B, class Lg>
+struct common_elem {
+    using type = void;
+};
+template <class A, class B, class Lg>
+    requires(is_num_v<A> && is_num_v<B>)
+struct common_elem<A, B, Lg> {
+    static constexpr auto pick() {
+        if constexpr (std::is_same_v<A, B>) {
+            return std::type_identity<A>{};
+        } else if constexpr (is_glsl_v<Lg>) {
+            if constexpr (implicit_elem_v<A, B, Lg>)
+                return std::type_identity<B>{};
+            else if constexpr (implicit_elem_v<B, A, Lg>)
+                return std::type_identity<A>{};
+            else
+                return std::type_identity<void>{};
+        } else if constexpr (std::is_same_v<A, float> || std::is_same_v<B, float>) {
+            return std::type_identity<float>{};
+        } else {
+            constexpr std::size_t w = sizeof(A) > sizeof(B) ? sizeof(A) : sizeof(B);
+            constexpr bool u = std::is_unsigned_v<A> || std::is_unsigned_v<B>;
+            using S = std::conditional_t<w == 2, std::int16_t,
+                                         std::conditional_t<w == 4, std::int32_t, std::int64_t>>;
+            return std::type_identity<std::conditional_t<u, std::make_unsigned_t<S>, S>>{};
+        }
+    }
+    using type = typename decltype(pick())::type;
+};
+template <class A, class B, class Lg>
+using common_elem_t = typename common_elem<A, B, Lg>::type;
+// two different element types among the integers and float that combine in
+// language Lg (mixed operands)
+template <class T, class U, class Lg>
+concept MixedElems = !std::is_same_v<T, U> && is_num_v<T> && is_num_v<U> &&
+                     !std::is_void_v<common_elem_t<T, U, Lg>>;
 
 // The value type of one constructor argument: itself, or the element type of
 // a one-component swizzle (specialized after the swizzle types)
@@ -126,11 +191,7 @@ template <class T, class U>
 SHADER_MATH_INLINE T elem_cast(const U& u) {
     using V = typename scalar_value<U>::type;
     if constexpr (is_int_elem_v<T> && !std::is_integral_v<V>) {
-        const float f = static_cast<float>(static_cast<V>(u));
-        if constexpr (std::is_same_v<T, std::int32_t>)
-            return int_lane::f2i(f);
-        else
-            return int_lane::f2u(f);
+        return int_lane::f2int<T>(static_cast<float>(static_cast<V>(u)));
     } else {
         return static_cast<T>(u);
     }
@@ -831,9 +892,8 @@ private:
     }
     template <class U, class Lg2>
     static SHADER_MATH_INLINE reg_t convert(const fvec<N, U, Lg2>& o) {
-        if constexpr (std::is_same_v<U, T> ||
-                      (is_int_elem_v<U> && is_int_elem_v<T>)) {
-            return o.q_;  // same type, or int <-> uint: the same bits
+        if constexpr (std::is_same_v<U, T> || (is_int32_elem_v<U> && is_int32_elem_v<T>)) {
+            return o.q_;  // same type, or 32-bit int <-> uint: the same register
         } else if constexpr (std::is_same_v<U, float> && is_int_elem_v<T>) {
             return ops_t::from_f32(o.q_);
         } else if constexpr (is_int_elem_v<U> && std::is_same_v<T, float>) {
@@ -937,6 +997,8 @@ template <class V>
 concept FloatVec = VecLike<V> && !is_int_elem_v<vec_elem_t<V>>;
 template <class V>
 concept IntVec = VecLike<V> && is_int_elem_v<vec_elem_t<V>>;
+template <class V>
+concept Int32Vec = VecLike<V> && is_int32_elem_v<vec_elem_t<V>>;
 template <class A, class B>
 concept SameFloatVec = SameVec<A, B> && FloatVec<A>;
 // a float vector of N components (the packing functions)
@@ -1079,16 +1141,15 @@ SM_VEC_COMPOUND(/)
 template <class A, class B>
 concept MixedVec = VecLike<A> && VecLike<B> && (vec_size_v<A> == vec_size_v<B>) &&
                    std::is_same_v<vec_lang_t<A>, vec_lang_t<B>> &&
-                   !std::is_same_v<vec_elem_t<A>, vec_elem_t<B>> && is_num32_v<vec_elem_t<A>> &&
-                   is_num32_v<vec_elem_t<B>>;
+                   MixedElems<vec_elem_t<A>, vec_elem_t<B>, vec_lang_t<A>>;
 template <class A, class B>
-using mixed_t =
-    fvec<vec_size_v<A>, common_elem_t<vec_elem_t<A>, vec_elem_t<B>>, vec_lang_t<A>>;
+using mixed_t = fvec<vec_size_v<A>, common_elem_t<vec_elem_t<A>, vec_elem_t<B>, vec_lang_t<A>>,
+                     vec_lang_t<A>>;
 template <class A>
 using float_vec_t = fvec<vec_size_v<A>, float, vec_lang_t<A>>;
 template <class A, class S>
-concept IntVecFloatScalar =
-    IntVec<A> && std::is_floating_point_v<std::remove_cvref_t<S>>;
+concept IntVecFloatScalar = IntVec<A> && std::is_floating_point_v<std::remove_cvref_t<S>> &&
+                            implicit_elem_v<vec_elem_t<A>, float, vec_lang_t<A>>;
 #define SM_MIXED_BINOP(sym)                                                         \
     template <class A, class B>                                                     \
         requires MixedVec<A, B>                                                     \
@@ -1174,7 +1235,8 @@ SHADER_MATH_INLINE auto operator~(const A& a) {
 // modulo 32. >> is arithmetic on int, logical on uint.
 template <class A, class B>
 concept ShiftCount = IntVec<A> && IntVec<B> && vec_size_v<A> == vec_size_v<B> &&
-                     std::is_same_v<vec_lang_t<A>, vec_lang_t<B>>;
+                     std::is_same_v<vec_lang_t<A>, vec_lang_t<B>> &&
+                     sizeof(vec_elem_t<A>) == sizeof(vec_elem_t<B>);
 #define SM_INT_SHIFT(sym, fn)                                                          \
     template <class A, class B>                                                        \
         requires ShiftCount<A, B>                                                      \
@@ -1691,8 +1753,9 @@ SHADER_MATH_INLINE vec_elem_t<A> idot(const A& a0, const B& b0) {
     using T = vec_elem_t<A>;
     T t[4];
     vops<T>::store4(vops<T>::mul(to_vec(a0).q_, to_vec(b0).q_), t);
-    std::uint32_t s = 0u;
-    for (int i = 0; i < n; ++i) s += static_cast<std::uint32_t>(t[i]);
+    using S = std::conditional_t<(sizeof(T) > 4), std::uint64_t, std::uint32_t>;
+    S s = 0u;
+    for (int i = 0; i < n; ++i) s += static_cast<S>(static_cast<std::make_unsigned_t<T>>(t[i]));
     return static_cast<T>(s);
 }
 
@@ -1779,7 +1842,7 @@ SHADER_MATH_INLINE T extract_lane(T x, int offset, int bits) {
 // an int or uint scalar, or one component of an int / uint vector
 template <class S>
 inline constexpr bool is_int32_scalar_v =
-    !VecLike<S> && is_int_elem_v<typename scalar_value<std::remove_cvref_t<S>>::type>;
+    !VecLike<S> && is_int32_elem_v<typename scalar_value<std::remove_cvref_t<S>>::type>;
 // the 64-bit products of int / uint lanes, split into high and low halves
 template <class A, class B, class T = vec_elem_t<A>>
     requires(IntVec<A> && SameVec<A, B>)
@@ -1814,7 +1877,7 @@ SHADER_MATH_INLINE float_vec_t<A> float_arg(const A& a) {
 // ---- bit reinterpretation (hlsl asint / asuint / asfloat, glsl
 // floatBitsToInt / floatBitsToUint / intBitsToFloat / uintBitsToFloat) -------
 template <class T>
-inline constexpr bool is_bits32_v = std::is_same_v<T, float> || is_int_elem_v<T>;
+inline constexpr bool is_bits32_v = std::is_same_v<T, float> || is_int32_elem_v<T>;
 template <class U, class A>
     requires(VecLike<A> && is_bits32_v<vec_elem_t<A>> && is_bits32_v<U>)
 SHADER_MATH_INLINE auto bitcast_vec(const A& a) {

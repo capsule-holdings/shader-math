@@ -6,7 +6,9 @@
 //
 //   <runner> <kernel.spv> [--f16]
 //
-// --f16 enables shaderFloat16; a device without it exits 77 (ctest skip).
+// --f16 enables shaderFloat16, shaderInt16 and shaderInt64 (the 16-bit kernels
+// also carry the 16- and 64-bit integer cases); a device without them exits
+// 77 (ctest skip).
 #include <vulkan/vulkan.h>
 
 #include <cstdint>
@@ -86,19 +88,25 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // float16 arithmetic (core in Vulkan 1.2) only when the kernel needs it
+    // float16 arithmetic (core in Vulkan 1.2) and 16- / 64-bit integers only
+    // when the kernel needs them
     VkPhysicalDeviceShaderFloat16Int8Features f16{};
     f16.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_FLOAT16_INT8_FEATURES;
+    VkPhysicalDeviceFeatures2 feats{};
+    feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     if (want_f16) {
-        VkPhysicalDeviceFeatures2 feats{};
-        feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
         feats.pNext = &f16;
         vkGetPhysicalDeviceFeatures2(phys, &feats);
-        if (!f16.shaderFloat16) {
-            std::fprintf(stderr, "SKIP: %s has no shaderFloat16\n", props.deviceName);
+        if (!f16.shaderFloat16 || !feats.features.shaderInt16 || !feats.features.shaderInt64) {
+            std::fprintf(stderr, "SKIP: %s lacks shaderFloat16, shaderInt16 or shaderInt64\n",
+                         props.deviceName);
             return 77;
         }
         f16.shaderInt8 = VK_FALSE;
+        const VkBool32 i16 = VK_TRUE, i64 = VK_TRUE;
+        feats.features = VkPhysicalDeviceFeatures{};
+        feats.features.shaderInt16 = i16;
+        feats.features.shaderInt64 = i64;
     }
 
     const float prio = 1.0f;
@@ -111,7 +119,7 @@ int main(int argc, char** argv) {
     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     dci.queueCreateInfoCount = 1;
     dci.pQueueCreateInfos = &qci;
-    if (want_f16) dci.pNext = &f16;
+    if (want_f16) dci.pNext = &feats;
     VkDevice dev;
     if (!ok(vkCreateDevice(phys, &dci, nullptr, &dev), "vkCreateDevice")) return 1;
     VkQueue queue;

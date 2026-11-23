@@ -324,6 +324,25 @@ h_int_matrix_abs	ok
 h_int_matrix_compare	ok	
 h_int_matrix_transpose	ok	
 h_float_matrix_compare_scalar	ok	
+h_int16_ctor	ok	
+h_int16_arith	ok	
+h_int16_plus_int	ok	
+h_int16_plus_uint16	ok	
+h_uint16_plus_int	ok	
+h_int_plus_int64	ok	
+h_uint_plus_int64	ok	
+h_int64_plus_uint64	ok	
+h_int64_plus_float	ok	
+h_int16_from_int	ok	
+h_int64_from_float	ok	
+h_int16_plus_half	ok	
+h_int16_shift	ok	
+h_int64_div_mod	ok	
+h_int64_compare	ok	
+h_int64_abs_min	ok	
+h_int16_dot	ok	
+h_int64_sqrt	ok	
+h_int64_countbits	ok	
 h_f32tof16	ok	
 h_f32tof16_vec	ok	
 h_f32tof16_int	ok	
@@ -650,6 +669,22 @@ g_umulExtended	ok
 g_imulExtended	ok	
 g_uaddCarry_scalar	ok	
 g_hlsl_countbits	err	g_hlsl_countbits.comp:4: 'countbits' : no matching overloaded function found
+g_i16vec_ctor	ok	
+g_i16_plus_int	ok	
+g_i16_plus_u16	ok	
+g_u16_plus_int	ok	
+g_uint_plus_i64	ok	
+g_i64_plus_u64	ok	
+g_i64_plus_float	err	g_i64_plus_float.comp:4: '+' : wrong operand types: no operation '+' exists that takes a left-hand operand of type ' in 
+g_i16_from_int	err	g_i16_from_int.comp:4: '=' : cannot convert from ' in highp 3-component vector of int' to ' temp 3-component vector of i
+g_int_from_i16	ok	
+g_float_from_i16	ok	
+g_float_from_i64	err	g_float_from_i64.comp:4: '=' : cannot convert from ' in 3-component vector of int64_t' to ' temp highp 3-component vecto
+g_i64_shift	ok	
+g_i64_less_than	ok	
+g_i64_abs_min	ok	
+g_i16_times_int_literal	err	g_i16_times_int_literal.comp:4: '=' : cannot convert from ' temp 3-component vector of int' to ' temp 3-component vector
+g_i16_plus_f16	ok	
 g_packHalf2x16	ok	
 g_packHalf2x16_vec3	err	g_packHalf2x16_vec3.comp:4: 'packHalf2x16' : no matching overloaded function found
 g_unpackHalf2x16	ok	

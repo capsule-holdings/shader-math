@@ -116,12 +116,13 @@ concept SimdHalfOps = requires(Reg r, Mask m, const T* cp, T* p, T s, int i) {
     { Ops::cmp_ge(r, r) } -> std::same_as<Mask>;
 };
 
-// 32-bit integer backend (signed and unsigned share Reg): wrapping
-// arithmetic, division and shifts with defined results for every input
-// (detail/int_lane.hpp), comparisons producing the shared float Mask, and
-// conversions to and from the float register FReg.
+// Integer lanes of any width: wrapping arithmetic, division and shifts with
+// defined results for every input (detail/int_lane.hpp), comparisons
+// producing the shared float Mask, and value conversions to and from the
+// float register FReg. SimdIntOps (the 32-bit backend, signed and unsigned
+// sharing Reg) adds the bit reinterpretation.
 template <class Ops, class Reg, class Mask, class FReg, class T>
-concept SimdIntOps = requires(Reg r, Mask m, FReg f, const T* cp, T* p, T s, int i) {
+concept SimdIntLaneOps = requires(Reg r, Mask m, FReg f, const T* cp, T* p, T s, int i) {
     { Ops::zero() } -> std::same_as<Reg>;
     { Ops::splat(s) } -> std::same_as<Reg>;
     { Ops::set(s, s, s, s) } -> std::same_as<Reg>;
@@ -158,9 +159,12 @@ concept SimdIntOps = requires(Reg r, Mask m, FReg f, const T* cp, T* p, T s, int
 
     { Ops::to_f32(r) } -> std::same_as<FReg>;
     { Ops::from_f32(f) } -> std::same_as<Reg>;
+    { Ops::from_mask(m) } -> std::same_as<Reg>;
+};
+template <class Ops, class Reg, class Mask, class FReg, class T>
+concept SimdIntOps = SimdIntLaneOps<Ops, Reg, Mask, FReg, T> && requires(Reg r, FReg f) {
     { Ops::bits_to_f32(r) } -> std::same_as<FReg>;
     { Ops::bits_from_f32(f) } -> std::same_as<Reg>;
-    { Ops::from_mask(m) } -> std::same_as<Reg>;
 };
 
 }  // namespace detail

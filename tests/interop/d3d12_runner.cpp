@@ -6,7 +6,8 @@
 //
 //   <runner> <kernel.dxil> [--f16]
 //
-// --f16 needs Native16BitShaderOpsSupported; WARP without it exits 77
+// --f16 needs Native16BitShaderOpsSupported and Int64ShaderOps; WARP without
+// them exits 77
 // (ctest skip).
 #ifndef NOMINMAX
 #  define NOMINMAX
@@ -109,6 +110,13 @@ int main(int argc, char** argv) {
         if (FAILED(dev->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS4, &o4, sizeof(o4))) ||
             !o4.Native16BitShaderOpsSupported) {
             std::fprintf(stderr, "SKIP: %ls has no native 16-bit shader ops\n", ad.Description);
+            return 77;
+        }
+        // the 16-bit kernel also carries the 64-bit integer case
+        D3D12_FEATURE_DATA_D3D12_OPTIONS1 o1{};
+        if (FAILED(dev->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &o1, sizeof(o1))) ||
+            !o1.Int64ShaderOps) {
+            std::fprintf(stderr, "SKIP: %ls has no 64-bit integer shader ops\n", ad.Description);
             return 77;
         }
     }

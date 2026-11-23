@@ -31,6 +31,24 @@ using ivec4 = detail::gvec<4, int>;
 using uvec2 = detail::gvec<2, uint>;
 using uvec3 = detail::gvec<3, uint>;
 using uvec4 = detail::gvec<4, uint>;
+// 16- and 64-bit integers (GL_EXT_shader_explicit_arithmetic_types); 16-bit
+// lanes compute in 32 bits and wrap, 64-bit lanes one at a time
+using int16_t = std::int16_t;
+using uint16_t = std::uint16_t;
+using int64_t = std::int64_t;
+using uint64_t = std::uint64_t;
+using i16vec2 = detail::gvec<2, int16_t>;
+using i16vec3 = detail::gvec<3, int16_t>;
+using i16vec4 = detail::gvec<4, int16_t>;
+using u16vec2 = detail::gvec<2, uint16_t>;
+using u16vec3 = detail::gvec<3, uint16_t>;
+using u16vec4 = detail::gvec<4, uint16_t>;
+using i64vec2 = detail::gvec<2, int64_t>;
+using i64vec3 = detail::gvec<3, int64_t>;
+using i64vec4 = detail::gvec<4, int64_t>;
+using u64vec2 = detail::gvec<2, uint64_t>;
+using u64vec3 = detail::gvec<3, uint64_t>;
+using u64vec4 = detail::gvec<4, uint64_t>;
 
 // Half vectors (GLSL GL_EXT_shader_explicit_arithmetic_types float16_t /
 // f16vecN). Language-level packing: sizeof(f16vec3) == 8 (4 x binary16),
@@ -304,7 +322,7 @@ SM_GLSL_BITCAST(uintBitsToFloat, uint, float)
 // values count as 0). uaddCarry / usubBorrow / umulExtended take uint,
 // imulExtended int.
 template <class A>
-    requires (detail::VecOf<A, lang_tag> && detail::IntVec<A>)
+    requires (detail::VecOf<A, lang_tag> && detail::Int32Vec<A>)
 SHADER_MATH_INLINE auto bitCount(const A& a) {
     return detail::map_int_lanes<int>(
         a, [](auto x) { return static_cast<int>(detail::int_lane::popcount(static_cast<uint>(x))); });
@@ -315,7 +333,7 @@ SHADER_MATH_INLINE int bitCount(const S& s) {
     return static_cast<int>(detail::int_lane::popcount(static_cast<uint>(s)));
 }
 template <class A>
-    requires (detail::VecOf<A, lang_tag> && detail::IntVec<A>)
+    requires (detail::VecOf<A, lang_tag> && detail::Int32Vec<A>)
 SHADER_MATH_INLINE auto findMSB(const A& a) {
     return detail::map_int_lanes<int>(a, [](auto x) { return detail::find_msb_lane(x); });
 }
@@ -325,7 +343,7 @@ SHADER_MATH_INLINE int findMSB(const S& s) {
     return detail::find_msb_lane(static_cast<typename detail::scalar_value<std::remove_cvref_t<S>>::type>(s));
 }
 template <class A>
-    requires (detail::VecOf<A, lang_tag> && detail::IntVec<A>)
+    requires (detail::VecOf<A, lang_tag> && detail::Int32Vec<A>)
 SHADER_MATH_INLINE auto findLSB(const A& a) {
     return detail::map_int_lanes<int>(
         a, [](auto x) { return detail::int_lane::lsb(static_cast<uint>(x)); });
@@ -336,7 +354,7 @@ SHADER_MATH_INLINE int findLSB(const S& s) {
     return detail::int_lane::lsb(static_cast<uint>(s));
 }
 template <class A>
-    requires (detail::VecOf<A, lang_tag> && detail::IntVec<A>)
+    requires (detail::VecOf<A, lang_tag> && detail::Int32Vec<A>)
 SHADER_MATH_INLINE auto bitfieldReverse(const A& a) {
     using T = detail::vec_elem_t<A>;
     return detail::map_int_lanes<T>(
@@ -348,7 +366,7 @@ SHADER_MATH_INLINE T bitfieldReverse(const S& s) {
     return static_cast<T>(detail::int_lane::reverse(static_cast<uint>(static_cast<T>(s))));
 }
 template <class A, class O, class B>
-    requires((detail::VecOf<A, lang_tag> && detail::IntVec<A>) && std::same_as<O, int> && std::same_as<B, int>)
+    requires((detail::VecOf<A, lang_tag> && detail::Int32Vec<A>) && std::same_as<O, int> && std::same_as<B, int>)
 SHADER_MATH_INLINE auto bitfieldExtract(const A& a, O offset, B bits) {
     using T = detail::vec_elem_t<A>;
     return detail::map_int_lanes<T>(a, [=](T x) { return detail::extract_lane(x, offset, bits); });
@@ -359,7 +377,7 @@ SHADER_MATH_INLINE T bitfieldExtract(const S& s, O offset, B bits) {
     return detail::extract_lane(static_cast<T>(s), offset, bits);
 }
 template <class A, class I, class O, class B>
-    requires((detail::VecOf<A, lang_tag> && detail::IntVec<A>) && detail::SameVec<A, I> && std::same_as<O, int> && std::same_as<B, int>)
+    requires((detail::VecOf<A, lang_tag> && detail::Int32Vec<A>) && detail::SameVec<A, I> && std::same_as<O, int> && std::same_as<B, int>)
 SHADER_MATH_INLINE auto bitfieldInsert(const A& base, const I& insert, O offset, B bits) {
     using T = detail::vec_elem_t<A>;
     const detail::vec_t<A> b = detail::to_vec(base);

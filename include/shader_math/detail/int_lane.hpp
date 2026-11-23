@@ -12,6 +12,8 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#include <limits>
+#include <type_traits>
 
 namespace shader_math {
 namespace detail {
@@ -60,6 +62,24 @@ struct int_lane {
         if (!(f > 0.0f)) return 0u;
         if (f >= 4294967296.0f) return UINT32_MAX;
         return static_cast<std::uint32_t>(f);
+    }
+
+    // ... at any integer width
+    template <class T>
+    static SHADER_MATH_INLINE T f2int(float f) {
+        if constexpr (std::is_same_v<T, std::int32_t>) {
+            return f2i(f);
+        } else if constexpr (std::is_same_v<T, std::uint32_t>) {
+            return f2u(f);
+        } else {
+            if (!(f == f)) return T(0);
+            const double d = f;
+            if (d <= static_cast<double>(std::numeric_limits<T>::min()))
+                return std::numeric_limits<T>::min();
+            if (d >= static_cast<double>(std::numeric_limits<T>::max()))
+                return std::numeric_limits<T>::max();
+            return static_cast<T>(d);
+        }
     }
 
     // bit counts and positions; -1 where there is no such bit

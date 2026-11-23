@@ -143,6 +143,7 @@ if(SHADER_MATH_BUILD_TESTS)
         tests/test_simd.cpp
         tests/test_int_ops.cpp
         tests/test_int_vectors.cpp
+        tests/test_int_widths.cpp
         tests/test_half.cpp
         tests/test_funcs.cpp
         tests/test_global_shadow.cpp

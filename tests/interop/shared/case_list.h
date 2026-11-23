@@ -12,7 +12,8 @@
 // docs/slang_compat.md.
 #define SM_INTEROP_HALF_CASES(X)                               \
     X(half_chain, case_half_chain(IN_A))                       \
-    X(half_products, case_half_products(IN_A, IN_B))
+    X(half_products, case_half_products(IN_A, IN_B))           \
+    X(bits_int_widths, case_bits_int_widths(IN_A, IN_B))
 
 // Swizzles of swizzles are opt-in in shader-math (SHADER_MATH_NESTED_SWIZZLE),
 // so they are a separate list run by kernels_nested.slang and a C++ twin
