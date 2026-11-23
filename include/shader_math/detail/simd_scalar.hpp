@@ -8,6 +8,9 @@
 #endif
 
 #include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <type_traits>
 
 namespace shader_math {
 namespace detail {
@@ -158,6 +161,135 @@ struct ops {
         return false;
     }
 };
+
+// 32-bit integer lanes, signed (iops) or unsigned (uops), in one register
+// type. Lanes are stored unsigned: + - * wrap without signed overflow.
+struct alignas(16) ireg {
+    std::uint32_t u[4];
+};
+
+template <bool Signed>
+struct int_ops {
+    using T = std::conditional_t<Signed, std::int32_t, std::uint32_t>;
+
+    static SHADER_MATH_INLINE ireg zero() { return {{0u, 0u, 0u, 0u}}; }
+    static SHADER_MATH_INLINE ireg splat(T s) {
+        const auto v = static_cast<std::uint32_t>(s);
+        return {{v, v, v, v}};
+    }
+    static SHADER_MATH_INLINE ireg set(T x, T y, T z, T w) {
+        return {{static_cast<std::uint32_t>(x), static_cast<std::uint32_t>(y),
+                 static_cast<std::uint32_t>(z), static_cast<std::uint32_t>(w)}};
+    }
+    static SHADER_MATH_INLINE ireg load4(const T* p) { return set(p[0], p[1], p[2], p[3]); }
+    static SHADER_MATH_INLINE void store4(ireg v, T* p) {
+        p[0] = static_cast<T>(v.u[0]);
+        p[1] = static_cast<T>(v.u[1]);
+        p[2] = static_cast<T>(v.u[2]);
+        p[3] = static_cast<T>(v.u[3]);
+    }
+    static SHADER_MATH_INLINE T lane(ireg v, int i) { return static_cast<T>(v.u[i]); }
+    template <int I>
+    static SHADER_MATH_INLINE T lane_c(ireg v) {
+        return static_cast<T>(v.u[I]);
+    }
+    template <int I>
+    static SHADER_MATH_INLINE ireg bcast(ireg v) {
+        return {{v.u[I], v.u[I], v.u[I], v.u[I]}};
+    }
+
+#define SM_SCALAR_IMAP2(name, expr)                                                     \
+    static SHADER_MATH_INLINE ireg name(ireg a, ireg b) {                               \
+        auto f = [](std::uint32_t x, std::uint32_t y) -> std::uint32_t { return expr; }; \
+        return {{f(a.u[0], b.u[0]), f(a.u[1], b.u[1]), f(a.u[2], b.u[2]),               \
+                 f(a.u[3], b.u[3])}};                                                   \
+    }
+    SM_SCALAR_IMAP2(add, x + y)
+    SM_SCALAR_IMAP2(sub, x - y)
+    SM_SCALAR_IMAP2(mul, x * y)
+    SM_SCALAR_IMAP2(band, x & y)
+    SM_SCALAR_IMAP2(bor, x | y)
+    SM_SCALAR_IMAP2(bxor, x ^ y)
+    SM_SCALAR_IMAP2(shl, int_lane::shl(x, y))
+    SM_SCALAR_IMAP2(div, Signed ? static_cast<std::uint32_t>(int_lane::sdiv(
+                                      static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)))
+                                : int_lane::udiv(x, y))
+    SM_SCALAR_IMAP2(rem, Signed ? static_cast<std::uint32_t>(int_lane::srem(
+                                      static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)))
+                                : int_lane::urem(x, y))
+    SM_SCALAR_IMAP2(shr, Signed ? static_cast<std::uint32_t>(
+                                      int_lane::shr_s(static_cast<std::int32_t>(x), y))
+                                : int_lane::shr_u(x, y))
+    SM_SCALAR_IMAP2(min, static_cast<T>(x) < static_cast<T>(y) ? x : y)
+    SM_SCALAR_IMAP2(max, static_cast<T>(x) > static_cast<T>(y) ? x : y)
+#undef SM_SCALAR_IMAP2
+
+    static SHADER_MATH_INLINE ireg neg(ireg a) {
+        return {{0u - a.u[0], 0u - a.u[1], 0u - a.u[2], 0u - a.u[3]}};
+    }
+    static SHADER_MATH_INLINE ireg bnot(ireg a) { return {{~a.u[0], ~a.u[1], ~a.u[2], ~a.u[3]}}; }
+    // abs(INT_MIN) wraps to INT_MIN; unsigned lanes are returned unchanged
+    static SHADER_MATH_INLINE ireg abs(ireg a) {
+        if constexpr (Signed) {
+            auto f = [](std::uint32_t x) { return x >> 31 ? 0u - x : x; };
+            return {{f(a.u[0]), f(a.u[1]), f(a.u[2]), f(a.u[3])}};
+        } else {
+            return a;
+        }
+    }
+
+    // m ? a : b, per lane
+    static SHADER_MATH_INLINE ireg sel(mreg m, ireg a, ireg b) {
+        return {{m.m[0] ? a.u[0] : b.u[0], m.m[1] ? a.u[1] : b.u[1], m.m[2] ? a.u[2] : b.u[2],
+                 m.m[3] ? a.u[3] : b.u[3]}};
+    }
+
+#define SM_SCALAR_ICMP(name, op)                                                         \
+    static SHADER_MATH_INLINE mreg name(ireg a, ireg b) {                                \
+        auto f = [](std::uint32_t x, std::uint32_t y) {                                  \
+            return static_cast<T>(x) op static_cast<T>(y) ? 0xFFFFFFFFu : 0u;           \
+        };                                                                               \
+        return {{f(a.u[0], b.u[0]), f(a.u[1], b.u[1]), f(a.u[2], b.u[2]), f(a.u[3], b.u[3])}}; \
+    }
+    SM_SCALAR_ICMP(cmp_eq, ==)
+    SM_SCALAR_ICMP(cmp_ne, !=)
+    SM_SCALAR_ICMP(cmp_lt, <)
+    SM_SCALAR_ICMP(cmp_le, <=)
+    SM_SCALAR_ICMP(cmp_gt, >)
+    SM_SCALAR_ICMP(cmp_ge, >=)
+#undef SM_SCALAR_ICMP
+
+    // value conversions (rounding to nearest; the reverse truncates, see
+    // int_lane::f2i / f2u for NaN and out-of-range inputs)
+    static SHADER_MATH_INLINE freg to_f32(ireg a) {
+        auto f = [](std::uint32_t x) { return static_cast<float>(static_cast<T>(x)); };
+        return {{f(a.u[0]), f(a.u[1]), f(a.u[2]), f(a.u[3])}};
+    }
+    static SHADER_MATH_INLINE ireg from_f32(freg v) {
+        auto f = [](float x) {
+            if constexpr (Signed)
+                return static_cast<std::uint32_t>(int_lane::f2i(x));
+            else
+                return int_lane::f2u(x);
+        };
+        return {{f(v.f[0]), f(v.f[1]), f(v.f[2]), f(v.f[3])}};
+    }
+    // bit reinterpretation (asfloat / asint, floatBitsToInt ...)
+    static SHADER_MATH_INLINE freg bits_to_f32(ireg a) {
+        freg r;
+        std::memcpy(&r, &a, sizeof(r));
+        return r;
+    }
+    static SHADER_MATH_INLINE ireg bits_from_f32(freg v) {
+        ireg r;
+        std::memcpy(&r, &v, sizeof(r));
+        return r;
+    }
+    // a comparison mask as lanes of all bits set / zero
+    static SHADER_MATH_INLINE ireg from_mask(mreg m) { return {{m.m[0], m.m[1], m.m[2], m.m[3]}}; }
+};
+using iops = int_ops<true>;
+using uops = int_ops<false>;
 
 }  // namespace detail
 }  // namespace shader_math
