@@ -6,10 +6,11 @@
 
 H_PARAMS = ("float s, float t, float2 a2, float2 b2, float3 a, float3 b, float3 c, "
             "float4 a4, float4 b4, float3x3 m, float3x3 n, float4x4 m4, float2x3 m23, "
-            "float3x2 m32, bool3 bb, half3 h, half hs, int3 ia, int3 ib, uint3 ua, int ka, int3x3 im")
+            "float3x2 m32, bool3 bb, half3 h, half hs, int3 ia, int3 ib, uint3 ua, int ka, int3x3 im, "
+            "int16_t3 sa, uint16_t3 sb, int64_t3 la, uint64_t3 lb")
 G_PARAMS = ("float s, float t, vec2 a2, vec2 b2, vec3 a, vec3 b, vec3 c, vec4 a4, vec4 b4, "
             "mat3 m, mat3 n, mat4 m4, mat2x3 m23, mat3x2 m32, bvec3 bb, f16vec3 h, float16_t hs, "
-            "ivec3 ia, ivec3 ib, uvec3 ua, int ka")
+            "ivec3 ia, ivec3 ib, uvec3 ua, int ka, i16vec3 sa, u16vec3 sb, i64vec3 la, u64vec3 lb")
 # On ARM, arm_neon.h declares a global float16_t that makes the unqualified
 # name ambiguous in C++ (a platform matter, not a language one), so the C++
 # side names glsl::float16_t explicitly
@@ -365,6 +366,30 @@ for cid, body in [
     ("float_matrix_compare_scalar", "bool3x3 r = m > 1.0;"),
 ]:
     H("int", cid, body)
+
+# 16- and 64-bit integers
+for cid, body in [
+    ("int16_ctor", "int16_t3 r = int16_t3(1, 2, 3);"),
+    ("int16_arith", "int16_t3 r = sa + sa * 2;"),
+    ("int16_plus_int", "int3 r = sa + ia;"),
+    ("int16_plus_uint16", "uint16_t3 r = sa + sb;"),
+    ("uint16_plus_int", "uint3 r = sb + ia;"),
+    ("int_plus_int64", "int64_t3 r = ia + la;"),
+    ("uint_plus_int64", "uint64_t3 r = ua + la;"),
+    ("int64_plus_uint64", "uint64_t3 r = la + lb;"),
+    ("int64_plus_float", "float3 r = la + a;"),
+    ("int16_from_int", "int16_t3 r = ia;"),
+    ("int64_from_float", "int64_t3 r = a;"),
+    ("int16_plus_half", "half3 r = sa + h;"),
+    ("int16_shift", "int16_t3 r = sa << 3 >> 1;"),
+    ("int64_div_mod", "int64_t3 r = la / la + la % la;"),
+    ("int64_compare", "bool3 r = la < la;"),
+    ("int64_abs_min", "int64_t3 r = abs(la) + min(la, la);"),
+    ("int16_dot", "int16_t r = dot(sa, sa);"),
+    ("int64_sqrt", "float3 r = sqrt(la);"),
+    ("int64_countbits", "uint3 r = countbits(lb);"),
+]:
+    H("width", cid, body)
 
 # packing
 for cid, body in [
@@ -747,6 +772,27 @@ for cid, body in [
     ("hlsl_countbits", "uvec3 r = countbits(ua);"),
 ]:
     G("int", cid, body)
+
+# 16- and 64-bit integers
+for cid, body in [
+    ("i16vec_ctor", "i16vec3 r = i16vec3(1, 2, 3);"),
+    ("i16_plus_int", "ivec3 r = sa + ia;"),
+    ("i16_plus_u16", "u16vec3 r = sa + sb;"),
+    ("u16_plus_int", "ivec3 r = sb + ia;"),
+    ("uint_plus_i64", "i64vec3 r = ua + la;"),
+    ("i64_plus_u64", "u64vec3 r = la + lb;"),
+    ("i64_plus_float", "vec3 r = la + a;"),
+    ("i16_from_int", "i16vec3 r = ia;"),
+    ("int_from_i16", "ivec3 r = sa;"),
+    ("float_from_i16", "vec3 r = sa;"),
+    ("float_from_i64", "vec3 r = la;"),
+    ("i64_shift", "i64vec3 r = la << 3;"),
+    ("i64_less_than", "bvec3 r = lessThan(la, la);"),
+    ("i64_abs_min", "i64vec3 r = abs(la) + min(la, la);"),
+    ("i16_times_int_literal", "i16vec3 r = sa * 2;"),
+    ("i16_plus_f16", "f16vec3 r = sa + h;"),
+]:
+    G("width", cid, body)
 
 # packing
 for cid, body in [

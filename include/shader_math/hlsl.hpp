@@ -36,6 +36,24 @@ using int4 = vector<int, 4>;
 using uint2 = vector<uint, 2>;
 using uint3 = vector<uint, 3>;
 using uint4 = vector<uint, 4>;
+// 16- and 64-bit integers (DXC: -enable-16bit-types for the 16-bit ones);
+// 16-bit lanes compute in 32 bits and wrap, 64-bit lanes one at a time
+using int16_t = std::int16_t;
+using uint16_t = std::uint16_t;
+using int64_t = std::int64_t;
+using uint64_t = std::uint64_t;
+using int16_t2 = vector<int16_t, 2>;
+using int16_t3 = vector<int16_t, 3>;
+using int16_t4 = vector<int16_t, 4>;
+using uint16_t2 = vector<uint16_t, 2>;
+using uint16_t3 = vector<uint16_t, 3>;
+using uint16_t4 = vector<uint16_t, 4>;
+using int64_t2 = vector<int64_t, 2>;
+using int64_t3 = vector<int64_t, 3>;
+using int64_t4 = vector<int64_t, 4>;
+using uint64_t2 = vector<uint64_t, 2>;
+using uint64_t3 = vector<uint64_t, 3>;
+using uint64_t4 = vector<uint64_t, 4>;
 
 // Half vectors (HLSL half). Language-level packing: sizeof(half3) == 8
 // (4 x binary16), just as sizeof(float3) == 16 — language compatibility, not
@@ -593,9 +611,9 @@ SHADER_MATH_INLINE matrix<R, C, T> operator~(const matrix<R, C, T>& a) {
 // scalar computes in float); compound assignment converts back implicitly
 #define SM_HLSL_MIXED_MAT_BINOP(sym)                                                     \
     template <int R, int C, class T, class U>                                            \
-        requires detail::MixedElems<T, U>                                                        \
+        requires detail::MixedElems<T, U, lang_tag>                                                        \
     SHADER_MATH_INLINE auto operator sym(const matrix<R, C, T>& a, const matrix<R, C, U>& b) { \
-        using E = detail::common_elem_t<T, U>;                                           \
+        using E = detail::common_elem_t<T, U, lang_tag>;                                           \
         return matrix<R, C, E>(a) sym matrix<R, C, E>(b);                                \
     }                                                                                    \
     template <int R, int C, class T, class S>                                            \
@@ -610,7 +628,7 @@ SHADER_MATH_INLINE matrix<R, C, T> operator~(const matrix<R, C, T>& a) {
     }                                                                                    \
     template <int R, int C, class T, class B>                                            \
         requires(((detail::is_int_elem_v<T> && std::is_floating_point_v<B>) ||           \
-                  requires { requires detail::MixedElems<T, typename B::elem_t>; }) &&           \
+                  requires { requires detail::MixedElems<T, typename B::elem_t, lang_tag>; }) &&           \
                  requires(const matrix<R, C, T>& a, const B& b) {                        \
                      { a sym b } -> std::convertible_to<matrix<R, C, T>>;                \
                  })                                                                      \
@@ -634,7 +652,7 @@ SHADER_MATH_INLINE auto operator%(const A& a, const B& b) {
 }
 template <class A, class B>
     requires(detail::MixedVec<A, B> && detail::VecOf<A, lang_tag> &&
-             std::is_same_v<detail::common_elem_t<detail::vec_elem_t<A>, detail::vec_elem_t<B>>, float>)
+             std::is_same_v<detail::common_elem_t<detail::vec_elem_t<A>, detail::vec_elem_t<B>, lang_tag>, float>)
 SHADER_MATH_INLINE auto operator%(const A& a, const B& b) {
     using M = detail::mixed_t<A, B>;
     return detail::fmod_impl(M(detail::to_vec(a)), M(detail::to_vec(b)));
@@ -848,7 +866,7 @@ SHADER_MATH_INLINE uint f32tof16(const S& s) {
     return detail::half_bits::from_f32(static_cast<float>(static_cast<V>(s)));
 }
 template <class A>
-    requires(detail::VecOf<A, lang_tag> && detail::IntVec<A>)
+    requires(detail::VecOf<A, lang_tag> && detail::Int32Vec<A>)
 SHADER_MATH_INLINE auto f16tof32(const A& a) {
     return detail::map_int_lanes<float>(a, [](auto x) {
         return detail::half_bits::to_f32(static_cast<unsigned short>(static_cast<uint>(x) & 0xFFFFu));

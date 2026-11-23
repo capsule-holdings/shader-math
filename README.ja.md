@@ -63,6 +63,13 @@ void glsl_side() {
   - パック: HLSL の `f32tof16` / `f16tof32`（uint の下位 16 ビットに binary16 のビット）、GLSL の `packHalf2x16`
     `packUnorm2x16` `packSnorm2x16` `packUnorm4x8` `packSnorm4x8` とそれぞれの `unpack*`。丸めは最近接偶数（GLSL は中間値の
     扱いを実装に任せている）。unorm / snorm の形では NaN を 0 として詰める
+- 16 / 64 ビットの整数ベクトル: HLSL の `int16_t2`〜`uint16_t4` と `int64_t2`〜`uint64_t4`、GLSL の `i16vec2`〜`u16vec4` と
+  `i64vec2`〜`u64vec4`（スカラーの別名 `int16_t` 〜 `uint64_t` も）。32 ビットのベクトルと同じ演算子・比較・`abs` `sign` `min` `max`
+  `clamp` `dot`（HLSL）を、それぞれの幅で折り返して計算する（シフト量は 16 / 64 で割った余り、float → int は型の範囲で飽和）。
+  幅の混在は各言語に従う: HLSL は幅の広いほうで、どちらかが符号なしなら符号なし（`uint16_t3 + int3` は `uint3`）、GLSL は片方を暗黙変換
+  する（`u16vec3 + ivec3` は `ivec3`、`i64vec3 + vec3` はコンパイルエラー）。16 ビットのレーンは 32 ビットで、64 ビットのレーンは
+  1 つずつ計算する。未対応: これらのビット関数・ビットキャスト・パック、half との混在、GLSL の `int` リテラルによる昇格
+  （`i16vec3 * 2` はここでは `i16vec3`、GLSL では `ivec3`）
 - 整数行列（HLSL のみ。GLSL には無い）: `hlsl::int2x2`〜`int4x4` と `uint2x2`〜`uint4x4`。成分ごとの演算子（`%`、ビット演算、
   シフトを含む）、`mul`（折り返し）、`transpose`、比較、`abs` `sign` `min` `max` `clamp`、整数ベクトルと同じ暗黙変換と混在演算
   （`float3x3 f = im;`、`im + m` は `float3x3`）。浮動小数点の関数は float の行列を返し（`sqrt(int3x3)` は `float3x3`）、
@@ -342,7 +349,7 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
   （`bench/compile_time.py` の実測で gcc・clang とも 3.2 倍）。既定で無効なのはこのため
 - GLSL の `not()` は C++ の代替トークン（`!`）と衝突するため `not_()`
 - `v.x` はプロキシ型（可変長引数に直接渡すときは `float(v.x)` にする）
-- 対象は float と half（ベクトルと行列）、int / uint のベクトル、HLSL の int / uint 行列。16 / 64 ビット整数、`double`、`1xN` 行列、
+- 対象は float と half（ベクトルと行列）、16 / 32 / 64 ビットの int / uint ベクトル、HLSL の int / uint 行列。`double`、`1xN` 行列、
   HLSL の 8 ビットのパック（`pack_u8`、`int8_t4_packed` など）、GPU 専用機能（テクスチャ・微分・atomic）は対象外
 - 言語互換であってメモリ ABI 互換ではない（`sizeof(float3) == 16`。定数バッファのパッキングとは別物）
 - 成分アクセス・swizzle は SIMD レジスタとの union による型パンニングで実装している。

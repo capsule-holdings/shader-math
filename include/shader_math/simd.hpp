@@ -40,6 +40,9 @@
 #  endif
 #endif
 
+// 16- and 64-bit integer lanes, on the selected backend's 32-bit and float ops
+#include "detail/simd_int_widths.hpp"
+
 // Contract check: the selected backend must satisfy the full interface,
 // whether or not every function is currently used somewhere.
 // GCC/Clang attach __vector_size__ to __m128 / float32x4_t; passing them as
@@ -56,6 +59,10 @@ static_assert(SimdIntOps<iops, ireg, mreg, freg, std::int32_t>,
               "shader-math: the selected int backend does not satisfy SimdIntOps");
 static_assert(SimdIntOps<uops, ireg, mreg, freg, std::uint32_t>,
               "shader-math: the selected uint backend does not satisfy SimdIntOps");
+static_assert(SimdIntLaneOps<narrow_ops<std::int16_t>, nreg<std::int16_t>, mreg, freg, std::int16_t> &&
+              SimdIntLaneOps<narrow_ops<std::uint16_t>, nreg<std::uint16_t>, mreg, freg, std::uint16_t>);
+static_assert(SimdIntLaneOps<wide_ops<std::int64_t>, wreg<std::int64_t>, mreg, freg, std::int64_t> &&
+              SimdIntLaneOps<wide_ops<std::uint64_t>, wreg<std::uint64_t>, mreg, freg, std::uint64_t>);
 #if defined(SHADER_MATH_HAS_HALF)
 static_assert(SimdHalfOps<hops, hreg, mreg, half_t>,
               "shader-math: the selected half backend does not satisfy SimdHalfOps");
