@@ -82,27 +82,46 @@ struct int_lane {
         }
     }
 
-    // bit counts and positions; -1 where there is no such bit
-    static SHADER_MATH_INLINE std::uint32_t popcount(std::uint32_t x) {
+    // bit counts and positions in an unsigned integer of 16, 32 or 64 bits;
+    // -1 where there is no such bit
+    template <class U>
+        requires std::is_unsigned_v<U>
+    static SHADER_MATH_INLINE std::uint32_t popcount(U x) {
         return static_cast<std::uint32_t>(std::popcount(x));
     }
-    static SHADER_MATH_INLINE std::int32_t msb(std::uint32_t x) {
-        return x != 0u ? 31 - std::countl_zero(x) : -1;
+    template <class U>
+        requires std::is_unsigned_v<U>
+    static SHADER_MATH_INLINE std::int32_t msb(U x) {
+        return x != 0u ? std::numeric_limits<U>::digits - 1 - std::countl_zero(x) : -1;
     }
     // signed: the highest bit that differs from the sign bit (-1 for 0 and -1)
-    static SHADER_MATH_INLINE std::int32_t msb_s(std::int32_t x) {
-        const auto u = static_cast<std::uint32_t>(x);
-        return msb(x < 0 ? ~u : u);
+    template <class S>
+        requires std::is_signed_v<S>
+    static SHADER_MATH_INLINE std::int32_t msb_s(S x) {
+        using U = std::make_unsigned_t<S>;
+        const auto u = static_cast<U>(x);
+        return msb(x < 0 ? static_cast<U>(~u) : u);
     }
-    static SHADER_MATH_INLINE std::int32_t lsb(std::uint32_t x) {
+    template <class U>
+        requires std::is_unsigned_v<U>
+    static SHADER_MATH_INLINE std::int32_t lsb(U x) {
         return x != 0u ? std::countr_zero(x) : -1;
     }
-    static SHADER_MATH_INLINE std::uint32_t reverse(std::uint32_t x) {
-        x = ((x >> 1) & 0x55555555u) | ((x & 0x55555555u) << 1);
-        x = ((x >> 2) & 0x33333333u) | ((x & 0x33333333u) << 2);
-        x = ((x >> 4) & 0x0F0F0F0Fu) | ((x & 0x0F0F0F0Fu) << 4);
-        x = ((x >> 8) & 0x00FF00FFu) | ((x & 0x00FF00FFu) << 8);
-        return (x >> 16) | (x << 16);
+    template <class U>
+        requires std::is_unsigned_v<U>
+    static SHADER_MATH_INLINE U reverse(U x) {
+        if constexpr (sizeof(U) == 2) {
+            return static_cast<U>(reverse(static_cast<std::uint32_t>(x)) >> 16);
+        } else if constexpr (sizeof(U) == 8) {
+            return (static_cast<U>(reverse(static_cast<std::uint32_t>(x))) << 32) |
+                   reverse(static_cast<std::uint32_t>(x >> 32));
+        } else {
+            x = ((x >> 1) & 0x55555555u) | ((x & 0x55555555u) << 1);
+            x = ((x >> 2) & 0x33333333u) | ((x & 0x33333333u) << 2);
+            x = ((x >> 4) & 0x0F0F0F0Fu) | ((x & 0x0F0F0F0Fu) << 4);
+            x = ((x >> 8) & 0x00FF00FFu) | ((x & 0x00FF00FFu) << 8);
+            return (x >> 16) | (x << 16);
+        }
     }
 
     // bitfieldExtract / bitfieldInsert on the field [offset, offset + bits).

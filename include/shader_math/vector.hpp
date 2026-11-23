@@ -100,9 +100,9 @@ template <class T>
 using vreg = typename vops_for<T>::reg;
 
 // Element kinds: the floating-point functions take float and half vectors,
-// the integer operators the int / uint vectors of 16, 32 and 64 bits
-// (docs/design/int_vectors.md); the bit casts, bit functions and packing
-// functions take the 32-bit ones
+// the integer operators and bit functions the int / uint vectors of 16, 32
+// and 64 bits (docs/design/int_vectors.md); each bit cast and packing
+// function takes the width it reinterprets
 template <class T>
 inline constexpr bool is_int32_elem_v =
     std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>;
@@ -137,6 +137,17 @@ constexpr bool implicit_elem() {
 }
 template <class U, class T, class Lg>
 inline constexpr bool implicit_elem_v = implicit_elem<U, T, Lg>();
+// a function argument of element U where the function takes T
+template <class U, class T, class Lg>
+inline constexpr bool arg_elem_v = std::is_same_v<U, T> || implicit_elem_v<U, T, Lg>;
+// The 32-bit integer a GLSL bitfield function (bitfieldExtract / Insert /
+// Reverse, which have int and uint overloads only) computes in for arguments
+// of elements Us: int when they all convert to int (glslang takes int for
+// uint16 as well), else uint when they all convert to uint; void when neither
+template <class Lg, class... Us>
+using field_elem_t =
+    std::conditional_t<(arg_elem_v<Us, std::int32_t, Lg> && ...), std::int32_t,
+                       std::conditional_t<(arg_elem_v<Us, std::uint32_t, Lg> && ...), std::uint32_t, void>>;
 // The type mixed operands compute in: HLSL takes float when either is float,
 // else the wider integer, unsigned when either is (uint16 + int is a uint);
 // GLSL converts one to the other implicitly (uint16 + int is an int, int64 +
@@ -1769,17 +1780,18 @@ SHADER_MATH_INLINE fvec<vec_size_v<A>, R, vec_lang_t<A>> map_int_lanes(const A& 
     return fvec<n, R, vec_lang_t<A>>(vops<R>::load4(out));
 }
 
-// The argument of an HLSL bit function: int / uint lanes as they are, float
-// lanes converted to uint (HLSL converts them implicitly; countbits(float3))
+// The argument of an HLSL bit function: int / uint lanes of any width as they
+// are, float and half lanes converted to int (HLSL converts them implicitly;
+// countbits(float3), and reversebits(float3) is an int3)
+template <class T>
+using bits_elem_t = std::conditional_t<is_int_elem_v<T>, T, std::int32_t>;
 template <class A>
-    requires(VecLike<A> && is_num32_v<vec_elem_t<A>>)
+    requires VecLike<A>
 SHADER_MATH_INLINE auto bits_vec(const A& a) {
-    if constexpr (std::is_same_v<vec_elem_t<A>, float>)
-        return fvec<vec_size_v<A>, std::uint32_t, vec_lang_t<A>>(to_vec(a));
-    else
-        return vec_t<A>(to_vec(a));
+    return fvec<vec_size_v<A>, bits_elem_t<vec_elem_t<A>>, vec_lang_t<A>>(to_vec(a));
 }
-// ... and of a scalar (an integer, a floating-point value, or one component)
+// ... and of a scalar (an integer, a floating-point value, or one component):
+// integers of 16 or 64 bits keep their width, other integers are 32-bit
 template <class S>
 inline constexpr bool is_bits_scalar_v =
     !VecLike<S> &&
@@ -1791,25 +1803,27 @@ template <class S>
 SHADER_MATH_INLINE auto bits_scalar(const S& s) {
     using V = typename scalar_value<std::remove_cvref_t<S>>::type;
     const V v = static_cast<V>(s);
-    if constexpr (std::is_floating_point_v<V>)
-        return elem_cast<std::uint32_t>(static_cast<float>(v));
-    else if constexpr (std::is_signed_v<V>)
-        return static_cast<std::int32_t>(v);
-    else
-        return static_cast<std::uint32_t>(v);
+    if constexpr (std::is_floating_point_v<V>) {
+        return elem_cast<std::int32_t>(static_cast<float>(v));
+    } else {
+        using W = std::conditional_t<sizeof(V) == 2, std::int16_t,
+                                     std::conditional_t<sizeof(V) == 8, std::int64_t, std::int32_t>>;
+        return static_cast<std::conditional_t<std::is_signed_v<V>, W, std::make_unsigned_t<W>>>(v);
+    }
 }
 
 // Lanes of the bit functions (hlsl countbits / firstbithigh / firstbitlow /
-// reversebits, glsl bitCount / findMSB / findLSB / bitfieldExtract ...)
+// reversebits, glsl bitCount / findMSB / findLSB / bitfieldExtract ...), on
+// integers of every width
 struct popcount_fn {
     SHADER_MATH_INLINE std::uint32_t operator()(auto x) const {
-        return int_lane::popcount(static_cast<std::uint32_t>(x));
+        return int_lane::popcount(static_cast<std::make_unsigned_t<decltype(x)>>(x));
     }
 };
-// on int, the highest bit that differs from the sign bit
+// on signed integers, the highest bit that differs from the sign bit
 struct high_fn {
     SHADER_MATH_INLINE std::uint32_t operator()(auto x) const {
-        if constexpr (std::is_same_v<decltype(x), std::int32_t>)
+        if constexpr (std::is_signed_v<decltype(x)>)
             return static_cast<std::uint32_t>(int_lane::msb_s(x));
         else
             return static_cast<std::uint32_t>(int_lane::msb(x));
@@ -1817,17 +1831,18 @@ struct high_fn {
 };
 struct low_fn {
     SHADER_MATH_INLINE std::uint32_t operator()(auto x) const {
-        return static_cast<std::uint32_t>(int_lane::lsb(static_cast<std::uint32_t>(x)));
+        return static_cast<std::uint32_t>(int_lane::lsb(static_cast<std::make_unsigned_t<decltype(x)>>(x)));
     }
 };
 struct reverse_fn {
-    SHADER_MATH_INLINE std::uint32_t operator()(auto x) const {
-        return int_lane::reverse(static_cast<std::uint32_t>(x));
+    SHADER_MATH_INLINE auto operator()(auto x) const {
+        using T = decltype(x);
+        return static_cast<T>(int_lane::reverse(static_cast<std::make_unsigned_t<T>>(x)));
     }
 };
 template <class T>
 SHADER_MATH_INLINE int find_msb_lane(T x) {
-    if constexpr (std::is_same_v<T, std::int32_t>)
+    if constexpr (std::is_signed_v<T>)
         return int_lane::msb_s(x);
     else
         return int_lane::msb(x);
@@ -1843,6 +1858,16 @@ SHADER_MATH_INLINE T extract_lane(T x, int offset, int bits) {
 template <class S>
 inline constexpr bool is_int32_scalar_v =
     !VecLike<S> && is_int32_elem_v<typename scalar_value<std::remove_cvref_t<S>>::type>;
+// ... of 16, 32 or 64 bits
+template <class S>
+inline constexpr bool is_int_lane_scalar_v =
+    !VecLike<S> && is_int_elem_v<typename scalar_value<std::remove_cvref_t<S>>::type>;
+// a scalar (or one component) and an N-component vector argument of language
+// Lg where the function takes T
+template <class S, class T, class Lg>
+concept ScalarArg = !VecLike<S> && arg_elem_v<typename scalar_value<std::remove_cvref_t<S>>::type, T, Lg>;
+template <class A, class T, int N, class Lg>
+concept VecArg = VecOf<A, Lg> && vec_size_v<A> == N && arg_elem_v<vec_elem_t<A>, T, Lg>;
 // the 64-bit products of int / uint lanes, split into high and low halves
 template <class A, class B, class T = vec_elem_t<A>>
     requires(IntVec<A> && SameVec<A, B>)
@@ -1902,6 +1927,40 @@ SHADER_MATH_INLINE U bitcast_scalar(const S& s) {
     U u;
     std::memcpy(&u, &v, sizeof(u));
     return u;
+}
+// one lane as another type of the same size (the 16-bit casts: hlsl asint16 /
+// asuint16 / asfloat16, glsl float16BitsToInt16 ...)
+template <class T>
+inline constexpr bool is_bits16_v =
+#if defined(SHADER_MATH_HAS_HALF)
+    std::is_same_v<T, half_t> ||
+#endif
+    std::is_same_v<T, std::int16_t> || std::is_same_v<T, std::uint16_t>;
+template <class U, class V>
+    requires(sizeof(U) == sizeof(V))
+SHADER_MATH_INLINE U bitcast_lane(const V& v) {
+    U u;
+    std::memcpy(&u, &v, sizeof(u));
+    return u;
+}
+
+// The lanes of v side by side in an integer R, the first in the low bits
+// (glsl packInt2x16, packFloat2x16 ...), and back
+template <class R, int N, class T, class Lg>
+SHADER_MATH_INLINE R pack_lanes(const fvec<N, T, Lg>& v) {
+    using U = std::make_unsigned_t<R>;
+    using B = std::conditional_t<sizeof(T) == 2, std::uint16_t, std::uint32_t>;
+    U r = 0u;
+    for (int i = 0; i < N; ++i) r |= static_cast<U>(bitcast_lane<B>(v[i])) << (i * 8 * sizeof(T));
+    return static_cast<R>(r);
+}
+template <class T, int N, class Lg, class P>
+SHADER_MATH_INLINE fvec<N, T, Lg> unpack_lanes(P p) {
+    using B = std::conditional_t<sizeof(T) == 2, std::uint16_t, std::uint32_t>;
+    const auto u = static_cast<std::make_unsigned_t<P>>(p);
+    T t[4] = {T(0), T(0), T(0), T(0)};
+    for (int i = 0; i < N; ++i) t[i] = bitcast_lane<T>(static_cast<B>(u >> (i * 8 * sizeof(T))));
+    return fvec<N, T, Lg>(vops<T>::load4(t));
 }
 
 // ---- bvec: comparison result type ------------------------------------------

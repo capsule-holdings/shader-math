@@ -40,3 +40,29 @@ vec4 case_bits_int_widths(vec4 af, vec4 bf)
     uvec4 hi = uvec4(ul >> uint64_t(32));
     return uintBitsToFloat(uvec4(m) ^ lo ^ (hi << 1u));
 }
+
+// the bitfield functions on 16-bit integers (computed as int), the 16-bit
+// casts and the 16- / 32-bit packing functions. bitCount / findMSB / findLSB
+// at 16 and 64 bits are left out: glslang (15.1) emits OpBitCount and
+// GLSL.std.450 FindSMsb / FindUMsb / FindILsb on them, which Vulkan's SPIR-V
+// limits to 32 bits (spirv-val rejects them; lavapipe's 64-bit findMSB sees
+// the low 32 bits only); see docs/glsl_interop.md.
+vec4 case_bits_width_bitfns(vec4 af, vec4 bf)
+{
+    i16vec4 s = i16vec4(af * 4000.0f) - int16_t(7000);  // -2000, -17000, 8000, -5000
+    u16vec4 u = u16vec4(s) ^ uint16_t(0x5A5A);
+    ivec4 r = ivec4(s) * 77777;
+    r ^= bitfieldExtract(s, 3, 9) + bitfieldExtract(u, 4, 8) * 3 + bitfieldReverse(u) +
+         bitfieldInsert(s, u, 5, 6);
+    i16vec4 hb = float16BitsToInt16(f16vec4(af)) ^ int16_t(0x1234);
+    f16vec4 hf = uint16BitsToFloat16(float16BitsToUint16(f16vec4(bf)) + uint16_t(1));
+    uint p = packFloat2x16(hf.xy) ^ packUint2x16(u.zw) ^ uint(packInt2x16(s.xy));
+    i64vec2 q = i64vec2(packInt4x16(s), int64_t(packUint4x16(u))) ^
+                i64vec2(packInt2x32(r.xy), int64_t(packUint2x32(uvec2(r.zw))));
+    i16vec4 us = unpackInt4x16(q.x) + i16vec4(unpackUint4x16(uint64_t(q.y)));
+    ivec2 uq = unpackInt2x32(q.y) + ivec2(unpackUint2x32(uint64_t(q.x)));
+    f16vec2 uh = unpackFloat2x16(p);
+    i16vec2 u2 = unpackInt2x16(int(p)) + i16vec2(unpackUint2x16(p ^ 0x80008000u));
+    r ^= ivec4(us) + ivec4(uq, ivec2(u2)) + (ivec4(hb) << 9);
+    return uintBitsToFloat(uvec4(r) ^ floatBitsToUint(vec4(hf)) ^ floatBitsToUint(vec4(vec2(uh), vec2(uh))));
+}

@@ -2,7 +2,7 @@
 // ones) compiled by the official HLSL compiler, either to SPIR-V and run on
 // Vulkan by vk_runner, or to DXIL (SM_INTEROP_DXIL) and run on D3D12 WARP by
 // d3d12_runner. SM_INTEROP_ENABLE_HALF (with -enable-16bit-types) selects
-// the half cases instead, and SM_INTEROP_MATRIX_SWIZZLE the multi-element
+// the half cases instead (with SM_INTEROP_DXIL, DXIL's half list), and SM_INTEROP_MATRIX_SWIZZLE the multi-element
 // matrix accessor cases.
 #include "shared/math_cases.hlsli"
 #include "dxc/dxc_cases.hlsli"
@@ -42,7 +42,9 @@ void main()
         outputBuf[slot + 3] = r.w; \
         slot += 4;             \
     }
-#if defined(SM_INTEROP_ENABLE_HALF)
+#if defined(SM_INTEROP_ENABLE_HALF) && defined(SM_INTEROP_DXIL)
+    SM_DXIL_HALF_CASES(X)
+#elif defined(SM_INTEROP_ENABLE_HALF)
     SM_INTEROP_HALF_CASES(X)
 #elif defined(SM_INTEROP_MATRIX_SWIZZLE)
     SM_INTEROP_MATRIX_SWIZZLE_CASES(X)

@@ -343,6 +343,19 @@ h_int64_abs_min	ok
 h_int16_dot	ok	
 h_int64_sqrt	ok	
 h_int64_countbits	ok	
+h_int16_countbits	ok	
+h_int64_firstbit	ok	
+h_int16_reversebits	ok	
+h_uint64_reversebits	ok	
+h_int64_scalar_countbits	ok	
+h_half_countbits	ok	
+h_asint16	ok	
+h_asuint16	ok	
+h_asfloat16	ok	
+h_asuint_int16	err	no matching function for call to 'asuint'
+h_asuint_int64	err	no matching function for call to 'asuint'
+h_asint16_int	err	no matching function for call to 'asint16'
+h_asfloat16_float	err	no matching function for call to 'asfloat16'
 h_f32tof16	ok	
 h_f32tof16_vec	ok	
 h_f32tof16_int	ok	
@@ -685,6 +698,30 @@ g_i64_less_than	ok
 g_i64_abs_min	ok	
 g_i16_times_int_literal	err	g_i16_times_int_literal.comp:4: '=' : cannot convert from ' temp 3-component vector of int' to ' temp 3-component vector
 g_i16_plus_f16	ok	
+g_i16_bitCount	ok	
+g_i64_bitCount	ok	
+g_u16_bitCount_scalar	ok	
+g_i16_bitfield	ok	
+g_i16_bitfield_to_i16	err	g_i16_bitfield_to_i16.comp:4: '=' : cannot convert from ' global 3-component vector of int' to ' temp 3-component vector
+g_i64_bitfield	err	g_i64_bitfield.comp:4: 'bitfieldExtract' : no matching overloaded function found
+g_int_uint_bitfieldInsert	ok	
+g_i16_intBitsToFloat	ok	
+g_int_floatBitsToInt	ok	
+g_float16BitsToInt16	ok	
+g_int16BitsToFloat16	ok	
+g_u16_int16BitsToFloat16	err	g_u16_int16BitsToFloat16.comp:4: 'int16BitsToFloat16' : no matching overloaded function found
+g_packFloat2x16	ok	
+g_unpackFloat2x16	ok	
+g_packInt2x16	ok	
+g_unpackInt2x16	ok	
+g_packInt4x16	ok	
+g_unpackInt4x16	ok	
+g_packInt2x32	ok	
+g_unpackInt2x32	ok	
+g_u64_unpackInt2x32	err	g_u64_unpackInt2x32.comp:4: 'unpackInt2x32' : no matching overloaded function found
+g_u16_packInt2x16	err	g_u16_packInt2x16.comp:4: 'packInt2x16' : no matching overloaded function found
+g_vec2_packFloat2x16	err	g_vec2_packFloat2x16.comp:4: 'packFloat2x16' : no matching overloaded function found
+g_u64_uaddCarry	err	g_u64_uaddCarry.comp:4: 'c' : redefinition
 g_packHalf2x16	ok	
 g_packHalf2x16_vec3	err	g_packHalf2x16_vec3.comp:4: 'packHalf2x16' : no matching overloaded function found
 g_unpackHalf2x16	ok	

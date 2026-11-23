@@ -143,7 +143,8 @@ static void test_int_bits() {
         const uint3 c = countbits(uint3(0u, 0xFFu, 0xFFFFFFFFu));
         CHECK(c.x == 0u && c.y == 8u && c.z == 32u);
         CHECK(countbits(int2(-1, 5)).x == 32u && countbits(7u) == 3u);
-        CHECK(countbits(float2(3.9f, 255.0f)).y == 8u);  // float converts to uint
+        CHECK(countbits(float2(3.9f, 255.0f)).y == 8u);  // float converts to int
+        CHECK(countbits(-2.0f) == 31u && firstbithigh(float2(-2.5f, 0.0f)).x == 0u);
         const uint3 hu = firstbithigh(uint3(0u, 1u, 0x80000000u));
         CHECK(hu.x == 0xFFFFFFFFu && hu.y == 0u && hu.z == 31u);
         // int: the highest bit that differs from the sign bit
@@ -153,7 +154,9 @@ static void test_int_bits() {
         const uint3 lo = firstbitlow(uint3(0u, 8u, 0x80000000u));
         CHECK(lo.x == 0xFFFFFFFFu && lo.y == 3u && lo.z == 31u);
         CHECK(reversebits(1u) == 0x80000000u);
-        CHECK(reversebits(int2(1, 0x00F0000F)).y == 0xF0000F00u);
+        static_assert(std::is_same_v<decltype(reversebits(int2(1, 2))), int2>);
+        static_assert(std::is_same_v<decltype(reversebits(float2(1.0f, 2.0f))), int2>);
+        CHECK(reversebits(int2(1, 0x00F0000F)).y == static_cast<int>(0xF0000F00u));
         const int3 v(12, -1, 0);
         CHECK(countbits(v.x) == 2u);  // one component
     }

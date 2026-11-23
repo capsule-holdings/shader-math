@@ -519,7 +519,7 @@ if(SHADER_MATH_BUILD_TESTS)
             add_custom_command(
                 OUTPUT ${SM_DXIL_HALF_OUT}
                 COMMAND ${SM_DXIL_RUN} -enable-16bit-types -D SM_INTEROP_ENABLE_HALF=1
-                        -Fo ${SM_DXIL_HALF_OUT} ${SM_INTEROP_DIR}/dxc/kernels.hlsl
+                        -D SM_INTEROP_DXIL=1 -Fo ${SM_DXIL_HALF_OUT} ${SM_INTEROP_DIR}/dxc/kernels.hlsl
                 DEPENDS ${SM_DXIL_DEPS}
                 COMMENT "dxc: compiling the half cases to DXIL (-enable-16bit-types)"
                 VERBATIM)
@@ -534,7 +534,7 @@ if(SHADER_MATH_BUILD_TESTS)
             add_executable(dxil_d3d12_runner_half ${SM_INTEROP_DIR}/d3d12_runner.cpp)
             target_include_directories(dxil_d3d12_runner_half PRIVATE ${SM_INTEROP_DIR})
             target_compile_definitions(dxil_d3d12_runner_half PRIVATE
-                "SM_D3D12_CASES_HEADER=\"shared/case_list.h\"" SM_D3D12_CASES=SM_INTEROP_HALF_CASES)
+                "SM_D3D12_CASES_HEADER=\"dxc/dxc_case_list.h\"" SM_D3D12_CASES=SM_DXIL_HALF_CASES)
             target_link_libraries(dxil_d3d12_runner_half PRIVATE d3d12 dxgi)
             shader_math_warnings(dxil_d3d12_runner_half)
 
@@ -544,7 +544,7 @@ if(SHADER_MATH_BUILD_TESTS)
             target_link_libraries(shader_math_dxil_cpp PRIVATE shader_math)
             shader_math_warnings(shader_math_dxil_cpp)
             add_executable(shader_math_dxil_cpp_half ${SM_INTEROP_DIR}/cpp_harness.cpp)
-            target_compile_definitions(shader_math_dxil_cpp_half PRIVATE SM_INTEROP_ENABLE_HALF)
+            target_compile_definitions(shader_math_dxil_cpp_half PRIVATE SM_INTEROP_ENABLE_HALF SM_INTEROP_DXIL)
             target_link_libraries(shader_math_dxil_cpp_half PRIVATE shader_math)
             shader_math_warnings(shader_math_dxil_cpp_half)
 

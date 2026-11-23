@@ -93,3 +93,32 @@ float4 case_bits_int_compound_float(float4 a, float4 b)
     u -= b * 2.0f;
     return asfloat(uint4(t) + u);
 }
+
+// the bit functions on float lanes: HLSL converts them to int (a negative
+// lane keeps its bits; reversebits(float4) is an int4)
+float4 case_bits_bitfn_float_args(float4 a, float4 b)
+{
+    float4 f = a * 4.0f - b * 9.0f;  // 11.75, -46, 12.75, 15.5
+    uint4 r = countbits(f) + (firstbithigh(f) << 6u) + (firstbitlow(-f) << 12u);
+    int4 v = reversebits(f) >> 3;
+    return asfloat(r ^ uint4(v));
+}
+
+#if defined(SM_INTEROP_ENABLE_HALF)
+// countbits / firstbithigh / firstbitlow on 16- and 64-bit integers count at
+// the lane's width (DXIL's Countbits / FirstbitSHi on i16 and i64). DXC's
+// SPIR-V backend does not compile firstbithigh / firstbitlow below or above
+// 32 bits, and Slang (v2026.20) widens int16_t to 32 bits before counting
+// (docs/slang_compat.md), so only DXIL checks them.
+float4 case_bits_int_width_firstbit(float4 af, float4 bf)
+{
+    int16_t4 s = int16_t4(af * 4000.0f) - int16_t(7000);  // -2000, -17000, 8000, -5000
+    uint16_t4 u = uint16_t4(s) ^ uint16_t(0x5A5A);
+    int64_t4 l = int64_t4(af * 1000000000.0f) * int64_t(-123457);
+    uint64_t4 ul = uint64_t4(l) ^ (uint64_t(0x0F0F0F0Fu) << uint64_t(32));
+    uint4 r = countbits(s) + (firstbithigh(s) << 5u) + (firstbithigh(u) << 10u) + (firstbitlow(s) << 15u);
+    r ^= (firstbithigh(l) << 3u) + (firstbithigh(ul) << 10u) + (firstbitlow(l) << 17u) + (firstbitlow(ul) << 24u);
+    r += firstbithigh(int16_t4(0, -1, 1, -32768)) + firstbitlow(uint64_t4(0, 8, 1, 0));
+    return asfloat(r + firstbithigh(int64_t4(bf * 4.0f)));
+}
+#endif

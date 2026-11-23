@@ -69,6 +69,12 @@ built with this macro (`glsl_interop_nested_check`).
   sets every byte above it (`packSnorm4x8(vec4(0, -1, 0, 0))` gives `0xFFFF8100` instead of `0x00008100`). The shared
   case keeps negative values in the last component; shader-math's own results for the other components are checked
   by the unit tests (`tests/test_int_vectors.cpp`).
+- **`bitCount` / `findMSB` / `findLSB` on 16- and 64-bit integers in glslang (15.1)**: glslang emits `OpBitCount` and
+  GLSL.std.450 `FindSMsb` / `FindUMsb` / `FindILsb` on the 16- or 64-bit operand itself, which Vulkan's SPIR-V limits
+  to 32 bits (`spirv-val` rejects the module). lavapipe runs it anyway, and its 64-bit `findMSB` looks at the low 32
+  bits only (`findMSB(int64_t(1) << 40)` is -1). shader-math counts at the argument's width, as
+  GL_EXT_shader_explicit_arithmetic_types defines; the shared case leaves these out (`case_bits_width_bitfns`) and the
+  unit tests check them (`tests/test_int_widths.cpp`).
 
 ## Writing the shared files
 
