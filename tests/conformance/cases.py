@@ -401,6 +401,9 @@ for cid, body in [
     ("asuint_int64", "uint3 r = asuint(lb);"),
     ("asint16_int", "int16_t3 r = asint16(ia);"),
     ("asfloat16_float", "half3 r = asfloat16(a);"),
+    ("int_times_uint_literal", "uint3 r = ia * 2u + (ia & 1u) + (ia % 2u) + (2u - ia);"),
+    ("int16_times_uint_literal", "uint3 r = sa * 2u;"),
+    ("int_less_than_uint", "bool3 r = ia < 2u;"),
 ]:
     H("width", cid, body)
 
@@ -828,6 +831,15 @@ for cid, body in [
     ("u16_packInt2x16", "int r = packInt2x16(sb.xy);"),
     ("vec2_packFloat2x16", "uint r = packFloat2x16(a2);"),
     ("u64_uaddCarry", "u64vec3 c; u64vec3 r = uaddCarry(lb, lb, c);"),
+    ("i16_times_int16", "i16vec3 r = sa * int16_t(2);"),
+    ("u16_times_int_literal", "u16vec3 r = sb * 2;"),
+    ("u16_times_int_to_int", "ivec3 r = sb * 2;"),
+    ("ivec_times_uint_literal", "ivec3 r = ia * 2u;"),
+    ("ivec_times_uint_to_uint", "uvec3 r = ia * 2u + (ia & 1u) + (2u - ia);"),
+    ("i64_times_uint_literal", "i64vec3 r = la * 2u;"),
+    ("i16_mul_assign_int", "i16vec3 r = sa; r *= 2;"),
+    ("uvec_mul_assign_int", "uvec3 r = ua; r *= 2;"),
+    ("i16_shift_int", "i16vec3 r = sa << 2;"),
 ]:
     G("width", cid, body)
 

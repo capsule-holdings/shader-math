@@ -50,6 +50,10 @@ void glsl_side() {
     GLSL は拡げる方向だけ（int → uint、int / uint → float。`ivec3 t = a;` はエラー）。混在した演算は両言語とも、片方が float なら
     float、int と uint なら uint で計算する（`int3 * 2.5` と `int3 + float3` は `float3`、`int3 + uint3` は `uint3`）。複合代入は
     左辺の型のままなので、戻す方向の暗黙変換が要る（HLSL の `int3 += float3` は切り捨て、GLSL の `ivec3 += vec3` はエラー）。
+    整数のスカラーはその言語での型を持つ: GLSL はすべての整数に型がある（`ivec3 * 2u` は `uvec3`、`i16vec3 * 2` は `ivec3`、
+    `i16vec3 *= 2` はエラー）。HLSL は `2u` と成分に型があり（`int3 * 2u` は `uint3` で、比較もシフトも uint として行う）、
+    接尾辞の無いリテラルはベクトルの型になる（`int16_t3 * 2` は `int16_t3` のまま。HLSL では型を持つ `int` の変数も、ここでは
+    そのリテラルとして扱う）。
     HLSL では浮動小数点の関数が int ベクトルを float として受け取る（`sqrt(int3)` は `float3`）。bool ↔ int、half ↔ int、
     もう一方の言語との変換は明示的なまま。コンストラクタは変換する（`int3(a)`、`int4(i.xy, 2.9f, k)`）
   - 関数: `abs` `sign`（int のみ）`min` `max` `clamp`、HLSL の `dot` `mul(v, v)` `all` `any` `select` `asint` `asuint`
@@ -74,8 +78,7 @@ void glsl_side() {
   `bitfieldReverse` は 16 ビットのレーンを int として受け取る。16 ビットのキャストとして HLSL の `asint16` `asuint16` `asfloat16`
   と GLSL の `float16BitsToInt16` `float16BitsToUint16` `int16BitsToFloat16` `uint16BitsToFloat16`、GLSL のパックとして
   `packInt2x16` `packUint2x16` `packInt4x16` `packUint4x16` `packInt2x32` `packUint2x32` `packFloat2x16` とそれぞれの
-  `unpack*`（最初の成分が下位ビット）。未対応: half との混在、GLSL の `int` リテラルによる昇格（`i16vec3 * 2` はここでは
-  `i16vec3`、GLSL では `ivec3`）
+  `unpack*`（最初の成分が下位ビット）。未対応: half との混在
 - 整数行列（HLSL のみ。GLSL には無い）: `hlsl::int2x2`〜`int4x4` と `uint2x2`〜`uint4x4`。成分ごとの演算子（`%`、ビット演算、
   シフトを含む）、`mul`（折り返し）、`transpose`、比較、`abs` `sign` `min` `max` `clamp`、整数ベクトルと同じ暗黙変換と混在演算
   （`float3x3 f = im;`、`im + m` は `float3x3`）。浮動小数点の関数は float の行列を返し（`sqrt(int3x3)` は `float3x3`）、
@@ -263,7 +266,9 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
 など（GLSL）。`find_package(shader_math 0.7)` は `0.8` に変える。
 
 HLSL の結果が 2 つ、DXC に合わせて変わる: int ベクトルの `reversebits` は int ベクトルになり（以前は uint ベクトル）、ビット関数は
-float の引数を uint ではなく int に変換するので、負の値の結果が変わる（`countbits(-2.0f)` は 31。以前は 0）。
+float の引数を uint ではなく int に変換するので、負の値の結果が変わる（`countbits(-2.0f)` は 31。以前は 0）。整数のスカラーは
+その言語での型を持つようになった（上の整数ベクトルの項を参照）: `int3 * 2u` は両言語で `uint3` なので、`int3(-1) < 2u` は偽で、
+結果への `>>` は論理シフトになる。GLSL の `i16vec3 * 2` は `ivec3` なので、`i16vec3 *= 2` と `ivec3 *= 2u` はコンパイルできなくなった。
 
 ## 0.6 からの移行
 

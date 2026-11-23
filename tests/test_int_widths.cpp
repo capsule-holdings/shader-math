@@ -45,6 +45,26 @@ static_assert(!Addable<g::i64vec3, g::vec3> && !Addable<g::i64vec3, float>);
 static_assert(std::is_convertible_v<g::i16vec3, g::ivec3> && std::is_convertible_v<g::uvec3, g::i64vec3>);
 static_assert(!std::is_convertible_v<g::ivec3, g::i16vec3> && !std::is_convertible_v<g::u16vec3, g::i16vec3>);
 static_assert(!std::is_convertible_v<g::i64vec3, g::vec3> && std::is_convertible_v<g::i16vec3, g::vec3>);
+
+// An integer scalar has its language's type, and the operation computes in
+// the common type: GLSL types every integer (2 is an int, 2u a uint); HLSL
+// types 2u and a component, while a plain int takes the vector's type (an
+// unsuffixed literal). Shifts keep the left type.
+template <class A, class S>
+concept MulAssign = requires(A& a, const S& s) { a *= s; };
+static_assert(std::is_same_v<sum_t<g::i16vec3, int>, g::ivec3> && std::is_same_v<sum_t<int, g::u16vec3>, g::ivec3>);
+static_assert(std::is_same_v<sum_t<g::ivec3, unsigned>, g::uvec3> && std::is_same_v<sum_t<unsigned, g::ivec3>, g::uvec3>);
+static_assert(std::is_same_v<sum_t<g::i64vec3, unsigned>, g::i64vec3> && std::is_same_v<sum_t<g::uvec3, int>, g::uvec3>);
+static_assert(std::is_same_v<sum_t<g::i16vec3, std::int16_t>, g::i16vec3>);
+static_assert(std::is_same_v<decltype(std::declval<g::ivec3>() & 1u), g::uvec3>);
+static_assert(std::is_same_v<decltype(std::declval<g::i16vec3>() << 2), g::i16vec3>);
+static_assert(!MulAssign<g::i16vec3, int> && !MulAssign<g::ivec3, unsigned> && MulAssign<g::uvec3, int>);
+static_assert(std::is_same_v<sum_t<h::int16_t3, int>, h::int16_t3> && std::is_same_v<sum_t<h::uint16_t3, int>, h::uint16_t3>);
+static_assert(std::is_same_v<sum_t<h::int3, unsigned>, h::uint3> && std::is_same_v<sum_t<h::int16_t3, unsigned>, h::uint3>);
+static_assert(std::is_same_v<sum_t<h::int16_t3, decltype(std::declval<h::int3&>().x)>, h::int3>);
+static_assert(std::is_same_v<decltype(std::declval<h::int3>() % 2u), h::uint3>);
+static_assert(MulAssign<h::int3, unsigned> && MulAssign<h::int16_t3, unsigned>);
+
 // The bit functions at every width: HLSL counts give uint and reversebits
 // keeps the type; GLSL counts give a signed integer of the argument's width,
 // and the bitfield functions (int and uint overloads only) take 16-bit lanes
@@ -119,6 +139,16 @@ static void test_int16() {
     CHECK(v.x == 6 && v.z == -2);
 }
 
+static void test_int_scalars_hlsl() {
+    using namespace shader_math::hlsl;
+    // int3 with 2u computes as uint: -1 is 0xFFFFFFFF, >> is logical
+    CHECK(all((int3(-1, 0, 5) < 2u) == bool3(false, true, false)));
+    const uint3 u = (int3(-4, 4, 0) * 2u) >> 1;
+    CHECK(u.x == 0x7FFFFFFCu && u.y == 4u);
+    const int16_t2 w = int16_t2(int16_t(32767), int16_t(1)) * 2;  // the literal takes int16_t
+    CHECK(w.x == -2);
+}
+
 static void test_int64() {
     using namespace shader_math::hlsl;
     constexpr std::int64_t mx = std::numeric_limits<std::int64_t>::max();
@@ -158,6 +188,10 @@ static void test_int64() {
 
 static void test_widths_glsl() {
     using namespace shader_math::glsl;
+    const uvec2 pu = ivec2(-2, 4) * 2u;  // computed as uint
+    CHECK(pu.x == 0xFFFFFFFCu && pu.y == 8u);
+    const ivec3 pi = i16vec3(int16_t(32767), int16_t(-2), int16_t(3)) * 2;  // as int: no 16-bit wrap
+    CHECK(pi.x == 65534 && pi.y == -4);
     const ivec3 a = i16vec3(int16_t(1), int16_t(2), int16_t(3)) + ivec3(10, 20, 30);
     CHECK(a.z == 33);
     const i64vec3 b = uvec3(0xFFFFFFFFu, 1u, 2u) + i64vec3(1, 1, 1);
@@ -236,6 +270,7 @@ static void test_width_bit_functions() {
 
 void test_int_widths() {
     test_int16();
+    test_int_scalars_hlsl();
     test_int64();
     test_widths_glsl();
     test_width_bit_functions();

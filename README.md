@@ -49,7 +49,11 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
     (`float3 f = i;`, `int3 t = a;` truncates); GLSL only widens (int → uint, int / uint → float; `ivec3 t = a;` is an error).
     Mixed operands compute in float when one side is float and in uint for int with uint, in both languages (`int3 * 2.5` and
     `int3 + float3` are `float3`, `int3 + uint3` is `uint3`); a compound assignment keeps the left type, so it needs the implicit
-    conversion back (HLSL `int3 += float3` truncates, GLSL `ivec3 += vec3` is an error). In HLSL the floating-point functions
+    conversion back (HLSL `int3 += float3` truncates, GLSL `ivec3 += vec3` is an error). An integer scalar has its
+    language's type: GLSL types every integer (`ivec3 * 2u` is a `uvec3`, `i16vec3 * 2` an `ivec3`, and `i16vec3 *= 2` is an
+    error); HLSL types `2u` and a component (`int3 * 2u` is a `uint3`, compared and shifted as uint), while an unsuffixed
+    literal takes the vector's type (`int16_t3 * 2` stays `int16_t3`; an `int` variable, which HLSL types, counts as such a
+    literal here). In HLSL the floating-point functions
     take int vectors as float (`sqrt(int3)` is a `float3`). bool ↔ int, half ↔ int and the other language stay explicit.
     Constructors convert (`int3(a)`, `int4(i.xy, 2.9f, k)`)
   - Functions: `abs` `sign` (int only) `min` `max` `clamp`; HLSL `dot` `mul(v, v)` `all` `any` `select` `asint` `asuint`
@@ -74,8 +78,7 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
   width); GLSL's `bitfieldExtract` / `bitfieldInsert` / `bitfieldReverse` take 16-bit lanes as int. The 16-bit casts HLSL
   `asint16` `asuint16` `asfloat16` and GLSL `float16BitsToInt16` `float16BitsToUint16` `int16BitsToFloat16`
   `uint16BitsToFloat16`, and GLSL's `packInt2x16` `packUint2x16` `packInt4x16` `packUint4x16` `packInt2x32` `packUint2x32`
-  `packFloat2x16` and their `unpack*` (the first component in the low bits). Not covered yet: mixing with half, and GLSL's
-  promotion of an `int` literal (`i16vec3 * 2` is an `i16vec3` here, an `ivec3` in GLSL)
+  `packFloat2x16` and their `unpack*` (the first component in the low bits). Not covered yet: mixing with half
 - Integer matrices (HLSL only; GLSL has none): `hlsl::int2x2`–`int4x4` and `uint2x2`–`uint4x4`. Component-wise operators
   (including `%`, bitwise operators and shifts), `mul` (wrapping), `transpose`, comparisons, `abs` `sign` `min` `max` `clamp`,
   and the implicit conversions and mixed operands of the integer vectors (`float3x3 f = im;`, `im + m` is a `float3x3`). The
@@ -265,7 +268,9 @@ unchanged, except where the new names collide with your own declarations under `
 
 Two HLSL results change to match DXC: `reversebits` on an int vector is an int vector (it was a uint vector), and the bit
 functions convert a float argument to int instead of uint, which changes negative values (`countbits(-2.0f)` is 31; it was
-0).
+0). An integer scalar now has its language's type (see the integer vectors above): `int3 * 2u` is a `uint3` in both
+languages, so `int3(-1) < 2u` is false and `>>` on the result is logical, and GLSL's `i16vec3 * 2` is an `ivec3`, so
+`i16vec3 *= 2` and `ivec3 *= 2u` no longer compile there.
 
 ## Migrating from 0.6
 

@@ -700,7 +700,7 @@ SHADER_MATH_INLINE matrix<R, C, T>& operator%=(matrix<R, C, T>& a, const B& b) {
             detail::vops<T>::fn(detail::to_vec(a).q_, detail::to_vec(b).q_));            \
     }                                                                                    \
     template <class A, class S>                                                          \
-        requires(detail::VecOf<A, lang_tag> && detail::ScalarFor<S, detail::vec_elem_t<A>>) \
+        requires(detail::VecOf<A, lang_tag> && detail::VecScalar<S, A>)                  \
     SHADER_MATH_INLINE auto operator sym(const A& a, const S& s) {                       \
         constexpr int n = detail::vec_size_v<A>;                                         \
         using T = detail::vec_elem_t<A>;                                                 \
@@ -708,7 +708,7 @@ SHADER_MATH_INLINE matrix<R, C, T>& operator%=(matrix<R, C, T>& a, const B& b) {
             detail::vops<T>::fn(detail::to_vec(a).q_, detail::vops<T>::splat(static_cast<T>(s)))); \
     }                                                                                    \
     template <class B, class S>                                                          \
-        requires(detail::VecOf<B, lang_tag> && detail::ScalarFor<S, detail::vec_elem_t<B>>) \
+        requires(detail::VecOf<B, lang_tag> && detail::VecScalar<S, B>)                  \
     SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                       \
         constexpr int n = detail::vec_size_v<B>;                                         \
         using T = detail::vec_elem_t<B>;                                                 \
@@ -730,6 +730,18 @@ SHADER_MATH_INLINE matrix<R, C, T>& operator%=(matrix<R, C, T>& a, const B& b) {
         requires(detail::VecOf<B, lang_tag> && detail::IntVecFloatScalar<B, S>)          \
     SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                       \
         return static_cast<float>(s) sym detail::float_vec_t<B>(detail::to_vec(b));      \
+    }                                                                                    \
+    template <class A, class S>                                                          \
+        requires(detail::VecOf<A, lang_tag> && detail::PromotingScalar<S, A>)            \
+    SHADER_MATH_INLINE auto operator sym(const A& a, const S& s) {                       \
+        using R = detail::int_scalar_op_t<A, S>;                                         \
+        return detail::hvec<detail::vec_size_v<A>, R>(detail::to_vec(a)) sym static_cast<R>(s); \
+    }                                                                                    \
+    template <class B, class S>                                                          \
+        requires(detail::VecOf<B, lang_tag> && detail::PromotingScalar<S, B>)            \
+    SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                       \
+        using R = detail::int_scalar_op_t<B, S>;                                         \
+        return static_cast<R>(s) sym detail::hvec<detail::vec_size_v<B>, R>(detail::to_vec(b)); \
     }                                                                                    \
     template <int R, int C, class T, class S>                                            \
         requires detail::ScalarFor<S, T>                                                 \

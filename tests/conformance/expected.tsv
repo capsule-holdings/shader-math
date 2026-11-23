@@ -356,6 +356,9 @@ h_asuint_int16	err	no matching function for call to 'asuint'
 h_asuint_int64	err	no matching function for call to 'asuint'
 h_asint16_int	err	no matching function for call to 'asint16'
 h_asfloat16_float	err	no matching function for call to 'asfloat16'
+h_int_times_uint_literal	ok	
+h_int16_times_uint_literal	ok	
+h_int_less_than_uint	ok	
 h_f32tof16	ok	
 h_f32tof16_vec	ok	
 h_f32tof16_int	ok	
@@ -722,6 +725,15 @@ g_u64_unpackInt2x32	err	g_u64_unpackInt2x32.comp:4: 'unpackInt2x32' : no matchin
 g_u16_packInt2x16	err	g_u16_packInt2x16.comp:4: 'packInt2x16' : no matching overloaded function found
 g_vec2_packFloat2x16	err	g_vec2_packFloat2x16.comp:4: 'packFloat2x16' : no matching overloaded function found
 g_u64_uaddCarry	err	g_u64_uaddCarry.comp:4: 'c' : redefinition
+g_i16_times_int16	ok	
+g_u16_times_int_literal	err	g_u16_times_int_literal.comp:4: '=' : cannot convert from ' temp 3-component vector of int' to ' temp 3-component vector
+g_u16_times_int_to_int	ok	
+g_ivec_times_uint_literal	err	g_ivec_times_uint_literal.comp:4: '=' : cannot convert from ' temp 3-component vector of uint' to ' temp highp 3-compone
+g_ivec_times_uint_to_uint	ok	
+g_i64_times_uint_literal	ok	
+g_i16_mul_assign_int	err	g_i16_mul_assign_int.comp:4: 'assign' : cannot convert from ' const int' to ' temp 3-component vector of int16_t'
+g_uvec_mul_assign_int	ok	
+g_i16_shift_int	ok	
 g_packHalf2x16	ok	
 g_packHalf2x16_vec3	err	g_packHalf2x16_vec3.comp:4: 'packHalf2x16' : no matching overloaded function found
 g_unpackHalf2x16	ok	

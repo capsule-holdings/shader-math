@@ -66,3 +66,13 @@ vec4 case_bits_width_bitfns(vec4 af, vec4 bf)
     r ^= ivec4(us) + ivec4(uq, ivec2(u2)) + (ivec4(hb) << 9);
     return uintBitsToFloat(uvec4(r) ^ floatBitsToUint(vec4(hf)) ^ floatBitsToUint(vec4(vec2(uh), vec2(uh))));
 }
+
+// a 16-bit vector with an int literal computes as int (2 is an int): no
+// wrap at 16 bits
+vec4 case_bits_int16_literal(vec4 af, vec4 bf)
+{
+    i16vec4 s = i16vec4(af * 8000.0f);  // 10000, -20000, 30000, 4000
+    u16vec4 u = u16vec4(abs(bf) * 5000.0f);  // 3750, 20000, 1250, 7500
+    ivec4 w = s * 3 + (u * 4 - 7);
+    return uintBitsToFloat(uvec4(w));
+}
