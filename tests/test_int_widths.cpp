@@ -45,13 +45,38 @@ static_assert(!Addable<g::i64vec3, g::vec3> && !Addable<g::i64vec3, float>);
 static_assert(std::is_convertible_v<g::i16vec3, g::ivec3> && std::is_convertible_v<g::uvec3, g::i64vec3>);
 static_assert(!std::is_convertible_v<g::ivec3, g::i16vec3> && !std::is_convertible_v<g::u16vec3, g::i16vec3>);
 static_assert(!std::is_convertible_v<g::i64vec3, g::vec3> && std::is_convertible_v<g::i16vec3, g::vec3>);
-// the bit functions and casts stay 32-bit
+// The bit functions at every width: HLSL counts give uint and reversebits
+// keeps the type; GLSL counts give a signed integer of the argument's width,
+// and the bitfield functions (int and uint overloads only) take 16-bit lanes
+// as int and no 64-bit ones. The 32-bit casts stay 32-bit.
 template <class A>
-concept HasBitCount = requires(const A& a) { g::bitCount(a); };
+concept HasBitfieldExtract = requires(const A& a) { g::bitfieldExtract(a, 0, 1); };
 template <class A>
 concept HasAsfloat = requires(const A& a) { h::asfloat(a); };
-static_assert(HasBitCount<g::ivec3> && !HasBitCount<g::i16vec3> && !HasBitCount<g::i64vec3>);
-static_assert(HasAsfloat<h::int3> && !HasAsfloat<h::int64_t3>);
+template <class A>
+concept HasAsint16 = requires(const A& a) { h::asint16(a); };
+static_assert(std::is_same_v<decltype(h::countbits(h::int16_t3())), h::uint3>);
+static_assert(std::is_same_v<decltype(h::firstbithigh(h::uint64_t2())), h::uint2>);
+static_assert(std::is_same_v<decltype(h::reversebits(h::int64_t3())), h::int64_t3>);
+static_assert(std::is_same_v<decltype(h::countbits(std::uint64_t(1))), h::uint>);
+static_assert(std::is_same_v<decltype(g::bitCount(g::u16vec3())), g::i16vec3>);
+static_assert(std::is_same_v<decltype(g::findMSB(g::u64vec2())), g::i64vec2>);
+static_assert(std::is_same_v<decltype(g::findLSB(std::uint16_t(1))), std::int16_t>);
+static_assert(std::is_same_v<decltype(g::bitfieldExtract(g::u16vec3(), 0, 1)), g::ivec3>);
+static_assert(std::is_same_v<decltype(g::bitfieldInsert(g::ivec3(), g::uvec3(), 0, 1)), g::uvec3>);
+static_assert(HasBitfieldExtract<g::i16vec3> && !HasBitfieldExtract<g::i64vec3>);
+static_assert(HasAsfloat<h::int3> && !HasAsfloat<h::int64_t3> && !HasAsfloat<h::uint16_t3>);
+static_assert(HasAsint16<h::uint16_t3> && !HasAsint16<h::int3> && !HasAsint16<h::float3>);
+// GLSL's casts and packing functions convert their argument as GLSL does
+template <class A>
+concept HasIntBitsToFloat = requires(const A& a) { g::intBitsToFloat(a); };
+template <class A>
+concept HasUnpackInt2x32 = requires(const A& a) { g::unpackInt2x32(a); };
+template <class A>
+concept HasPackInt2x16 = requires(const A& a) { g::packInt2x16(a); };
+static_assert(HasIntBitsToFloat<g::i16vec3> && HasIntBitsToFloat<g::u16vec3> && !HasIntBitsToFloat<g::uvec3>);
+static_assert(HasUnpackInt2x32<std::int64_t> && HasUnpackInt2x32<unsigned> && !HasUnpackInt2x32<std::uint64_t>);
+static_assert(HasPackInt2x16<g::i16vec2> && !HasPackInt2x16<g::u16vec2> && !HasPackInt2x16<g::i16vec3>);
 
 static void test_int16() {
     using namespace shader_math::hlsl;
@@ -145,8 +170,73 @@ static void test_widths_glsl() {
     CHECK(all(lessThan(u16vec2(uint16_t(1), uint16_t(2)), u16vec2(uint16_t(2), uint16_t(2)))) == false);
 }
 
+static void test_width_bit_functions() {
+    {
+        using namespace shader_math::hlsl;
+        // counted at the lane's width
+        const uint3 c = countbits(int16_t3(int16_t(-1), int16_t(1), int16_t(-2)));
+        CHECK(c.x == 16u && c.y == 1u && c.z == 15u);
+        CHECK(countbits(int64_t(-1)) == 64u && countbits(0x100000000) == 1u);
+        const uint3 hi = firstbithigh(int16_t3(int16_t(-1), int16_t(1), int16_t(-32768)));
+        CHECK(hi.x == 0xFFFFFFFFu && hi.y == 0u && hi.z == 14u);
+        const uint2 hl = firstbithigh(uint64_t2(std::uint64_t(1) << 40, 0u));
+        CHECK(hl.x == 40u && hl.y == 0xFFFFFFFFu);
+        CHECK(firstbitlow(int64_t(std::int64_t(1) << 50)) == 50u);
+        const int16_t2 r = reversebits(int16_t2(int16_t(1), int16_t(0x00FF)));
+        CHECK(r.x == -32768 && r.y == static_cast<std::int16_t>(0xFF00));
+        CHECK(reversebits(std::uint64_t(1)) == std::uint64_t(1) << 63);
+#if defined(SHADER_MATH_HAS_HALF)
+        const int16_t3 hb = asint16(half3(half(1.0f), half(-2.0f), half(0.5f)));
+        CHECK(hb.x == 0x3C00 && hb.y == static_cast<std::int16_t>(0xC000) && hb.z == 0x3800);
+        CHECK(asuint16(half(1.0f)) == 0x3C00u);
+        const half2 hf = asfloat16(uint16_t2(uint16_t(0x3C00), uint16_t(0xC000)));
+        CHECK_EQF(static_cast<float>(hf[0]), 1.0f);
+        CHECK_EQF(static_cast<float>(hf[1]), -2.0f);
+#endif
+    }
+    {
+        using namespace shader_math::glsl;
+        const i16vec3 c = bitCount(i16vec3(int16_t(-1), int16_t(1), int16_t(-2)));
+        CHECK(c.x == 16 && c.y == 1 && c.z == 15);
+        const i64vec2 m = findMSB(i64vec2(-1, std::int64_t(1) << 40));
+        CHECK(m.x == -1 && m.y == 40);
+        CHECK(findLSB(std::uint64_t(0)) == -1);
+        // a 16-bit argument converts to int: 0xFFFF is 65535, so its top
+        // nibble sign-extends
+        const ivec3 e = bitfieldExtract(u16vec3(uint16_t(0xFFFF), uint16_t(0x00F0), uint16_t(1)), 4, 4);
+        CHECK(e.x == -1 && e.y == -1 && e.z == 0);
+        CHECK(bitfieldReverse(uint16_t(1)) == static_cast<int>(0x80000000u));
+        const ivec2 ins = bitfieldInsert(i16vec2(int16_t(0), int16_t(-1)), u16vec2(uint16_t(3), uint16_t(0)), 4, 4);
+        CHECK(ins.x == 0x30 && ins.y == -241);
+        CHECK(intBitsToFloat(int16_t(0)) == 0.0f && uintBitsToFloat(0x3F800000) == 1.0f);
+
+        CHECK(packInt2x16(i16vec2(int16_t(-2), int16_t(3))) == 0x0003FFFE);
+        CHECK(packUint2x16(i16vec2(int16_t(-1), int16_t(0))) == 0x0000FFFFu);
+        const i16vec2 ui = unpackInt2x16(0x0003FFFE);
+        CHECK(ui.x == -2 && ui.y == 3);
+        CHECK(packUint4x16(u16vec4(uint16_t(1), uint16_t(2), uint16_t(3), uint16_t(0xFFFF))) ==
+              0xFFFF000300020001ull);
+        const i16vec4 u4 = unpackInt4x16(std::int64_t(-1));
+        CHECK(u4.x == -1 && u4.w == -1);
+        CHECK(packInt2x32(ivec2(-1, 0)) == 0x00000000FFFFFFFFLL);
+        const uvec2 u2 = unpackUint2x32(std::uint64_t(0x1234567800000009ull));
+        CHECK(u2.x == 9u && u2.y == 0x12345678u);
+#if defined(SHADER_MATH_HAS_HALF)
+        const f16vec2 h(glsl::float16_t(1.0f), glsl::float16_t(-2.0f));
+        CHECK(packFloat2x16(h) == 0xC0003C00u);
+        const f16vec2 uh = unpackFloat2x16(0xC0003C00u);
+        CHECK_EQF(static_cast<float>(uh[1]), -2.0f);
+        const i16vec2 hb = float16BitsToInt16(h);
+        CHECK(hb.x == 0x3C00 && hb.y == static_cast<std::int16_t>(0xC000));
+        const f16vec2 bh = uint16BitsToFloat16(i16vec2(int16_t(0x3C00), int16_t(0x3800)));
+        CHECK_EQF(static_cast<float>(bh[1]), 0.5f);
+#endif
+    }
+}
+
 void test_int_widths() {
     test_int16();
     test_int64();
     test_widths_glsl();
+    test_width_bit_functions();
 }

@@ -54,11 +54,12 @@ void glsl_side() {
     もう一方の言語との変換は明示的なまま。コンストラクタは変換する（`int3(a)`、`int4(i.xy, 2.9f, k)`）
   - 関数: `abs` `sign`（int のみ）`min` `max` `clamp`、HLSL の `dot` `mul(v, v)` `all` `any` `select` `asint` `asuint`
     `asfloat`、GLSL の `equal` / `lessThan` / … `mix(x, y, bvec)` `floatBitsToInt` `floatBitsToUint` `intBitsToFloat`
-    `uintBitsToFloat`。GLSL では浮動小数点の関数（`sqrt`、`length` など）は整数ベクトルを取らない
-  - ビット関数: HLSL の `countbits` `firstbithigh` `firstbitlow` `reversebits`（結果は uint。float の引数は uint に変換）、
-    GLSL の `bitCount` `findMSB` `findLSB` `bitfieldReverse` `bitfieldExtract` `bitfieldInsert` `uaddCarry` `usubBorrow`
-    `umulExtended` `imulExtended`。int の `firstbithigh` / `findMSB` は符号ビットと違う最上位ビットの位置で、無ければ
-    -1（HLSL では `0xFFFFFFFF`）。`bitfieldExtract` / `bitfieldInsert` の 32 ビットをはみ出すフィールド（GLSL では未定義）は
+    `uintBitsToFloat`（引数は GLSL の暗黙変換どおりに変換する: `intBitsToFloat(i16vec3)`）。GLSL では浮動小数点の関数（`sqrt`、
+    `length` など）は整数ベクトルを取らない
+  - ビット関数: HLSL の `countbits` `firstbithigh` `firstbitlow`（結果は uint）と `reversebits`（同じ整数型。float や half の
+    引数は int に変換）、GLSL の `bitCount` `findMSB` `findLSB` `bitfieldReverse` `bitfieldExtract` `bitfieldInsert`
+    `uaddCarry` `usubBorrow` `umulExtended` `imulExtended`。符号付き整数の `firstbithigh` / `findMSB` は符号ビットと違う最上位
+    ビットの位置で、無ければ -1（HLSL では `0xFFFFFFFF`）。`bitfieldExtract` / `bitfieldInsert` の 32 ビットをはみ出すフィールド（GLSL では未定義）は
     ビット 31 で終わり、負のオフセットとビット数は 0 として扱う
   - パック: HLSL の `f32tof16` / `f16tof32`（uint の下位 16 ビットに binary16 のビット）、GLSL の `packHalf2x16`
     `packUnorm2x16` `packSnorm2x16` `packUnorm4x8` `packSnorm4x8` とそれぞれの `unpack*`。丸めは最近接偶数（GLSL は中間値の
@@ -68,8 +69,13 @@ void glsl_side() {
   `clamp` `dot`（HLSL）を、それぞれの幅で折り返して計算する（シフト量は 16 / 64 で割った余り、float → int は型の範囲で飽和）。
   幅の混在は各言語に従う: HLSL は幅の広いほうで、どちらかが符号なしなら符号なし（`uint16_t3 + int3` は `uint3`）、GLSL は片方を暗黙変換
   する（`u16vec3 + ivec3` は `ivec3`、`i64vec3 + vec3` はコンパイルエラー）。16 ビットのレーンは 32 ビットで、64 ビットのレーンは
-  1 つずつ計算する。未対応: これらのビット関数・ビットキャスト・パック、half との混在、GLSL の `int` リテラルによる昇格
-  （`i16vec3 * 2` はここでは `i16vec3`、GLSL では `ivec3`）
+  1 つずつ計算する。ビット関数はレーンの幅で数える（HLSL の `countbits`、`firstbithigh`、`firstbitlow`、`reversebits`、GLSL の
+  `bitCount`、`findMSB`、`findLSB`。GLSL の結果は同じ幅の符号付き整数）。GLSL の `bitfieldExtract` / `bitfieldInsert` /
+  `bitfieldReverse` は 16 ビットのレーンを int として受け取る。16 ビットのキャストとして HLSL の `asint16` `asuint16` `asfloat16`
+  と GLSL の `float16BitsToInt16` `float16BitsToUint16` `int16BitsToFloat16` `uint16BitsToFloat16`、GLSL のパックとして
+  `packInt2x16` `packUint2x16` `packInt4x16` `packUint4x16` `packInt2x32` `packUint2x32` `packFloat2x16` とそれぞれの
+  `unpack*`（最初の成分が下位ビット）。未対応: half との混在、GLSL の `int` リテラルによる昇格（`i16vec3 * 2` はここでは
+  `i16vec3`、GLSL では `ivec3`）
 - 整数行列（HLSL のみ。GLSL には無い）: `hlsl::int2x2`〜`int4x4` と `uint2x2`〜`uint4x4`。成分ごとの演算子（`%`、ビット演算、
   シフトを含む）、`mul`（折り返し）、`transpose`、比較、`abs` `sign` `min` `max` `clamp`、整数ベクトルと同じ暗黙変換と混在演算
   （`float3x3 f = im;`、`im + m` は `float3x3`）。浮動小数点の関数は float の行列を返し（`sqrt(int3x3)` は `float3x3`）、
@@ -255,6 +261,9 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
 `using namespace hlsl` / `using namespace glsl` の下で新しい名前と自前の宣言がぶつかる場合を除く: `int2x2`〜`uint4x4`（HLSL）、
 `int16_t2`〜`uint64_t4`（HLSL）、`i16vec2`〜`u64vec4`（GLSL）、`f32tof16` / `f16tof32`（HLSL）、`packHalf2x16`、`packUnorm4x8`
 など（GLSL）。`find_package(shader_math 0.7)` は `0.8` に変える。
+
+HLSL の結果が 2 つ、DXC に合わせて変わる: int ベクトルの `reversebits` は int ベクトルになり（以前は uint ベクトル）、ビット関数は
+float の引数を uint ではなく int に変換するので、負の値の結果が変わる（`countbits(-2.0f)` は 31。以前は 0）。
 
 ## 0.6 からの移行
 

@@ -165,14 +165,16 @@ Differences caused by C++ syntax:
 | `abs` `min` `max` `clamp` `sign` | ○ | ○ | ○ / ○ | `abs(INT_MIN)` wraps; `sign` takes int, not uint |
 | `dot` | ○ | − (floats only) | ○ / ○ | Wraps |
 | Float functions on int | `sqrt(i)` → float3 | `sqrt(i)` → ambiguous (error) | ○ / ○ | |
-| Bit casts | `asint` `asuint` `asfloat` | `floatBitsToInt` `floatBitsToUint` `intBitsToFloat` `uintBitsToFloat` | ○ / ○ | Vectors and scalars |
+| Bit casts | `asint` `asuint` `asfloat` | `floatBitsToInt` `floatBitsToUint` `intBitsToFloat` `uintBitsToFloat` | ○ / ○ | Vectors and scalars. GLSL converts the argument implicitly (`intBitsToFloat(i16vec3)`, `uintBitsToFloat(ivec3)`) |
+| 16-bit casts | `asint16` `asuint16` `asfloat16` | `float16BitsToInt16` `float16BitsToUint16` `int16BitsToFloat16` `uint16BitsToFloat16` | ○ / ○ | Between `int16_t`, `uint16_t` and half |
 | `frexp` / `ldexp` | float exponent | int exponent | ○ / ○ | |
-| Bit counts and positions | `countbits` `firstbithigh` `firstbitlow` (uint) | `bitCount` `findMSB` `findLSB` (int) | ○ / ○ | On int, the highest bit that differs from the sign bit; -1 where none. HLSL also takes float (converted to uint) |
-| Bit reversal | `reversebits` (uint) | `bitfieldReverse` (same type) | ○ / ○ | |
-| Bit fields | − | `bitfieldExtract` `bitfieldInsert` (int offset / bits) | ○ / ○ | Sign-extended on int. A field outside the 32 bits (undefined in GLSL) ends at bit 31; negative values count as 0 |
+| Bit counts and positions | `countbits` `firstbithigh` `firstbitlow` (uint) | `bitCount` `findMSB` `findLSB` (int of the argument's width) | ○ / ○ | 16, 32 and 64 bits, counted at the lane's width. On signed integers, the highest bit that differs from the sign bit; -1 where none. HLSL also takes float and half (converted to int) |
+| Bit reversal | `reversebits` (same integer type) | `bitfieldReverse` (int or uint) | ○ / ○ | HLSL: 16, 32 and 64 bits; float and half give int. GLSL: a 16-bit argument converts to int |
+| Bit fields | − | `bitfieldExtract` `bitfieldInsert` (int offset / bits) | ○ / ○ | Sign-extended on int. A field outside the 32 bits (undefined in GLSL) ends at bit 31; negative values count as 0. 16-bit arguments compute as int (glslang takes int for `u16vec` too), 64-bit ones do not compile |
 | Half bits | `f32tof16` / `f16tof32` (uint low 16 bits) | `packHalf2x16` / `unpackHalf2x16` | ○ / ○ | Round to nearest even |
 | unorm / snorm packing | − | `packUnorm2x16` `packSnorm2x16` `packUnorm4x8` `packSnorm4x8`, `unpack*` | ○ / ○ | Ties to even (implementation-defined in GLSL); NaN packs as 0 |
-| 16- / 64-bit integers | `int16_t3` `uint64_t3` (`-enable-16bit-types` for 16 bits) | `i16vec3` `u64vec3` | ○ / ○ | Operators and int functions at their width; bit functions, bit casts and packing are 32-bit only |
+| Integer and float16 packing | − | `packInt2x16` `packUint2x16` `packInt4x16` `packUint4x16` `packInt2x32` `packUint2x32` `packFloat2x16`, `unpack*` | − / ○ | The first component in the low bits |
+| 16- / 64-bit integers | `int16_t3` `uint64_t3` (`-enable-16bit-types` for 16 bits) | `i16vec3` `u64vec3` | ○ / ○ | Operators, int functions and bit functions at their width |
 | Mixed widths | the wider, unsigned when either is | one side converts implicitly | ○ / △ | GLSL's `int` literal promotes `i16vec3 * 2` to `ivec3`; here it stays `i16vec3` |
 | 16-bit integer with half | `int16_t3 + half3` → half3 | `i16vec3 + f16vec3` → f16vec3 | × / × | half converts explicitly, as with float |
 | Integer matrices | `int3x3` `uint3x3` | − | ○ / − | `mul` wraps; `%`, bitwise operators, comparisons and the int functions row by row; float functions and `determinant` compute in float |
@@ -260,7 +262,7 @@ GPU ABI. Shader compilers also differ from each other (Slang's CPU `round`, DXC'
 
 ## Conformance rate (2026-11-23)
 
-The fraction of the 744 cases in `tests/conformance/` (HLSL 392, GLSL 352) for which shader-math accepts and rejects
+The fraction of the 781 cases in `tests/conformance/` (HLSL 405, GLSL 376) for which shader-math accepts and rejects
 the same code as the language. The values exclude the out-of-scope categories. The int / uint cases were added with
 the integer vectors; the earlier columns cover the float / half cases only.
 
@@ -270,16 +272,16 @@ the integer vectors; the earlier columns cover the float / half cases only.
 | GLSL float / half (256) | 78.5% | 96.1% | 96.9% |
 | HLSL int / uint (77) | − | − | 98.7% |
 | GLSL int / uint (63) | − | − | 100.0% |
-| HLSL 16- / 64-bit (19) | − | − | 89.5% |
-| GLSL 16- / 64-bit (16) | − | − | 87.5% |
+| HLSL 16- / 64-bit (32) | − | − | 96.9% |
+| GLSL 16- / 64-bit (40) | − | − | 95.0% |
 | HLSL packing (8) | − | − | 100.0% |
 | GLSL packing (15) | − | − | 100.0% |
-| HLSL total (390) | − | − | 93.1% |
-| GLSL total (350) | − | − | 97.1% |
+| HLSL total (403) | − | − | 93.5% |
+| GLSL total (374) | − | − | 97.3% |
 
 The one int / uint mismatch is HLSL's implicit bool → int (`int3 r = bb;`), kept explicit like bool → float. The
-16- / 64-bit mismatches are 16-bit integers mixed with half (both languages), `countbits` on 64 bits, and GLSL's
-`int` literal promotion (`i16vec3 * 2`). GLSL's float / half cases went up with `frexp` / `ldexp` taking int exponents.
+16- / 64-bit mismatches are 16-bit integers mixed with half (both languages) and GLSL's `int` literal promotion
+(`i16vec3 * 2`). GLSL's float / half cases went up with `frexp` / `ldexp` taking int exponents.
 
 Measured with Apple Clang. With g++ (libstdc++), one more GLSL case matches (the case where the scalar `round(s)`
 becomes ambiguous because of libc++'s `::round(float)`). The remaining mismatches correspond to the × and △ entries in

@@ -828,26 +828,60 @@ SM_HLSL_BITCAST(asuint, uint)
 SM_HLSL_BITCAST(asfloat, float)
 #undef SM_HLSL_BITCAST
 
-// countbits / firstbithigh / firstbitlow / reversebits on int and uint vectors
-// and scalars (a float argument converts to uint, as in HLSL); the results
-// are uint. firstbithigh on int is the highest bit that differs from the sign
-// bit; firstbithigh / firstbitlow give 0xFFFFFFFF where there is no such bit.
+// asint16 / asuint16 / asfloat16: the same bits as another 16-bit type
+// (int16_t, uint16_t, half vectors and scalars)
+#define SM_HLSL_BITCAST16(name, U)                                                       \
+    template <class A>                                                                   \
+        requires(detail::VecOf<A, lang_tag> && detail::is_bits16_v<detail::vec_elem_t<A>>) \
+    SHADER_MATH_INLINE auto name(const A& a) {                                           \
+        return detail::map_int_lanes<U>(a, [](auto x) { return detail::bitcast_lane<U>(x); }); \
+    }                                                                                    \
+    template <class S>                                                                   \
+        requires(!detail::VecLike<S> &&                                                  \
+                 detail::is_bits16_v<typename detail::scalar_value<std::remove_cvref_t<S>>::type>) \
+    SHADER_MATH_INLINE U name(const S& s) {                                              \
+        return detail::bitcast_lane<U>(                                                  \
+            static_cast<typename detail::scalar_value<std::remove_cvref_t<S>>::type>(s)); \
+    }
+SM_HLSL_BITCAST16(asint16, int16_t)
+SM_HLSL_BITCAST16(asuint16, uint16_t)
+#if defined(SHADER_MATH_HAS_HALF)
+SM_HLSL_BITCAST16(asfloat16, detail::half_t)
+#endif
+#undef SM_HLSL_BITCAST16
+
+// countbits / firstbithigh / firstbitlow / reversebits on integer vectors and
+// scalars of 16, 32 and 64 bits (a float or half argument converts to int, as
+// in HLSL). countbits / firstbithigh / firstbitlow give uint; firstbithigh on
+// a signed integer is the highest bit that differs from the sign bit, and
+// both give 0xFFFFFFFF where there is no such bit. reversebits keeps the
+// integer type.
 #define SM_HLSL_BITFN(name, fn)                                                          \
     template <class A>                                                                   \
-        requires(detail::VecOf<A, lang_tag> && detail::is_num32_v<detail::vec_elem_t<A>>) \
+        requires detail::VecOf<A, lang_tag>                                              \
     SHADER_MATH_INLINE auto name(const A& a) {                                           \
-        return detail::map_int_lanes<uint>(detail::bits_vec(a), detail::fn{});      \
+        return detail::map_int_lanes<uint>(detail::bits_vec(a), detail::fn{});           \
     }                                                                                    \
     template <class S>                                                                   \
         requires detail::is_bits_scalar_v<S>                                             \
     SHADER_MATH_INLINE uint name(const S& s) {                                           \
-        return detail::fn{}(detail::bits_scalar(s));                                \
+        return detail::fn{}(detail::bits_scalar(s));                                     \
     }
 SM_HLSL_BITFN(countbits, popcount_fn)
 SM_HLSL_BITFN(firstbithigh, high_fn)
 SM_HLSL_BITFN(firstbitlow, low_fn)
-SM_HLSL_BITFN(reversebits, reverse_fn)
 #undef SM_HLSL_BITFN
+template <class A>
+    requires detail::VecOf<A, lang_tag>
+SHADER_MATH_INLINE auto reversebits(const A& a) {
+    using T = detail::bits_elem_t<detail::vec_elem_t<A>>;
+    return detail::map_int_lanes<T>(detail::bits_vec(a), detail::reverse_fn{});
+}
+template <class S>
+    requires detail::is_bits_scalar_v<S>
+SHADER_MATH_INLINE auto reversebits(const S& s) {
+    return detail::reverse_fn{}(detail::bits_scalar(s));
+}
 
 // f32tof16 / f16tof32: the binary16 bits of a float in the low 16 bits of a
 // uint (rounded to nearest even), and back from the low 16 bits; vectors and

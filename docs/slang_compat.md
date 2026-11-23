@@ -56,6 +56,10 @@ The Slang version being checked is `slang_tag` in `ci.yml` (CI pins it and downl
   checked against DXC only (`case_bits_int_compound_float`).
 - **`sign` on int vectors**: the C++ prelude of the CPU target in Slang (v2026.20) has no `I32_sign`, so the generated
   code does not compile. It is checked against DXC only (`case_bits_int_sign`).
+- **`countbits` on `int16_t`**: Slang (v2026.20, SPIR-V) widens the lane to 32 bits first, so a negative lane counts 16
+  more bits; DXC (DXIL's 16-bit `Countbits`) and shader-math count at 16 bits. DXC's SPIR-V backend does not compile
+  `firstbithigh` / `firstbitlow` on 16- or 64-bit lanes. These are checked against DXIL only
+  (`case_bits_int_width_firstbit`).
 
 - **Implicit mixing of half and float**: Slang (following HLSL rules) allows implicit promotion, but shader-math makes
   it a compile error. The shared files **require explicit conversion** (`half4(f4)` / `float4(h4)`).
@@ -86,7 +90,8 @@ The same shared cases are checked against DXC (v1.9.2609) in two ways.
   (`SM_INTEROP_OPAQUE_INPUTS`).
 
 `frexp` / `dst` / .5 in `round` / `sign` on int vectors, which cannot be checked with Slang, are checked in
-`tests/interop/dxc/dxc_cases.hlsli`.
+`tests/interop/dxc/dxc_cases.hlsli`, as are the bit functions on float arguments (`case_bits_bitfn_float_args`) and,
+in DXIL's half list, the 16- / 64-bit bit functions DXC's SPIR-V backend does not compile.
 The opt-in multi-component matrix access is also checked by compiling `shared/matrix_swizzle_cases.hlsli` with
 `SM_INTEROP_MATRIX_SWIZZLE` to SPIR-V with DXC (`dxc_interop_matrix_swizzle_check`).
 

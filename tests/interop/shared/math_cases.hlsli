@@ -426,4 +426,23 @@ float4 case_bits_int_widths(float4 af, float4 bf)
     uint4 hi = uint4(ul >> uint64_t(32));
     return asfloat(uint4(m) ^ lo ^ (hi << 1u));
 }
+
+// bit functions on 16- and 64-bit integers: countbits gives uint at every
+// width, reversebits keeps the type; the 16-bit casts asint16 / asuint16 /
+// asfloat16. countbits on negative int16_t lanes and firstbithigh /
+// firstbitlow at these widths are DXIL-only (dxc/dxc_cases.hlsli).
+float4 case_bits_int_width_bitfns(float4 af, float4 bf)
+{
+    int16_t4 s = int16_t4(af * 4000.0f) - int16_t(7000);  // -2000, -17000, 8000, -5000
+    uint16_t4 u = uint16_t4(s) ^ uint16_t(0x5A5A);
+    int64_t4 l = int64_t4(af * 1000000000.0f) * int64_t(-123457);
+    uint64_t4 ul = uint64_t4(l) ^ (uint64_t(0x0F0F0F0Fu) << uint64_t(32));
+    uint4 r = countbits(u) + (countbits(l) << 5u) + (countbits(ul) << 12u);
+    int16_t4 rs = reversebits(s);
+    uint64_t4 rl = reversebits(ul);
+    uint4 rr = uint4(int4(rs)) + (uint4(rl >> uint64_t(32)) ^ uint4(rl & uint64_t(0xFFFFFFFFu)));
+    int16_t4 hb = asint16(half4(af)) ^ asint16(u);
+    half4 hf = asfloat16(uint16_t4(asuint16(half4(bf)) + uint16_t(1)));
+    return asfloat(r ^ rr ^ (uint4(int4(hb)) << 7u) ^ asuint(float4(hf)));
+}
 #endif

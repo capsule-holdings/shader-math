@@ -54,11 +54,12 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
     Constructors convert (`int3(a)`, `int4(i.xy, 2.9f, k)`)
   - Functions: `abs` `sign` (int only) `min` `max` `clamp`; HLSL `dot` `mul(v, v)` `all` `any` `select` `asint` `asuint`
     `asfloat`; GLSL `equal` / `lessThan` / … `mix(x, y, bvec)` `floatBitsToInt` `floatBitsToUint` `intBitsToFloat`
-    `uintBitsToFloat`. In GLSL the floating-point functions (`sqrt`, `length`, …) do not take integer vectors
-  - Bit functions: HLSL `countbits` `firstbithigh` `firstbitlow` `reversebits` (uint results; a float argument converts to uint);
-    GLSL `bitCount` `findMSB` `findLSB` `bitfieldReverse` `bitfieldExtract` `bitfieldInsert` `uaddCarry` `usubBorrow`
-    `umulExtended` `imulExtended`. On int, `firstbithigh` / `findMSB` give the highest bit that differs from the sign bit, and
-    -1 (`0xFFFFFFFF` in HLSL) where there is no such bit. A `bitfieldExtract` / `bitfieldInsert` field outside the 32 bits
+    `uintBitsToFloat` (the argument converts as GLSL converts implicitly: `intBitsToFloat(i16vec3)`). In GLSL the
+    floating-point functions (`sqrt`, `length`, …) do not take integer vectors
+  - Bit functions: HLSL `countbits` `firstbithigh` `firstbitlow` (uint results) and `reversebits` (the same integer type; a
+    float or half argument converts to int); GLSL `bitCount` `findMSB` `findLSB` `bitfieldReverse` `bitfieldExtract`
+    `bitfieldInsert` `uaddCarry` `usubBorrow` `umulExtended` `imulExtended`. On signed integers, `firstbithigh` / `findMSB`
+    give the highest bit that differs from the sign bit, and -1 (`0xFFFFFFFF` in HLSL) where there is no such bit. A `bitfieldExtract` / `bitfieldInsert` field outside the 32 bits
     (undefined in GLSL) ends at bit 31, and negative offsets and counts count as 0
   - Packing: HLSL `f32tof16` / `f16tof32` (the binary16 bits in the low 16 bits of a uint); GLSL `packHalf2x16`
     `packUnorm2x16` `packSnorm2x16` `packUnorm4x8` `packSnorm4x8` and their `unpack*`. Rounding is to nearest even (GLSL leaves
@@ -68,8 +69,13 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
   `clamp` `dot` (HLSL) of the 32-bit vectors, wrapping at their own width (shift counts modulo 16 / 64, float → int saturating
   to the type's range). Mixed widths follow each language: HLSL takes the wider type, unsigned when either is (`uint16_t3 + int3`
   is a `uint3`); GLSL converts one side implicitly (`u16vec3 + ivec3` is an `ivec3`; `i64vec3 + vec3` does not compile). 16-bit
-  lanes compute in 32 bits; 64-bit lanes one at a time. Not covered yet: the bit functions, bit casts and packing on them, mixing
-  with half, and GLSL's promotion of an `int` literal (`i16vec3 * 2` is an `i16vec3` here, an `ivec3` in GLSL)
+  lanes compute in 32 bits; 64-bit lanes one at a time. The bit functions count at the lane's width (HLSL `countbits`,
+  `firstbithigh`, `firstbitlow`, `reversebits`; GLSL `bitCount`, `findMSB`, `findLSB`, which give a signed integer of the same
+  width); GLSL's `bitfieldExtract` / `bitfieldInsert` / `bitfieldReverse` take 16-bit lanes as int. The 16-bit casts HLSL
+  `asint16` `asuint16` `asfloat16` and GLSL `float16BitsToInt16` `float16BitsToUint16` `int16BitsToFloat16`
+  `uint16BitsToFloat16`, and GLSL's `packInt2x16` `packUint2x16` `packInt4x16` `packUint4x16` `packInt2x32` `packUint2x32`
+  `packFloat2x16` and their `unpack*` (the first component in the low bits). Not covered yet: mixing with half, and GLSL's
+  promotion of an `int` literal (`i16vec3 * 2` is an `i16vec3` here, an `ivec3` in GLSL)
 - Integer matrices (HLSL only; GLSL has none): `hlsl::int2x2`–`int4x4` and `uint2x2`–`uint4x4`. Component-wise operators
   (including `%`, bitwise operators and shifts), `mul` (wrapping), `transpose`, comparisons, `abs` `sign` `min` `max` `clamp`,
   and the implicit conversions and mixed operands of the integer vectors (`float3x3 f = im;`, `im + m` is a `float3x3`). The
@@ -256,6 +262,10 @@ Semantic notes:
 unchanged, except where the new names collide with your own declarations under `using namespace hlsl` / `using namespace glsl`:
 `int2x2`–`uint4x4` (HLSL), `int16_t2`–`uint64_t4` (HLSL), `i16vec2`–`u64vec4` (GLSL), `f32tof16` / `f16tof32` (HLSL), and
 `packHalf2x16`, `packUnorm4x8`, … (GLSL). Update `find_package(shader_math 0.7)` to `0.8`.
+
+Two HLSL results change to match DXC: `reversebits` on an int vector is an int vector (it was a uint vector), and the bit
+functions convert a float argument to int instead of uint, which changes negative values (`countbits(-2.0f)` is 31; it was
+0).
 
 ## Migrating from 0.6
 

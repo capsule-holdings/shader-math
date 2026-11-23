@@ -295,18 +295,19 @@ SHADER_MATH_INLINE T ldexp(const A& a, I e) {
 }
 
 // floatBitsToInt / floatBitsToUint / intBitsToFloat / uintBitsToFloat: the
-// same bits as another 32-bit type
+// same bits as another 32-bit type; an argument converts to the type the
+// function takes as GLSL converts implicitly (intBitsToFloat(i16vec3))
 #define SM_GLSL_BITCAST(name, From, U)                                                   \
     template <class A>                                                                   \
-        requires(detail::VecOf<A, lang_tag> && std::is_same_v<detail::vec_elem_t<A>, From>) \
+        requires(detail::VecOf<A, lang_tag> &&                                           \
+                 detail::arg_elem_v<detail::vec_elem_t<A>, From, lang_tag>)               \
     SHADER_MATH_INLINE auto name(const A& a) {                                           \
-        return detail::bitcast_vec<U>(a);                                                \
+        return detail::bitcast_vec<U>(detail::gvec<detail::vec_size_v<A>, From>(detail::to_vec(a))); \
     }                                                                                    \
-    template <class S>                                                                   \
-        requires(!detail::VecLike<S> &&                                                  \
-                 std::is_same_v<typename detail::scalar_value<std::remove_cvref_t<S>>::type, From>) \
+    template <class S, class V = typename detail::scalar_value<std::remove_cvref_t<S>>::type> \
+        requires(!detail::VecLike<S> && detail::arg_elem_v<V, From, lang_tag>)           \
     SHADER_MATH_INLINE U name(const S& s) {                                              \
-        return detail::bitcast_scalar<U>(s);                                             \
+        return detail::bitcast_scalar<U>(static_cast<From>(static_cast<V>(s)));          \
     }
 SM_GLSL_BITCAST(floatBitsToInt, float, int)
 SM_GLSL_BITCAST(floatBitsToUint, float, uint)
@@ -314,87 +315,120 @@ SM_GLSL_BITCAST(intBitsToFloat, int, float)
 SM_GLSL_BITCAST(uintBitsToFloat, uint, float)
 #undef SM_GLSL_BITCAST
 
+#if defined(SHADER_MATH_HAS_HALF)
+// float16BitsToInt16 / float16BitsToUint16 / int16BitsToFloat16 /
+// uint16BitsToFloat16 (GL_EXT_shader_explicit_arithmetic_types): the same
+// bits as another 16-bit type
+#define SM_GLSL_BITCAST16(name, From, U)                                                 \
+    template <class A>                                                                   \
+        requires(detail::VecOf<A, lang_tag> &&                                           \
+                 detail::arg_elem_v<detail::vec_elem_t<A>, From, lang_tag>)               \
+    SHADER_MATH_INLINE auto name(const A& a) {                                           \
+        return detail::map_int_lanes<U>(detail::gvec<detail::vec_size_v<A>, From>(detail::to_vec(a)), \
+                                        [](From x) { return detail::bitcast_lane<U>(x); }); \
+    }                                                                                    \
+    template <class S, class V = typename detail::scalar_value<std::remove_cvref_t<S>>::type> \
+        requires(!detail::VecLike<S> && detail::arg_elem_v<V, From, lang_tag>)           \
+    SHADER_MATH_INLINE U name(const S& s) {                                              \
+        return detail::bitcast_lane<U>(static_cast<From>(static_cast<V>(s)));            \
+    }
+SM_GLSL_BITCAST16(float16BitsToInt16, float16_t, int16_t)
+SM_GLSL_BITCAST16(float16BitsToUint16, float16_t, uint16_t)
+SM_GLSL_BITCAST16(int16BitsToFloat16, int16_t, float16_t)
+SM_GLSL_BITCAST16(uint16BitsToFloat16, uint16_t, float16_t)
+#undef SM_GLSL_BITCAST16
+#endif
+
 // ---- integer functions (GLSL 8.8) -------------------------------------------
-// bitCount / findMSB / findLSB give int (findMSB on int: the highest bit that
-// differs from the sign bit; -1 where there is no such bit); bitfieldReverse,
-// bitfieldExtract and bitfieldInsert keep the type (offset and bits are int; a
-// field outside the 32 bits, undefined in GLSL, is cut at bit 31 and negative
-// values count as 0). uaddCarry / usubBorrow / umulExtended take uint,
-// imulExtended int.
+// bitCount / findMSB / findLSB take integers of 16, 32 and 64 bits and give a
+// signed integer of the same width (findMSB on a signed integer: the highest
+// bit that differs from the sign bit; -1 where there is no such bit).
+// bitfieldReverse, bitfieldExtract and bitfieldInsert have int and uint
+// overloads only: they keep a 32-bit type and take a 16-bit one as int, as
+// GLSL converts it implicitly (offset and bits are int; a field outside the
+// 32 bits, undefined in GLSL, is cut at bit 31 and negative values count as
+// 0). uaddCarry / usubBorrow / umulExtended take uint, imulExtended int.
 template <class A>
-    requires (detail::VecOf<A, lang_tag> && detail::Int32Vec<A>)
+    requires(detail::VecOf<A, lang_tag> && detail::IntVec<A>)
 SHADER_MATH_INLINE auto bitCount(const A& a) {
-    return detail::map_int_lanes<int>(
-        a, [](auto x) { return static_cast<int>(detail::int_lane::popcount(static_cast<uint>(x))); });
+    using R = std::make_signed_t<detail::vec_elem_t<A>>;
+    return detail::map_int_lanes<R>(a, [](auto x) { return static_cast<R>(detail::popcount_fn{}(x)); });
 }
-template <class S>
-    requires detail::is_int32_scalar_v<S>
-SHADER_MATH_INLINE int bitCount(const S& s) {
-    return static_cast<int>(detail::int_lane::popcount(static_cast<uint>(s)));
+template <class S, class V = typename detail::scalar_value<std::remove_cvref_t<S>>::type>
+    requires detail::is_int_lane_scalar_v<S>
+SHADER_MATH_INLINE auto bitCount(const S& s) {
+    return static_cast<std::make_signed_t<V>>(detail::popcount_fn{}(static_cast<V>(s)));
 }
 template <class A>
-    requires (detail::VecOf<A, lang_tag> && detail::Int32Vec<A>)
+    requires(detail::VecOf<A, lang_tag> && detail::IntVec<A>)
 SHADER_MATH_INLINE auto findMSB(const A& a) {
-    return detail::map_int_lanes<int>(a, [](auto x) { return detail::find_msb_lane(x); });
+    using R = std::make_signed_t<detail::vec_elem_t<A>>;
+    return detail::map_int_lanes<R>(a, [](auto x) { return static_cast<R>(detail::find_msb_lane(x)); });
 }
-template <class S>
-    requires detail::is_int32_scalar_v<S>
-SHADER_MATH_INLINE int findMSB(const S& s) {
-    return detail::find_msb_lane(static_cast<typename detail::scalar_value<std::remove_cvref_t<S>>::type>(s));
+template <class S, class V = typename detail::scalar_value<std::remove_cvref_t<S>>::type>
+    requires detail::is_int_lane_scalar_v<S>
+SHADER_MATH_INLINE auto findMSB(const S& s) {
+    return static_cast<std::make_signed_t<V>>(detail::find_msb_lane(static_cast<V>(s)));
 }
 template <class A>
-    requires (detail::VecOf<A, lang_tag> && detail::Int32Vec<A>)
+    requires(detail::VecOf<A, lang_tag> && detail::IntVec<A>)
 SHADER_MATH_INLINE auto findLSB(const A& a) {
-    return detail::map_int_lanes<int>(
-        a, [](auto x) { return detail::int_lane::lsb(static_cast<uint>(x)); });
+    using R = std::make_signed_t<detail::vec_elem_t<A>>;
+    return detail::map_int_lanes<R>(a, [](auto x) {
+        return static_cast<R>(detail::int_lane::lsb(static_cast<std::make_unsigned_t<decltype(x)>>(x)));
+    });
 }
-template <class S>
-    requires detail::is_int32_scalar_v<S>
-SHADER_MATH_INLINE int findLSB(const S& s) {
-    return detail::int_lane::lsb(static_cast<uint>(s));
+template <class S, class V = typename detail::scalar_value<std::remove_cvref_t<S>>::type>
+    requires detail::is_int_lane_scalar_v<S>
+SHADER_MATH_INLINE auto findLSB(const S& s) {
+    return static_cast<std::make_signed_t<V>>(detail::int_lane::lsb(static_cast<std::make_unsigned_t<V>>(s)));
 }
-template <class A>
-    requires (detail::VecOf<A, lang_tag> && detail::Int32Vec<A>)
+template <class A, class T = detail::field_elem_t<lang_tag, detail::vec_elem_t<A>>>
+    requires(detail::VecOf<A, lang_tag> && !std::is_void_v<T>)
 SHADER_MATH_INLINE auto bitfieldReverse(const A& a) {
-    using T = detail::vec_elem_t<A>;
-    return detail::map_int_lanes<T>(
-        a, [](T x) { return static_cast<T>(detail::int_lane::reverse(static_cast<uint>(x))); });
+    return detail::map_int_lanes<T>(detail::gvec<detail::vec_size_v<A>, T>(detail::to_vec(a)),
+                                    detail::reverse_fn{});
 }
-template <class S, class T = typename detail::scalar_value<std::remove_cvref_t<S>>::type>
-    requires detail::is_int32_scalar_v<S>
+template <class S, class T = detail::field_elem_t<lang_tag, typename detail::scalar_value<std::remove_cvref_t<S>>::type>>
+    requires(!detail::VecLike<S> && !std::is_void_v<T>)
 SHADER_MATH_INLINE T bitfieldReverse(const S& s) {
-    return static_cast<T>(detail::int_lane::reverse(static_cast<uint>(static_cast<T>(s))));
+    return detail::reverse_fn{}(static_cast<T>(s));
 }
-template <class A, class O, class B>
-    requires((detail::VecOf<A, lang_tag> && detail::Int32Vec<A>) && std::same_as<O, int> && std::same_as<B, int>)
+template <class A, class O, class B, class T = detail::field_elem_t<lang_tag, detail::vec_elem_t<A>>>
+    requires(detail::VecOf<A, lang_tag> && !std::is_void_v<T> && std::same_as<O, int> && std::same_as<B, int>)
 SHADER_MATH_INLINE auto bitfieldExtract(const A& a, O offset, B bits) {
-    using T = detail::vec_elem_t<A>;
-    return detail::map_int_lanes<T>(a, [=](T x) { return detail::extract_lane(x, offset, bits); });
+    return detail::map_int_lanes<T>(detail::gvec<detail::vec_size_v<A>, T>(detail::to_vec(a)),
+                                    [=](T x) { return detail::extract_lane(x, offset, bits); });
 }
-template <class S, class O, class B, class T = typename detail::scalar_value<std::remove_cvref_t<S>>::type>
-    requires(detail::is_int32_scalar_v<S> && std::same_as<O, int> && std::same_as<B, int>)
+template <class S, class O, class B,
+          class T = detail::field_elem_t<lang_tag, typename detail::scalar_value<std::remove_cvref_t<S>>::type>>
+    requires(!detail::VecLike<S> && !std::is_void_v<T> && std::same_as<O, int> && std::same_as<B, int>)
 SHADER_MATH_INLINE T bitfieldExtract(const S& s, O offset, B bits) {
     return detail::extract_lane(static_cast<T>(s), offset, bits);
 }
-template <class A, class I, class O, class B>
-    requires((detail::VecOf<A, lang_tag> && detail::Int32Vec<A>) && detail::SameVec<A, I> && std::same_as<O, int> && std::same_as<B, int>)
+template <class A, class I, class O, class B,
+          class T = detail::field_elem_t<lang_tag, detail::vec_elem_t<A>, detail::vec_elem_t<I>>>
+    requires(detail::VecOf<A, lang_tag> && detail::VecOf<I, lang_tag> &&
+             detail::vec_size_v<A> == detail::vec_size_v<I> && !std::is_void_v<T> &&
+             std::same_as<O, int> && std::same_as<B, int>)
 SHADER_MATH_INLINE auto bitfieldInsert(const A& base, const I& insert, O offset, B bits) {
-    using T = detail::vec_elem_t<A>;
-    const detail::vec_t<A> b = detail::to_vec(base);
-    const detail::vec_t<A> n = detail::to_vec(insert);
+    constexpr int n = detail::vec_size_v<A>;
+    const detail::gvec<n, T> b(detail::to_vec(base));
+    const detail::gvec<n, T> v(detail::to_vec(insert));
     T r[4] = {T(0), T(0), T(0), T(0)};
-    for (int i = 0; i < detail::vec_size_v<A>; ++i)
-        r[i] = static_cast<T>(detail::int_lane::insert(static_cast<uint>(b[i]), static_cast<uint>(n[i]),
+    for (int i = 0; i < n; ++i)
+        r[i] = static_cast<T>(detail::int_lane::insert(static_cast<uint>(b[i]), static_cast<uint>(v[i]),
                                                        offset, bits));
-    return detail::vec_t<A>(detail::vops<T>::load4(r));
+    return detail::gvec<n, T>(detail::vops<T>::load4(r));
 }
 template <class S, class I, class O, class B,
-          class T = typename detail::scalar_value<std::remove_cvref_t<S>>::type>
-    requires(detail::is_int32_scalar_v<S> && detail::is_int32_scalar_v<I> && std::same_as<O, int> &&
+          class T = detail::field_elem_t<lang_tag, typename detail::scalar_value<std::remove_cvref_t<S>>::type,
+                                         typename detail::scalar_value<std::remove_cvref_t<I>>::type>>
+    requires(!detail::VecLike<S> && !detail::VecLike<I> && !std::is_void_v<T> && std::same_as<O, int> &&
              std::same_as<B, int>)
 SHADER_MATH_INLINE T bitfieldInsert(const S& base, const I& insert, O offset, B bits) {
     return static_cast<T>(detail::int_lane::insert(static_cast<uint>(static_cast<T>(base)),
-                                                   static_cast<uint>(insert), offset, bits));
+                                                   static_cast<uint>(static_cast<T>(insert)), offset, bits));
 }
 
 // uaddCarry(x, y, out carry) = x + y modulo 2^32, carry 1 where it overflows;
@@ -504,13 +538,13 @@ SHADER_MATH_INLINE uint packHalf2x16(const A& a) {
            (static_cast<uint>(detail::half_bits::from_f32(v[1])) << 16);
 }
 template <class P>
-    requires detail::is_int32_scalar_v<P>
+    requires detail::ScalarArg<P, uint, lang_tag>
 SHADER_MATH_INLINE vec2 unpackUnorm2x16(const P& p0) {
     const auto p = static_cast<uint>(p0);
     return vec2(static_cast<float>(p & 0xFFFFu) / 65535.0f, static_cast<float>(p >> 16) / 65535.0f);
 }
 template <class P>
-    requires detail::is_int32_scalar_v<P>
+    requires detail::ScalarArg<P, uint, lang_tag>
 SHADER_MATH_INLINE vec2 unpackSnorm2x16(const P& p0) {
     const auto p = static_cast<uint>(p0);
     auto f = [](uint h) {
@@ -520,14 +554,14 @@ SHADER_MATH_INLINE vec2 unpackSnorm2x16(const P& p0) {
     return vec2(f(p & 0xFFFFu), f(p >> 16));
 }
 template <class P>
-    requires detail::is_int32_scalar_v<P>
+    requires detail::ScalarArg<P, uint, lang_tag>
 SHADER_MATH_INLINE vec4 unpackUnorm4x8(const P& p0) {
     const auto p = static_cast<uint>(p0);
     return vec4(static_cast<float>(p & 0xFFu) / 255.0f, static_cast<float>((p >> 8) & 0xFFu) / 255.0f,
                 static_cast<float>((p >> 16) & 0xFFu) / 255.0f, static_cast<float>(p >> 24) / 255.0f);
 }
 template <class P>
-    requires detail::is_int32_scalar_v<P>
+    requires detail::ScalarArg<P, uint, lang_tag>
 SHADER_MATH_INLINE vec4 unpackSnorm4x8(const P& p0) {
     const auto p = static_cast<uint>(p0);
     auto f = [](uint b) {
@@ -537,12 +571,47 @@ SHADER_MATH_INLINE vec4 unpackSnorm4x8(const P& p0) {
     return vec4(f(p & 0xFFu), f((p >> 8) & 0xFFu), f((p >> 16) & 0xFFu), f(p >> 24));
 }
 template <class P>
-    requires detail::is_int32_scalar_v<P>
+    requires detail::ScalarArg<P, uint, lang_tag>
 SHADER_MATH_INLINE vec2 unpackHalf2x16(const P& p0) {
     const auto p = static_cast<uint>(p0);
     return vec2(detail::half_bits::to_f32(static_cast<unsigned short>(p & 0xFFFFu)),
                 detail::half_bits::to_f32(static_cast<unsigned short>(p >> 16)));
 }
+
+// packInt2x16 / packUint2x16 / packInt4x16 / packUint4x16 / packInt2x32 /
+// packUint2x32 / packFloat2x16 (GL_EXT_shader_explicit_arithmetic_types): the
+// components' bits side by side, the first in the low bits; unpack* split
+// them back
+#define SM_GLSL_PACK(name, T, N, R)                                                      \
+    template <class A>                                                                   \
+        requires detail::VecArg<A, T, N, lang_tag>                                       \
+    SHADER_MATH_INLINE R name(const A& a) {                                              \
+        return detail::pack_lanes<R>(detail::gvec<N, T>(detail::to_vec(a)));             \
+    }
+#define SM_GLSL_UNPACK(name, P, T, N)                                                    \
+    template <class S>                                                                   \
+        requires detail::ScalarArg<S, P, lang_tag>                                       \
+    SHADER_MATH_INLINE detail::gvec<N, T> name(const S& s) {                             \
+        return detail::unpack_lanes<T, N, lang_tag>(static_cast<P>(s));                  \
+    }
+SM_GLSL_PACK(packInt2x16, int16_t, 2, int)
+SM_GLSL_PACK(packUint2x16, uint16_t, 2, uint)
+SM_GLSL_PACK(packInt4x16, int16_t, 4, int64_t)
+SM_GLSL_PACK(packUint4x16, uint16_t, 4, uint64_t)
+SM_GLSL_PACK(packInt2x32, int, 2, int64_t)
+SM_GLSL_PACK(packUint2x32, uint, 2, uint64_t)
+SM_GLSL_UNPACK(unpackInt2x16, int, int16_t, 2)
+SM_GLSL_UNPACK(unpackUint2x16, uint, uint16_t, 2)
+SM_GLSL_UNPACK(unpackInt4x16, int64_t, int16_t, 4)
+SM_GLSL_UNPACK(unpackUint4x16, uint64_t, uint16_t, 4)
+SM_GLSL_UNPACK(unpackInt2x32, int64_t, int, 2)
+SM_GLSL_UNPACK(unpackUint2x32, uint64_t, uint, 2)
+#if defined(SHADER_MATH_HAS_HALF)
+SM_GLSL_PACK(packFloat2x16, float16_t, 2, uint)
+SM_GLSL_UNPACK(unpackFloat2x16, uint, float16_t, 2)
+#endif
+#undef SM_GLSL_PACK
+#undef SM_GLSL_UNPACK
 
 // scalar arguments (detail::ScalarCall): GLSL-only spellings
 SHADER_MATH_SCALAR_FN3(mix)
