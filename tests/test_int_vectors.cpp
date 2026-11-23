@@ -71,7 +71,10 @@ static_assert(std::is_same_v<sum_t<int3, float3>, float3> && std::is_same_v<sum_
 static_assert(std::is_same_v<sum_t<int3, uint3>, uint3> && std::is_same_v<sum_t<int3, double>, float3>);
 static_assert(std::is_same_v<sum_t<float, int3>, float3>);
 static_assert(AddAssignable<int3, float3> && AddAssignable<int3, uint3> && AddAssignable<float3, int3>);
-static_assert(!Addable<int3, half3> && !Addable<int3, bool3> && !Addable<int3, bool>);
+static_assert(!Addable<int3, bool3> && !Addable<int3, bool>);
+#if defined(SHADER_MATH_HAS_HALF)
+static_assert(!Addable<int3, half3> && !std::is_convertible_v<half3, int3>);
+#endif
 static_assert(!Addable<int3, int4>);
 static_assert(Shiftable<int3, uint3> && Shiftable<uint3, int> && !Shiftable<int3, float>);
 static_assert(!Shiftable<float3, int3>);
@@ -81,7 +84,7 @@ static_assert(HasNot<int3> && HasDot<int3, int3>);
 // implicit conversions both ways between int, uint and float (not half, bool or glsl)
 static_assert(std::is_convertible_v<float3, int3> && std::is_convertible_v<int3, float3>);
 static_assert(std::is_convertible_v<uint3, int3> && std::is_convertible_v<int3, uint3>);
-static_assert(!std::is_convertible_v<half3, int3> && !std::is_convertible_v<g::ivec3, int3>);
+static_assert(!std::is_convertible_v<g::ivec3, int3>);
 static_assert(std::is_convertible_v<int, int3>);  // int3 v = 1;
 static_assert(!std::is_convertible_v<bool3, int3> && !std::is_convertible_v<int3, bool3>);
 static_assert(!HasHlslIsnan<int3> && HasHlslIsnan<float3>);
