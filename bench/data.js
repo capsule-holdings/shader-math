@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795435876134,
+  "lastUpdate": 1795435878927,
   "repoUrl": "https://github.com/capsule-holdings/shader-math",
   "entries": {
     "linux-x64-gcc": [
@@ -23813,6 +23813,160 @@ window.BENCHMARK_DATA = {
           {
             "name": "half4 a * b + c [scalar]",
             "value": 6.539,
+            "unit": "ns/elem"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "emuesuenu@hotmail.com",
+            "name": "Hidenori Kondo",
+            "username": "emuesuenu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2a988ffad04e51f86831e20261b8930c3a87ec44",
+          "message": "Optimize Linux CI apt-get and add conformance regression gate (#126)\n\nOptimize Linux CI apt-get dependency installation (IPv4, 30s timeouts, 3 retries, --no-install-recommends, per-job compiler selection, and skipping apt-get update when packages are already installed) and add a conformance regression gate to linux-x64-gcc via tests/conformance/run.py --check and tests/conformance/known_mismatches.txt.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-23T21:07:32+09:00",
+          "tree_id": "01a4dde28a9f06018eb4ac054a6b1677f2a2484f",
+          "url": "https://github.com/capsule-holdings/shader-math/commit/2a988ffad04e51f86831e20261b8930c3a87ec44"
+        },
+        "date": 1795435878207,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "hlsl mul(float4x4, float4x4) [NEON]",
+            "value": 3.429,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [NEON]",
+            "value": 3.436,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [NEON]",
+            "value": 1.562,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [NEON]",
+            "value": 5.156,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [NEON]",
+            "value": 16.588,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [NEON]",
+            "value": 25.584,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [NEON]",
+            "value": 1.541,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [NEON]",
+            "value": 5.264,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [NEON]",
+            "value": 23.441,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [NEON]",
+            "value": 0.557,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [NEON]",
+            "value": 0.421,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [NEON]",
+            "value": 0.696,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [NEON]",
+            "value": 2.667,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4x4) [scalar]",
+            "value": 9.644,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [scalar]",
+            "value": 9.506,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [scalar]",
+            "value": 1.553,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [scalar]",
+            "value": 4.207,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [scalar]",
+            "value": 10.017,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [scalar]",
+            "value": 20.795,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [scalar]",
+            "value": 1.453,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [scalar]",
+            "value": 3.61,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [scalar]",
+            "value": 21.502,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [scalar]",
+            "value": 0.556,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [scalar]",
+            "value": 0.418,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [scalar]",
+            "value": 2.517,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [scalar]",
+            "value": 6.544,
             "unit": "ns/elem"
           }
         ]
