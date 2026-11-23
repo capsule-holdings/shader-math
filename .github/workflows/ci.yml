@@ -18,7 +18,8 @@
 name: ci
 
 # push builds main only; other branches are built by their pull_request run.
-# Changes that touch only Markdown or docs/ build nothing and skip CI.
+# Changes that touch only Markdown or docs/ build nothing and skip CI
+# (docs.yml checks them).
 on:
   push:
     branches: [main]
