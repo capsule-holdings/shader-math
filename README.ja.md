@@ -63,6 +63,10 @@ void glsl_side() {
   - パック: HLSL の `f32tof16` / `f16tof32`（uint の下位 16 ビットに binary16 のビット）、GLSL の `packHalf2x16`
     `packUnorm2x16` `packSnorm2x16` `packUnorm4x8` `packSnorm4x8` とそれぞれの `unpack*`。丸めは最近接偶数（GLSL は中間値の
     扱いを実装に任せている）。unorm / snorm の形では NaN を 0 として詰める
+- 整数行列（HLSL のみ。GLSL には無い）: `hlsl::int2x2`〜`int4x4` と `uint2x2`〜`uint4x4`。成分ごとの演算子（`%`、ビット演算、
+  シフトを含む）、`mul`（折り返し）、`transpose`、比較、`abs` `sign` `min` `max` `clamp`、整数ベクトルと同じ暗黙変換と混在演算
+  （`float3x3 f = im;`、`im + m` は `float3x3`）。浮動小数点の関数は float の行列を返し（`sqrt(int3x3)` は `float3x3`）、
+  `determinant` は float に変換して計算する。どの要素型の行列もスカラーと比較できる（`m > 1.0` は `bool3x3`）
 - half 行列: `hlsl::halfRxC` と `glsl::f16matCxR`（float と同じく**別型**・explicit 変換。非正方の形対応も float と同一）。
   `determinant` / `inverse` も half のまま計算する。真の fp16 は underflow / overflow が早いので、条件の悪い行列を渡さないこと
   - `sizeof(half3) == 8`（4×binary16 パック）。`sizeof(float3) == 16` と同様、**言語互換であり GPU ABI ではない**
@@ -338,7 +342,7 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
   （`bench/compile_time.py` の実測で gcc・clang とも 3.2 倍）。既定で無効なのはこのため
 - GLSL の `not()` は C++ の代替トークン（`!`）と衝突するため `not_()`
 - `v.x` はプロキシ型（可変長引数に直接渡すときは `float(v.x)` にする）
-- 対象は float と half（ベクトルと行列）、int / uint（ベクトル）。整数行列、16 / 64 ビット整数、`double`、`1xN` 行列、
+- 対象は float と half（ベクトルと行列）、int / uint のベクトル、HLSL の int / uint 行列。16 / 64 ビット整数、`double`、`1xN` 行列、
   HLSL の 8 ビットのパック（`pack_u8`、`int8_t4_packed` など）、GPU 専用機能（テクスチャ・微分・atomic）は対象外
 - 言語互換であってメモリ ABI 互換ではない（`sizeof(float3) == 16`。定数バッファのパッキングとは別物）
 - 成分アクセス・swizzle は SIMD レジスタとの union による型パンニングで実装している。

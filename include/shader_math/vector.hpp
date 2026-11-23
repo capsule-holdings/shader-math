@@ -104,6 +104,9 @@ constexpr bool implicit_elem() {
 }
 template <class U, class T, class Lg>
 inline constexpr bool implicit_elem_v = implicit_elem<U, T, Lg>();
+// two different element types among int, uint and float (mixed operands)
+template <class T, class U>
+concept MixedElems = !std::is_same_v<T, U> && is_num32_v<T> && is_num32_v<U>;
 // The type mixed int / uint / float operands compute in (both languages):
 // float when either is float, else uint
 template <class A, class B>

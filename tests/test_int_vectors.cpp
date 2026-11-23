@@ -262,6 +262,58 @@ static void test_int_pack() {
     }
 }
 
+template <class M>
+concept HasExtInverse = requires(const M& m) { shader_math::ext::inverse(m); };
+static_assert(HasExtInverse<h::float3x3> && !HasExtInverse<h::int3x3>);
+static_assert(std::is_same_v<decltype(h::determinant(h::int3x3())), float>);
+static_assert(std::is_same_v<decltype(h::sqrt(h::int2x2())), h::float2x2>);
+static_assert(std::is_same_v<decltype(h::abs(h::int2x2())), h::int2x2>);
+
+static void test_int_matrices() {
+    using namespace shader_math::hlsl;
+    const int3x3 m = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+    const int3x3 p = mul(m, m);
+    CHECK(p[0][0] == 30 && p[0][2] == 42 && p[1][1] == 81 && p[2][2] == 150);
+    const int3 rv = mul(int3(1, 0, -1), m);
+    CHECK(rv.x == -6 && rv.y == -6 && rv.z == -6);
+    const int3 cv = mul(m, int3(1, 1, 1));
+    CHECK(cv.x == 6 && cv.y == 15 && cv.z == 24);
+    CHECK(transpose(m)[0][2] == 7);
+    CHECK_EQF(determinant(int3x3(2, 0, 0, 0, 3, 0, 0, 0, 4)), 24.0f);
+    // component-wise operators, row by row
+    const int3x3 r = (m % 4) + (m & 1) - (m << 1);
+    CHECK(r[0][0] == 1 + 1 - 2 && r[2][2] == 1 + 1 - 18);
+    CHECK((~m)[0][0] == -2 && (-m)[1][1] == -5);
+    CHECK(((m >> 1) | 1)[2][2] == 5);
+    int3x3 c = m;
+    c *= 2;
+    c -= m;
+    c++;
+    CHECK(c[0][0] == 2 && c[2][2] == 10);
+    CHECK(all(m == m) && any(m > 8) && !any(m > 9));
+    // functions: the int ones keep int, the float ones give float
+    const int2x2 n(-1, 2, -3, 4);
+    CHECK(abs(n)[1][0] == 3 && min(n, 0)[0][1] == 0 && clamp(n, -2, 3)[1][1] == 3);
+    CHECK(sign(n)[1][0] == -1);
+    const float2x2 roots = sqrt(int2x2(4, 9, 16, 25));
+    CHECK_EQF(roots[1][1], 5.0f);
+    // conversions and mixed operands, as for vectors
+    const float3x3 f = m;
+    CHECK_EQF(f[2][1], 8.0f);
+    const int3x3 t = f * 0.5f;  // truncates
+    CHECK(t[0][2] == 1 && t[2][2] == 4);
+    const float3x3 sum = m + f;
+    CHECK_EQF(sum[1][1], 10.0f);
+    const float3x3 scaled = m * 2.5;
+    CHECK_EQF(scaled[0][1], 5.0f);
+    int3x3 acc = m;
+    acc += f * 0.25f;  // in float, truncated back
+    CHECK(acc[0][0] == 1 && acc[2][2] == 11);
+    const uint2x2 u = int2x2(-1, 0, 1, 2);
+    CHECK(u[0][0] == 0xFFFFFFFFu);
+    CHECK((uint2x2(4u, 5u, 6u, 7u) % 4u)[1][1] == 3u);
+}
+
 static void test_int_mixed() {
     {
         using namespace shader_math::hlsl;
@@ -557,6 +609,7 @@ void test_int_vectors() {
     test_int_construction();
     test_int_mixed();
     test_int_pack();
+    test_int_matrices();
     test_int_bits();
     test_int_swizzles();
     test_int_operators();

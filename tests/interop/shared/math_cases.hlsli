@@ -361,6 +361,19 @@ float4 case_bits_f16_bits(float4 a, float4 b)
     return asfloat(h ^ asuint(back));
 }
 
+// int / uint matrices: mul, transpose, component-wise operators
+float4 case_bits_int_matrix(float4 a, float4 b)
+{
+    int4 i = int4(a * 4.0f);  // 5, -10, 15, 2
+    int4 j = int4(b * 4.0f);  // -3, 16, 1, -6
+    int3x3 m = int3x3(i.xyz, j.xyz, i.wzy);
+    int3x3 p = mul(m, transpose(m)) + m * 2 - (m % 3);
+    int3 v = mul(m, i.xyz) + mul(j.xyz, p);
+    uint3x3 u = uint3x3(p);
+    uint3 w = mul(u, uint3(i.zyx));
+    return asfloat(uint4(uint3(v) + w, uint(p._m22 + p._m01)));
+}
+
 // lit's specular term is (n.h)^m (Microsoft's lit documentation, Slang,
 // DXC's DXIL backend, shader-math); DXC's SPIR-V backend emits (n.h) * m,
 // so only its SPIR-V check leaves this case out (dxc/dxc_case_list.h)

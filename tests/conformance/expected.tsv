@@ -308,6 +308,22 @@ h_reversebits	ok
 h_reversebits_scalar	ok	
 h_glsl_bitCount	err	use of undeclared identifier 'bitCount'
 h_glsl_findMSB	err	use of undeclared identifier 'findMSB'
+h_int_matrix_ctor	ok	
+h_int_matrix_mul	ok	
+h_int_matrix_mul_vec	ok	
+h_int_matrix_from_float	ok	
+h_float_matrix_from_int	ok	
+h_uint_matrix_from_int	ok	
+h_int_matrix_plus_float	ok	
+h_int_matrix_times_float	ok	
+h_int_matrix_compound_float	ok	
+h_int_matrix_mod_bitwise	ok	
+h_int_matrix_determinant	ok	
+h_int_matrix_sqrt	ok	
+h_int_matrix_abs	ok	
+h_int_matrix_compare	ok	
+h_int_matrix_transpose	ok	
+h_float_matrix_compare_scalar	ok	
 h_f32tof16	ok	
 h_f32tof16_vec	ok	
 h_f32tof16_int	ok	

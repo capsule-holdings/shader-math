@@ -6,7 +6,7 @@
 
 H_PARAMS = ("float s, float t, float2 a2, float2 b2, float3 a, float3 b, float3 c, "
             "float4 a4, float4 b4, float3x3 m, float3x3 n, float4x4 m4, float2x3 m23, "
-            "float3x2 m32, bool3 bb, half3 h, half hs, int3 ia, int3 ib, uint3 ua, int ka")
+            "float3x2 m32, bool3 bb, half3 h, half hs, int3 ia, int3 ib, uint3 ua, int ka, int3x3 im")
 G_PARAMS = ("float s, float t, vec2 a2, vec2 b2, vec3 a, vec3 b, vec3 c, vec4 a4, vec4 b4, "
             "mat3 m, mat3 n, mat4 m4, mat2x3 m23, mat3x2 m32, bvec3 bb, f16vec3 h, float16_t hs, "
             "ivec3 ia, ivec3 ib, uvec3 ua, int ka")
@@ -347,6 +347,22 @@ for cid, body in [
     ("reversebits_scalar", "uint r = reversebits(ka);"),
     ("glsl_bitCount", "uint3 r = bitCount(ua);"),
     ("glsl_findMSB", "int3 r = findMSB(ia);"),
+    ("int_matrix_ctor", "int3x3 r = int3x3(1, 2, 3, 4, 5, 6, 7, 8, 9);"),
+    ("int_matrix_mul", "int3x3 r = mul(im, im);"),
+    ("int_matrix_mul_vec", "int3 r = mul(im, ia) + mul(ia, im);"),
+    ("int_matrix_from_float", "int3x3 r = m;"),
+    ("float_matrix_from_int", "float3x3 r = im;"),
+    ("uint_matrix_from_int", "uint3x3 r = im;"),
+    ("int_matrix_plus_float", "float3x3 r = im + m;"),
+    ("int_matrix_times_float", "float3x3 r = im * 2.5;"),
+    ("int_matrix_compound_float", "int3x3 r = im; r += m;"),
+    ("int_matrix_mod_bitwise", "int3x3 r = (im % 2) & ~im << 1;"),
+    ("int_matrix_determinant", "float r = determinant(im);"),
+    ("int_matrix_sqrt", "float3x3 r = sqrt(im);"),
+    ("int_matrix_abs", "int3x3 r = abs(im) + clamp(im, 0, 4);"),
+    ("int_matrix_compare", "bool3x3 r = im > 2;"),
+    ("int_matrix_transpose", "int3x3 r = transpose(im);"),
+    ("float_matrix_compare_scalar", "bool3x3 r = m > 1.0;"),
 ]:
     H("int", cid, body)
 
