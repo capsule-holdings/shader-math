@@ -84,7 +84,7 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
   `asint16` `asuint16` `asfloat16` and GLSL `float16BitsToInt16` `float16BitsToUint16` `int16BitsToFloat16`
   `uint16BitsToFloat16`, and GLSL's `packInt2x16` `packUint2x16` `packInt4x16` `packUint4x16` `packInt2x32` `packUint2x32`
   `packFloat2x16` and their `unpack*` (the first component in the low bits). Not covered yet: mixing with half
-- Integer matrices (HLSL only; GLSL has none): `hlsl::int2x2`–`int4x4` and `uint2x2`–`uint4x4`. Component-wise operators
+- Integer matrices (HLSL only; GLSL has none): `hlsl::int1x1`–`int4x4` and `uint1x1`–`uint4x4`. Component-wise operators
   (including `%`, bitwise operators and shifts), `mul` (wrapping), `transpose`, comparisons, `abs` `sign` `min` `max` `clamp`,
   and the implicit conversions and mixed operands of the integer vectors (`float3x3 f = im;`, `im + m` is a `float3x3`). The
   floating-point functions give float matrices (`sqrt(int3x3)` is a `float3x3`), and `determinant` converts to float.
@@ -95,9 +95,9 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
   - **Implicit mixed half / float arithmetic is not allowed** (`half3 * float3` / `half3 * 2.0f` are compile errors; conversion is explicit). Constructor arguments are converted (`half3(1.0f, 2.0f, 3.0f)` and `float4(v2, h2)` are allowed)
   - Minimum compilers: gcc/clang need a `_Float16` that works in C++ (gcc 12+ / clang 15+ on x86, gcc 13+ on AArch64). MSVC is supported with a software type that stores the bits. On unsupported compilers the half types are not defined (the float surface is unaffected)
   - On ARM targets, `arm_neon.h` defines a global `float16_t`, so an unqualified `float16_t` under `using namespace glsl` is ambiguous. Qualify it as `glsl::float16_t` or use `hlsl::half`
-- Matrices: all 9 shapes with R, C ∈ {2,3,4}. `hlsl::floatRxC` (stored by rows, row-major ctor) and `glsl::matCxR` (stored by columns, column-major ctor) are **distinct types**; conversion between them is explicit
+- Matrices: HLSL has all 16 shapes with R, C ∈ {1,2,3,4} (`float1x1`–`float4x4`, `half1x1`–`half4x4`, `int1x1`–`uint4x4`, `bool1x1`–`bool4x4`, `matrix<T, R, C>`); GLSL has all 9 shapes with C, R ∈ {2,3,4}. `hlsl::floatRxC` (stored by rows, row-major ctor) and `glsl::matCxR` (stored by columns, column-major ctor) are **distinct types**; conversion between them is explicit (for shapes with R, C ≥ 2)
 - The correspondence swaps for non-square shapes: `float3x4` (3 rows, 4 columns) ≡ `mat4x3` (4 columns, 3 rows)
-- Comparison results: `hlsl::bool2/3/4` and `glsl::bvec2/3/4` (distinct types), and `boolRxC`. No arithmetic and no implicit conversion to bool.
+- Comparison results: `hlsl::bool1/2/3/4` and `glsl::bvec2/3/4` (distinct types), and `hlsl::boolRxC` (`matrix<bool, R, C>`). No arithmetic and no implicit conversion to bool (except 1-component `bool1` / `bool1x1`).
   They can be converted explicitly to and from float vectors (`float3(b)` gives 1 where true; `bool3(v)` / `bvec3(v)` are true where nonzero). There is no implicit conversion
   (GLSL has none; HLSL's implicit conversion is intentionally not included)
 - `hlsl::vector<T, N>` (`vector<float, 3>` = `float3`). Using `using namespace std` and `using namespace hlsl` in the same scope

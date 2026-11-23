@@ -970,6 +970,10 @@ struct fvec<1, T, Lg> {
     template <class S>
         requires CvtScalar<S, T>
     SHADER_MATH_INLINE fvec(const S& s) : comp_{elem_cast<T>(s), T(0), T(0), T(0)} {}
+    template <class U>
+        requires(!std::is_same_v<U, T> && !CvtScalar<fvec<1, U, Lg>, T>)
+    SHADER_MATH_INLINE explicit fvec(const fvec<1, U, Lg>& o)
+        : comp_{elem_cast<T>(o.comp_[0]), T(0), T(0), T(0)} {}
     SHADER_MATH_INLINE operator T() const { return comp_[0]; }
     SHADER_MATH_INLINE T& operator[](int) { return comp_[0]; }
     SHADER_MATH_INLINE const T& operator[](int) const { return comp_[0]; }
@@ -2313,16 +2317,6 @@ template <int N, class Lg>
 SHADER_MATH_INLINE bool any(const bvec<N, Lg>& b) {
     return ops::any_n(b.m_, N);
 }
-
-// ---- bmat: matrix comparison result (HLSL) ---------------------------------
-// Lg is always hlsl's tag: it makes hlsl an associated namespace, where its
-// all() / any() are
-template <int R, int C, class Lg = hlsl::lang_tag>
-struct bmat {
-    bvec<C, Lg> row_[R];
-    SHADER_MATH_INLINE bvec<C, Lg>& operator[](int r) { return row_[r]; }
-    SHADER_MATH_INLINE const bvec<C, Lg>& operator[](int r) const { return row_[r]; }
-};
 
 // isnan / isinf (both languages), hlsl::isfinite.
 // The parameters name fvec / swz explicitly instead of a generic VecLike: the

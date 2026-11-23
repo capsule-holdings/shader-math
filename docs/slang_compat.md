@@ -56,6 +56,11 @@ The Slang version being checked is `slang_tag` in `ci.yml` (CI pins it and downl
   checked against DXC only (`case_bits_int_compound_float`).
 - **`sign` on int vectors**: the C++ prelude of the CPU target in Slang (v2026.20) has no `I32_sign`, so the generated
   code does not compile. It is checked against DXC only (`case_bits_int_sign`).
+- **1-dimension matrices (`float1x3`, `float3x1`, `float1x1`)**: the CPU target in Slang (v2026.20) rejects
+  `matrix.init` for 1-dimension matrices (`E36107`) and implicit `vector` ↔ 1-dimension `matrix` conversions. They are
+  checked against DXC (`case_exact_matrix_dim1` on SPIR-V and DXIL; `determinant(float1x1)` and `mul` with `float1`
+  against 1-dimension matrices are checked on DXIL only in `case_exact_matrix_dim1_dxil` because DXC's SPIR-V backend
+  rejects / crashes on them).
 - **`countbits` on `int16_t`**: Slang (v2026.20, SPIR-V) widens the lane to 32 bits first, so a negative lane counts 16
   more bits; DXC (DXIL's 16-bit `Countbits`) and shader-math count at 16 bits. DXC's SPIR-V backend does not compile
   `firstbithigh` / `firstbitlow` on 16- or 64-bit lanes. These are checked against DXIL only

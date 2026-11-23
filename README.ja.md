@@ -84,7 +84,7 @@ void glsl_side() {
   と GLSL の `float16BitsToInt16` `float16BitsToUint16` `int16BitsToFloat16` `uint16BitsToFloat16`、GLSL のパックとして
   `packInt2x16` `packUint2x16` `packInt4x16` `packUint4x16` `packInt2x32` `packUint2x32` `packFloat2x16` とそれぞれの
   `unpack*`（最初の成分が下位ビット）。未対応: half との混在
-- 整数行列（HLSL のみ。GLSL には無い）: `hlsl::int2x2`〜`int4x4` と `uint2x2`〜`uint4x4`。成分ごとの演算子（`%`、ビット演算、
+- 整数行列（HLSL のみ。GLSL には無い）: `hlsl::int1x1`〜`int4x4` と `uint1x1`〜`uint4x4`。成分ごとの演算子（`%`、ビット演算、
   シフトを含む）、`mul`（折り返し）、`transpose`、比較、`abs` `sign` `min` `max` `clamp`、整数ベクトルと同じ暗黙変換と混在演算
   （`float3x3 f = im;`、`im + m` は `float3x3`）。浮動小数点の関数は float の行列を返し（`sqrt(int3x3)` は `float3x3`）、
   `determinant` は float に変換して計算する。どの要素型の行列もスカラーと比較できる（`m > 1.0` は `bool3x3`）
@@ -94,9 +94,9 @@ void glsl_side() {
   - half と float の**暗黙混合演算は不可**（`half3 * float3` / `half3 * 2.0f` はコンパイルエラー、変換は explicit）。コンストラクタ引数は変換する（`half3(1.0f, 2.0f, 3.0f)`、`float4(v2, h2)` は可）
   - コンパイラ下限: gcc/clang は C++ で使える `_Float16` が必要（x86 では gcc 12+ / clang 15+、AArch64 では gcc 13+）。MSVC はビット格納のソフトウェア型で対応。未対応コンパイラでは half 型群は定義されない（float 面は無影響）
   - ARM ターゲットでは `arm_neon.h` がグローバル `float16_t` を定義するため、`using namespace glsl` 下の非修飾 `float16_t` は曖昧になる。`glsl::float16_t` と修飾するか `hlsl::half` を使う
-- 行列: R,C ∈ {2,3,4} の全9形。`hlsl::floatRxC`（行格納・行優先 ctor）と `glsl::matCxR`（列格納・列優先 ctor）は **別型**、相互変換は explicit
+- 行列: HLSL は R,C ∈ {1,2,3,4} の全16形（`float1x1`〜`float4x4`、`half1x1`〜`half4x4`、`int1x1`〜`uint4x4`、`bool1x1`〜`bool4x4`、`matrix<T, R, C>`）、GLSL は C,R ∈ {2,3,4} の全9形。`hlsl::floatRxC`（行格納・行優先 ctor）と `glsl::matCxR`（列格納・列優先 ctor）は **別型**、相互変換は explicit（R,C ≥ 2 の形）
 - 対応関係は非正方で入れ替わる: `float3x4`（3行4列）≡ `mat4x3`（4列3行）
-- 比較結果: `hlsl::bool2/3/4` と `glsl::bvec2/3/4`（別型）、`boolRxC`。算術なし・bool への暗黙変換なし。
+- 比較結果: `hlsl::bool1/2/3/4` と `glsl::bvec2/3/4`（別型）、`hlsl::boolRxC`（`matrix<bool, R, C>`）。算術なし・bool への暗黙変換なし（1成分の `bool1` / `bool1x1` を除く）。
   float ベクトルとは明示的に変換できる（`float3(b)` は真で 1、`bool3(v)` / `bvec3(v)` は 0 以外で真）。暗黙の変換は無い
   （GLSL には無い。HLSL の暗黙変換は意図して入れていない）
 - `hlsl::vector<T, N>`（`vector<float, 3>` = `float3`）。`using namespace std` と `using namespace hlsl` を同じスコープで

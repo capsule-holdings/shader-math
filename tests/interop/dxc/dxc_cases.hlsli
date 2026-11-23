@@ -104,6 +104,37 @@ float4 case_bits_bitfn_float_args(float4 a, float4 b)
     return asfloat(r ^ uint4(v));
 }
 
+// 1-dimension matrices (1xN, Nx1, 1x1): vector conversions, mul, transpose.
+// Slang's CPU target (v2026.20) rejects matrix.init for 1-dim matrices and
+// implicit vector <-> 1-dim matrix conversions, so DXC checks it.
+// DXC's DXIL lowering (v1.9.2609) crashes when float(float1x1) is used in a
+// scalar binary op, so pass float(d) directly to a vector constructor.
+float4 case_exact_matrix_dim1(float4 a, float4 b)
+{
+    float1x3 r13 = a.xyz;
+    float3x1 c31 = b.xyz;
+    float1x1 d = mul(r13, c31);
+    float3x3 outer = mul(c31, r13);
+    float1x3 scaled_r = mul(2.0f, r13);
+    float3x1 scaled_c = mul(c31, 0.5f);
+    float3x1 t = transpose(r13) + scaled_c * 2.0f;
+    float1 s = mul(r13, b.xyz) + mul(a.xyz, c31);
+    float3 sum = float3(scaled_r) + float3(t) + outer[0] + outer[1] + outer[2];
+    return float4(sum, d._m00 + s.x + r13._m02 + c31._31) + float4(0.0f, 0.0f, 0.0f, float(d));
+}
+
+// determinant(float1x1) and mul with float1 against 1-dim matrices. DXIL only:
+// DXC's SPIR-V backend (v1.9.2609) rejects determinant(float1x1) and crashes
+// on mul(float1, float1x3) / mul(float3x1, float1).
+float4 case_exact_matrix_dim1_dxil(float4 a, float4 b)
+{
+    float1x3 r13 = a.xyz;
+    float3x1 c31 = b.xyz;
+    float1x1 d = mul(r13, c31);
+    float3 v = mul(float1(2.0f), r13) + mul(c31, float1(0.5f));
+    return float4(v, determinant(d));
+}
+
 #if defined(SM_INTEROP_ENABLE_HALF)
 // countbits / firstbithigh / firstbitlow on 16- and 64-bit integers count at
 // the lane's width (DXIL's Countbits / FirstbitSHi on i16 and i64). DXC's

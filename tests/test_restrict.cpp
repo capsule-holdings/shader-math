@@ -173,6 +173,18 @@ static_assert(!std::is_constructible_v<h::float3x2, h::float2x3>);  // a lone ma
 
 // ---- matrix -> vector: HLSL implicitly for the same component count, GLSL explicitly --
 static_assert(std::is_convertible_v<h::float2x2, h::float4>);
+static_assert(std::is_convertible_v<h::float1x3, h::float3>);
+static_assert(std::is_convertible_v<h::float3x1, h::float3>);
+static_assert(std::is_convertible_v<h::float3, h::float1x3>);
+static_assert(std::is_convertible_v<h::float3, h::float3x1>);
+static_assert(std::is_convertible_v<h::float1x1, float>);
+static_assert(std::is_convertible_v<h::float1x1, h::float1>);
+static_assert(std::is_convertible_v<h::bool1x1, bool>);
+static_assert(!std::is_convertible_v<h::bool1x3, bool>);
+static_assert(!std::is_convertible_v<h::bool3x1, bool>);
+static_assert(std::is_convertible_v<h::bool1x3, h::bool3>);
+static_assert(!std::is_convertible_v<h::float1x3, h::float3x1>);
+static_assert(!std::is_constructible_v<h::float1x3, h::float3x1>);
 static_assert(!std::is_convertible_v<h::float3x3, h::float3> &&
               !std::is_constructible_v<h::float3, h::float2x2>);
 static_assert(std::is_constructible_v<g::vec3, g::mat2> && !std::is_convertible_v<g::mat2, g::vec4>);

@@ -218,28 +218,34 @@ struct vec_traits<mmswz<T, R, F...>> {
 // position is four tokens (zero-based row and column, one-based row and
 // column); each level has its own loop macros because a macro does not
 // expand inside its own expansion.
-#  define SM_MX_RA2(R, C, F) SM_MX_CA##C(R, C, F, 0, 1) SM_MX_CA##C(R, C, F, 1, 2)
+#  define SM_MX_RA1(R, C, F) SM_MX_CA##C(R, C, F, 0, 1)
+#  define SM_MX_RA2(R, C, F) SM_MX_RA1(R, C, F) SM_MX_CA##C(R, C, F, 1, 2)
 #  define SM_MX_RA3(R, C, F) SM_MX_RA2(R, C, F) SM_MX_CA##C(R, C, F, 2, 3)
 #  define SM_MX_RA4(R, C, F) SM_MX_RA3(R, C, F) SM_MX_CA##C(R, C, F, 3, 4)
-#  define SM_MX_CA2(R, C, F, r, s) F(R, C, r, 0, s, 1) F(R, C, r, 1, s, 2)
+#  define SM_MX_CA1(R, C, F, r, s) F(R, C, r, 0, s, 1)
+#  define SM_MX_CA2(R, C, F, r, s) SM_MX_CA1(R, C, F, r, s) F(R, C, r, 1, s, 2)
 #  define SM_MX_CA3(R, C, F, r, s) SM_MX_CA2(R, C, F, r, s) F(R, C, r, 2, s, 3)
 #  define SM_MX_CA4(R, C, F, r, s) SM_MX_CA3(R, C, F, r, s) F(R, C, r, 3, s, 4)
 
+#  define SM_MX_RB1(R, C, F, a, b, a1, b1) SM_MX_CB##C(R, C, F, a, b, a1, b1, 0, 1)
 #  define SM_MX_RB2(R, C, F, a, b, a1, b1) \
-      SM_MX_CB##C(R, C, F, a, b, a1, b1, 0, 1) SM_MX_CB##C(R, C, F, a, b, a1, b1, 1, 2)
+      SM_MX_RB1(R, C, F, a, b, a1, b1) SM_MX_CB##C(R, C, F, a, b, a1, b1, 1, 2)
 #  define SM_MX_RB3(R, C, F, a, b, a1, b1) \
       SM_MX_RB2(R, C, F, a, b, a1, b1) SM_MX_CB##C(R, C, F, a, b, a1, b1, 2, 3)
 #  define SM_MX_RB4(R, C, F, a, b, a1, b1) \
       SM_MX_RB3(R, C, F, a, b, a1, b1) SM_MX_CB##C(R, C, F, a, b, a1, b1, 3, 4)
+#  define SM_MX_CB1(R, C, F, a, b, a1, b1, r, s) F(R, C, a, b, a1, b1, r, 0, s, 1)
 #  define SM_MX_CB2(R, C, F, a, b, a1, b1, r, s) \
-      F(R, C, a, b, a1, b1, r, 0, s, 1) F(R, C, a, b, a1, b1, r, 1, s, 2)
+      SM_MX_CB1(R, C, F, a, b, a1, b1, r, s) F(R, C, a, b, a1, b1, r, 1, s, 2)
 #  define SM_MX_CB3(R, C, F, a, b, a1, b1, r, s) \
       SM_MX_CB2(R, C, F, a, b, a1, b1, r, s) F(R, C, a, b, a1, b1, r, 2, s, 3)
 #  define SM_MX_CB4(R, C, F, a, b, a1, b1, r, s) \
       SM_MX_CB3(R, C, F, a, b, a1, b1, r, s) F(R, C, a, b, a1, b1, r, 3, s, 4)
 
+#  define SM_MX_RC1(R, C, F, a, b, a1, b1, e, f, e1, f1) \
+      SM_MX_CC##C(R, C, F, a, b, a1, b1, e, f, e1, f1, 0, 1)
 #  define SM_MX_RC2(R, C, F, a, b, a1, b1, e, f, e1, f1)        \
-      SM_MX_CC##C(R, C, F, a, b, a1, b1, e, f, e1, f1, 0, 1)    \
+      SM_MX_RC1(R, C, F, a, b, a1, b1, e, f, e1, f1)            \
       SM_MX_CC##C(R, C, F, a, b, a1, b1, e, f, e1, f1, 1, 2)
 #  define SM_MX_RC3(R, C, F, a, b, a1, b1, e, f, e1, f1)        \
       SM_MX_RC2(R, C, F, a, b, a1, b1, e, f, e1, f1)            \
@@ -247,8 +253,10 @@ struct vec_traits<mmswz<T, R, F...>> {
 #  define SM_MX_RC4(R, C, F, a, b, a1, b1, e, f, e1, f1)        \
       SM_MX_RC3(R, C, F, a, b, a1, b1, e, f, e1, f1)            \
       SM_MX_CC##C(R, C, F, a, b, a1, b1, e, f, e1, f1, 3, 4)
+#  define SM_MX_CC1(R, C, F, a, b, a1, b1, e, f, e1, f1, r, s) \
+      F(R, C, a, b, a1, b1, e, f, e1, f1, r, 0, s, 1)
 #  define SM_MX_CC2(R, C, F, a, b, a1, b1, e, f, e1, f1, r, s)  \
-      F(R, C, a, b, a1, b1, e, f, e1, f1, r, 0, s, 1)           \
+      SM_MX_CC1(R, C, F, a, b, a1, b1, e, f, e1, f1, r, s)      \
       F(R, C, a, b, a1, b1, e, f, e1, f1, r, 1, s, 2)
 #  define SM_MX_CC3(R, C, F, a, b, a1, b1, e, f, e1, f1, r, s)  \
       SM_MX_CC2(R, C, F, a, b, a1, b1, e, f, e1, f1, r, s)      \
@@ -299,12 +307,19 @@ struct hmat_store;
           };                                               \
           SHADER_MATH_INLINE hmat_store() : row_{} {}      \
       };
+SM_MX_STORE(1, 1)
+SM_MX_STORE(1, 2)
+SM_MX_STORE(1, 3)
+SM_MX_STORE(1, 4)
+SM_MX_STORE(2, 1)
 SM_MX_STORE(2, 2)
 SM_MX_STORE(2, 3)
 SM_MX_STORE(2, 4)
+SM_MX_STORE(3, 1)
 SM_MX_STORE(3, 2)
 SM_MX_STORE(3, 3)
 SM_MX_STORE(3, 4)
+SM_MX_STORE(4, 1)
 SM_MX_STORE(4, 2)
 SM_MX_STORE(4, 3)
 SM_MX_STORE(4, 4)
@@ -315,21 +330,27 @@ SM_MX_STORE(4, 4)
 #  undef SM_MX_AT2
 #  undef SM_MX_AT3
 #  undef SM_MX_TRIPLES
+#  undef SM_MX_RA1
 #  undef SM_MX_RA2
 #  undef SM_MX_RA3
 #  undef SM_MX_RA4
+#  undef SM_MX_CA1
 #  undef SM_MX_CA2
 #  undef SM_MX_CA3
 #  undef SM_MX_CA4
+#  undef SM_MX_RB1
 #  undef SM_MX_RB2
 #  undef SM_MX_RB3
 #  undef SM_MX_RB4
+#  undef SM_MX_CB1
 #  undef SM_MX_CB2
 #  undef SM_MX_CB3
 #  undef SM_MX_CB4
+#  undef SM_MX_RC1
 #  undef SM_MX_RC2
 #  undef SM_MX_RC3
 #  undef SM_MX_RC4
+#  undef SM_MX_CC1
 #  undef SM_MX_CC2
 #  undef SM_MX_CC3
 #  undef SM_MX_CC4
@@ -480,11 +501,15 @@ SHADER_MATH_INLINE void unpack_dense(const T* q, fvec<L, T, Lg>* regs) {
 
 template <int N, class T, class Lg>
 SHADER_MATH_INLINE T det_regs(const fvec<N, T, Lg>* regs) {
-    T p[N * N];
-    pack_dense<N, N>(regs, p);
-    if constexpr (N == 2) return det2(p);
-    if constexpr (N == 3) return det3(p);
-    if constexpr (N == 4) return det4(p);
+    if constexpr (N == 1) {
+        return regs[0][0];
+    } else {
+        T p[N * N];
+        pack_dense<N, N>(regs, p);
+        if constexpr (N == 2) return det2(p);
+        if constexpr (N == 3) return det3(p);
+        if constexpr (N == 4) return det4(p);
+    }
 }
 
 // float 4x4 inverse in registers: Cramer's rule over a transposed, pair-
@@ -560,6 +585,9 @@ SHADER_MATH_INLINE void inv4_regs(const fvec<4, float, Lg>* in, fvec<4, float, L
 
 template <int N, class T, class Lg>
 SHADER_MATH_INLINE void inv_regs(const fvec<N, T, Lg>* in, fvec<N, T, Lg>* out) {
+    if constexpr (N == 1) {
+        out[0][0] = T(1.0f) / in[0][0];
+    } else
 #if defined(SHADER_MATH_ISA_SSE2)
     if constexpr (N == 4 && std::is_same_v<T, float>) {
         inv4_regs(in, out);
@@ -595,11 +623,12 @@ struct matrix
     : detail::hmat_store<R, C, T>
 #endif
 {
-    static_assert(R >= 2 && R <= 4 && C >= 2 && C <= 4,
-                  "shader-math: matrix dimensions must be 2..4");
+    static_assert(R >= 1 && R <= 4 && C >= 1 && C <= 4,
+                  "shader-math: matrix dimensions must be 1..4");
     static constexpr int rows_v = R;
     static constexpr int cols_v = C;
     using elem_t = T;
+    using row_t = detail::hvec<C, T>;
 
 #if defined(SHADER_MATH_MATRIX_SWIZZLE)
     using detail::hmat_store<R, C, T>::row_;
@@ -636,24 +665,26 @@ struct matrix
         detail::unpack_dense<R, C>(a, row_);
     }
 
-    // R row vectors (or swizzles); scalars are not rows
+    // R row vectors (or swizzles); C == 1 rows are handled by the scalar constructors above
     template <class... V>
-        requires(sizeof...(V) == R && (std::is_same_v<detail::vec_t<V>, detail::hvec<C, T>> && ...))
+        requires(C >= 2 && sizeof...(V) == R &&
+                 (std::is_same_v<detail::vec_t<V>, detail::hvec<C, T>> && ...))
     SHADER_MATH_INLINE matrix(const V&... rows) SM_HMAT_INIT {
         const detail::hvec<C, T> rr[R] = {detail::hvec<C, T>(rows)...};
         for (int r = 0; r < R; ++r) row_[r] = rr[r];
     }
 
     // Component lists with a vector or matrix in them (float2x2(v2, 3.0, 4.0),
-    // float2x2(v4), float3x3(m2, 5 scalars)): exactly R*C components, filled
-    // row by row (a matrix argument row by row too). Implicit like HLSL's own
-    // conversion (float2x2 m = v4); a lone matrix is not a list
+    // float2x2(v4), float3x1(v3), float3x3(m2, 5 scalars)): exactly R*C
+    // components, filled row by row (a matrix argument row by row too).
+    // Implicit like HLSL's own conversion (float2x2 m = v4); a lone matrix is
+    // not a list
     template <class... V>
         requires((detail::any_vector_arg<V...> ||
                   (detail::any_matrix_arg<V...> && sizeof...(V) >= 2)) &&
                  detail::ctor_fill<R * C, T, hlsl::lang_tag, true, V...>() == 1 &&
                  (sizeof...(V) >= 2 || !detail::any_foreign_elem<T, V...>) &&
-                 !(sizeof...(V) == R && (detail::vec_is<V, detail::hvec<C, T>>() && ...)))
+                 !(C >= 2 && sizeof...(V) == R && (detail::vec_is<V, detail::hvec<C, T>>() && ...)))
     SHADER_MATH_INLINE matrix(const V&... v) SM_HMAT_INIT {
         T a[R * C];
         detail::gather_components<T>(a, R * C, v...);
@@ -665,28 +696,36 @@ struct matrix
     template <int R2, int C2>
         requires(R2 >= R && C2 >= C && !(R2 == R && C2 == C))
     SHADER_MATH_INLINE explicit matrix(const matrix<T, R2, C2>& o) SM_HMAT_INIT {
-        for (int r = 0; r < R; ++r) {
-            T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
-            for (int c = 0; c < C; ++c) t[c] = o.row_[r][c];
-            row_[r] = detail::hvec<C, T>(detail::vops<T>::load4(t));
-        }
+        for (int r = 0; r < R; ++r)
+            for (int c = 0; c < C; ++c) row_[r][c] = o.row_[r][c];
     }
 
     // Element-type conversion: implicit between int, uint and float (HLSL
     // converts them implicitly, as for vectors), explicit for half
     template <class U>
-        requires(detail::implicit_elem_v<U, T, hlsl::lang_tag>)
+        requires(!std::is_same_v<U, bool> && detail::implicit_elem_v<U, T, hlsl::lang_tag>)
     SHADER_MATH_INLINE matrix(const matrix<U, R, C>& o) SM_HMAT_INIT {
-        for (int r = 0; r < R; ++r) row_[r] = detail::hvec<C, T>(o.row_[r]);
+        if constexpr (C == 1) {
+            for (int r = 0; r < R; ++r) row_[r][0] = detail::elem_cast<T>(o.row_[r][0]);
+        } else {
+            for (int r = 0; r < R; ++r) row_[r] = detail::hvec<C, T>(o.row_[r]);
+        }
     }
     template <class U>
-        requires(!std::is_same_v<U, T> && !detail::implicit_elem_v<U, T, hlsl::lang_tag>)
+        requires(!std::is_same_v<U, T> && !std::is_same_v<U, bool> &&
+                 !detail::implicit_elem_v<U, T, hlsl::lang_tag>)
     SHADER_MATH_INLINE explicit matrix(const matrix<U, R, C>& o) SM_HMAT_INIT {
-        for (int r = 0; r < R; ++r) row_[r] = detail::hvec<C, T>(o.row_[r]);
+        if constexpr (C == 1) {
+            for (int r = 0; r < R; ++r) row_[r][0] = detail::elem_cast<T>(o.row_[r][0]);
+        } else {
+            for (int r = 0; r < R; ++r) row_[r] = detail::hvec<C, T>(o.row_[r]);
+        }
     }
 
     // Explicit conversion from the corresponding GLSL matrix (same math object).
-    SHADER_MATH_INLINE explicit matrix(const glsl::matrix<C, R, T>& g);
+    SHADER_MATH_INLINE explicit matrix(
+        const glsl::matrix<(C >= 2 ? C : 2), (R >= 2 ? R : 2), T>& g)
+        requires(R >= 2 && C >= 2);
 
     // Extension (not an HLSL intrinsic): identity for convenience.
     static SHADER_MATH_INLINE matrix identity() {
@@ -700,11 +739,103 @@ struct matrix
     SHADER_MATH_INLINE const detail::hvec<C, T>& operator[](int r) const { return row_[r]; }
 
     // HLSL converts a matrix to the vector of the same component count, row
-    // by row (float4 v = m22); only 2x2 has a vector of its size
-    SHADER_MATH_INLINE operator detail::hvec<4, T>() const
-        requires(R == 2 && C == 2)
+    // by row (float4 v = m22, float3 v = m13 / m31, float1 v = m11), and a
+    // 1x1 matrix also converts to its scalar element
+    SHADER_MATH_INLINE operator detail::hvec<(R * C <= 4 ? R * C : 4), T>() const
+        requires(R * C >= 1 && R * C <= 4)
     {
-        return detail::hvec<4, T>(row_[0][0], row_[0][1], row_[1][0], row_[1][1]);
+        if constexpr (R == 1 && C == 1) {
+            return row_[0];
+        } else if constexpr (R * C <= 4) {
+            T a[R * C];
+            detail::pack_dense<R, C>(row_, a);
+            T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
+            for (int i = 0; i < R * C; ++i) t[i] = a[i];
+            return detail::hvec<R * C, T>(detail::vops<T>::load4(t));
+        } else {
+            return {};
+        }
+    }
+    SHADER_MATH_INLINE operator T() const
+        requires(R == 1 && C == 1)
+    {
+        return row_[0][0];
+    }
+};
+
+// Boolean matrix (HLSL boolRxC / matrix<bool, R, C>): comparison and
+// classification results. Not implicitly convertible to bool except 1x1;
+// reduce larger shapes with all() / any().
+template <int R, int C>
+struct matrix<bool, R, C> {
+    static_assert(R >= 1 && R <= 4 && C >= 1 && C <= 4,
+                  "shader-math: matrix dimensions must be 1..4");
+    static constexpr int rows_v = R;
+    static constexpr int cols_v = C;
+    using elem_t = bool;
+    using row_t = std::conditional_t<C == 1, detail::fvec<1, bool, lang_tag>,
+                                     detail::bvec<C, lang_tag>>;
+    static constexpr int flat_bvec_n = (R * C >= 2 && R * C <= 4) ? R * C : 2;
+
+    row_t row_[R];
+
+    SHADER_MATH_INLINE matrix() = default;
+    SHADER_MATH_INLINE matrix(bool b) {
+        for (int r = 0; r < R; ++r) row_[r] = row_t(b);
+    }
+    template <class... B>
+        requires(sizeof...(B) == R * C && R * C > 1 && (std::is_convertible_v<B, bool> && ...))
+    SHADER_MATH_INLINE matrix(B... bs) {
+        const bool a[R * C] = {static_cast<bool>(bs)...};
+        for (int r = 0; r < R; ++r)
+            for (int c = 0; c < C; ++c) row_[r][c] = a[r * C + c];
+    }
+    template <class... V>
+        requires(C >= 2 && sizeof...(V) == R &&
+                 (std::is_same_v<std::remove_cvref_t<V>, row_t> && ...))
+    SHADER_MATH_INLINE matrix(const V&... rows) {
+        const row_t rr[R] = {rows...};
+        for (int r = 0; r < R; ++r) row_[r] = rr[r];
+    }
+    SHADER_MATH_INLINE matrix(const detail::bvec<flat_bvec_n, lang_tag>& v)
+        requires(R * C >= 2 && R * C <= 4 && !(R == 1 && C == R * C))
+    {
+        if constexpr (R * C >= 2 && R * C <= 4) {
+            for (int r = 0; r < R; ++r)
+                for (int c = 0; c < C; ++c) row_[r][c] = v[r * C + c];
+        } else {
+            (void)v;
+        }
+    }
+
+    SHADER_MATH_INLINE row_t& operator[](int r) { return row_[r]; }
+    SHADER_MATH_INLINE const row_t& operator[](int r) const { return row_[r]; }
+
+    SHADER_MATH_INLINE operator bool() const
+        requires(R == 1 && C == 1)
+    {
+        if constexpr (R == 1 && C == 1)
+            return static_cast<bool>(row_[0]);
+        else
+            return false;
+    }
+    SHADER_MATH_INLINE operator detail::fvec<1, bool, lang_tag>() const
+        requires(R == 1 && C == 1)
+    {
+        if constexpr (R == 1 && C == 1)
+            return row_[0];
+        else
+            return {};
+    }
+    SHADER_MATH_INLINE operator detail::bvec<flat_bvec_n, lang_tag>() const
+        requires(R * C >= 2 && R * C <= 4)
+    {
+        detail::bvec<flat_bvec_n, lang_tag> v;
+        if constexpr (R * C >= 2 && R * C <= 4) {
+            for (int r = 0; r < R; ++r)
+                for (int c = 0; c < C; ++c) v[r * C + c] = static_cast<bool>(row_[r][c]);
+        }
+        return v;
     }
 };
 
@@ -817,7 +948,7 @@ struct mat_traits<hlsl::matrix<T, R, C>> {
     using elem = T;
     using lang = hlsl::lang_tag;
     static SHADER_MATH_INLINE T at(const hlsl::matrix<T, R, C>& m, int i) {
-        return m.row_[i / C][i % C];
+        return static_cast<T>(m.row_[i / C][i % C]);
     }
 };
 template <int Cn, int Rn, class T>
@@ -836,8 +967,15 @@ struct mat_traits<glsl::matrix<Cn, Rn, T>> {
 // object) is exactly a register-array transpose.
 namespace hlsl {
 template <class T, int R, int C>
-SHADER_MATH_INLINE matrix<T, R, C>::matrix(const glsl::matrix<C, R, T>& g) SM_HMAT_INIT {
-    detail::transpose_regs<C, R>(g.col_, row_);
+SHADER_MATH_INLINE matrix<T, R, C>::matrix(
+    const glsl::matrix<(C >= 2 ? C : 2), (R >= 2 ? R : 2), T>& g)
+    requires(R >= 2 && C >= 2)
+SM_HMAT_INIT {
+    if constexpr (R >= 2 && C >= 2) {
+        detail::transpose_regs<C, R>(g.col_, row_);
+    } else {
+        (void)g;
+    }
 }
 }  // namespace hlsl
 #undef SM_HMAT_INIT
@@ -851,10 +989,36 @@ SHADER_MATH_INLINE matrix<Cn, Rn, T>::matrix(const hlsl::matrix<T, Rn, Cn>& h) {
 }  // namespace glsl
 
 namespace detail {
-// The hlsl matrix whose R rows are vectors of type V (the component-wise
-// intrinsics on matrices take their result element from the row result)
-template <int R, class V>
-using hmat_of_rows = hlsl::matrix<vec_elem_t<V>, R, vec_size_v<V>>;
+// Row helpers for hlsl::matrix: a 1-column row is lifted to a 2-lane vector so
+// every component-wise matrix operator and intrinsic reuses the exact vector
+// rules (wrapping integer arithmetic, promotions, SFINAE) for C == 1 as well.
+template <int C, class T>
+using hmat_row_op_t = hvec<(C == 1 ? 2 : C), T>;
+
+template <int C, class T>
+SHADER_MATH_INLINE decltype(auto) hmat_row_in(const hvec<C, T>& r) {
+    if constexpr (C == 1)
+        return hvec<2, T>(r[0]);
+    else
+        return (r);
+}
+template <int C, class T, class V>
+SHADER_MATH_INLINE void hmat_row_out(hvec<C, T>& dst, const V& src) {
+    if constexpr (C == 1)
+        dst[0] = src[0];
+    else
+        dst = src;
+}
+template <int C, class Dst, class B>
+SHADER_MATH_INLINE void hmat_brow_out(Dst& dst, const B& src) {
+    if constexpr (C == 1)
+        dst = fvec<1, bool, hlsl::lang_tag>(src[0]);
+    else
+        dst = src;
+}
+// The hlsl matrix of shape R x C whose element type is the vector result V's
+template <int R, int C, class V>
+using hmat_of_rows = hlsl::matrix<vec_elem_t<V>, R, C>;
 }  // namespace detail
 
 }  // namespace shader_math

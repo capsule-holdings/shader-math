@@ -79,6 +79,28 @@ int main() {
     CHECK_EQF(v[0], 5.0f);
     CHECK_EQF(v[1], 2.0f);
 
+    // ---- 1-dimension shapes ------------------------------------------------
+    float1x3 r13(1.0f, 2.0f, 3.0f);
+    CHECK(all(r13._m00_m02 == float2(1.0f, 3.0f)));
+    r13._m00_m02 = r13._m02_m00;
+    CHECK(all(r13 == float1x3(3.0f, 2.0f, 1.0f)));
+
+    float3x1 c31(4.0f, 5.0f, 6.0f);
+    CHECK(all(c31._m00_m20 == float2(4.0f, 6.0f)));
+    c31._11_31 = float2(40.0f, 60.0f);
+    CHECK(all(c31 == float3x1(40.0f, 5.0f, 60.0f)));
+
+    const float1x1 s11(9.0f);
+    CHECK(all(s11._m00_m00 == float2(9.0f, 9.0f)));
+    static_assert(!can_write_dup<float1x1>);
+
+#if defined(SHADER_MATH_MATRIX_SWIZZLE3)
+    const float3 r13_rev = r13._13_12_11;
+    CHECK(all(r13_rev == float3(1.0f, 2.0f, 3.0f)));
+    const float3 c31_rev = c31._m20_m10_m00;
+    CHECK(all(c31_rev == float3(60.0f, 5.0f, 40.0f)));
+#endif
+
 #if defined(SHADER_MATH_MATRIX_SWIZZLE3)
     // ---- 3-element lists ---------------------------------------------------
     const float4x4 n(1.0f, 2.0f, 3.0f, 4.0f,

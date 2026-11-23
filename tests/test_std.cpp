@@ -119,6 +119,16 @@ void test_load_store() {
     for (int i = 0; i < 6; ++i) CHECK_EQF(out[i], data[i]);
     shader_math::store(gm, out);
     for (int i = 0; i < 6; ++i) CHECK_EQF(out[i], data[i]);
+    const h::float1x3 hm13 = shader_math::load<h::float1x3>(data);
+    CHECK(all(hm13 == h::float1x3(1.0f, 2.0f, 3.0f)));
+    const h::float3x1 hm31 = shader_math::load<h::float3x1>(data);
+    CHECK(all(hm31 == h::float3x1(1.0f, 2.0f, 3.0f)));
+    auto [r0, r1, r2] = hm31;
+    CHECK_EQF(float(r0), 1.0f);
+    CHECK_EQF(float(r2), 3.0f);
+    std::ostringstream oss;
+    oss << hm13 << ' ' << hm31 << ' ' << h::bool1x3(true, false, true);
+    CHECK(oss.str() == "((1, 2, 3)) ((1), (2), (3)) ((true, false, true))");
     double d[3] = {};
     shader_math::store(v, d);
     CHECK(d[2] == 4.0);
