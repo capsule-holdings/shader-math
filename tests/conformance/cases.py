@@ -350,9 +350,21 @@ for cid, body in [
 ]:
     H("int", cid, body)
 
-# out of scope (bit-manipulation and packing functions / double / derivatives)
+# packing
 for cid, body in [
-    ("oos_f32tof16", "uint r = f32tof16(s);"),
+    ("f32tof16", "uint r = f32tof16(s);"),
+    ("f32tof16_vec", "uint3 r = f32tof16(a);"),
+    ("f32tof16_int", "uint r = f32tof16(ka);"),
+    ("f16tof32", "float r = f16tof32(1u);"),
+    ("f16tof32_vec", "float3 r = f16tof32(ua);"),
+    ("f16tof32_int", "float3 r = f16tof32(ia);"),
+    ("glsl_packHalf2x16", "uint r = packHalf2x16(a2);"),
+    ("glsl_unpackUnorm4x8", "float4 r = unpackUnorm4x8(1u);"),
+]:
+    H("pack", cid, body)
+
+# out of scope (double / derivatives)
+for cid, body in [
     ("oos_double", "double r = 1.0L;"),
     ("oos_ddx", "float3 r = ddx(a);"),
 ]:
@@ -720,8 +732,27 @@ for cid, body in [
 ]:
     G("int", cid, body)
 
+# packing
 for cid, body in [
-    ("oos_packHalf2x16", "uint r = packHalf2x16(a2);"),
+    ("packHalf2x16", "uint r = packHalf2x16(a2);"),
+    ("packHalf2x16_vec3", "uint r = packHalf2x16(a);"),
+    ("unpackHalf2x16", "vec2 r = unpackHalf2x16(1u);"),
+    ("unpackHalf2x16_int", "vec2 r = unpackHalf2x16(ka);"),
+    ("packUnorm2x16", "uint r = packUnorm2x16(a2);"),
+    ("packSnorm2x16", "uint r = packSnorm2x16(a2);"),
+    ("packUnorm4x8", "uint r = packUnorm4x8(a4);"),
+    ("packSnorm4x8", "uint r = packSnorm4x8(a4);"),
+    ("packUnorm4x8_vec3", "uint r = packUnorm4x8(a);"),
+    ("unpackUnorm2x16", "vec2 r = unpackUnorm2x16(ua.x);"),
+    ("unpackSnorm2x16", "vec2 r = unpackSnorm2x16(ua.y);"),
+    ("unpackUnorm4x8", "vec4 r = unpackUnorm4x8(ua.z);"),
+    ("unpackSnorm4x8", "vec4 r = unpackSnorm4x8(1u);"),
+    ("unpack_float_arg", "vec2 r = unpackHalf2x16(s);"),
+    ("hlsl_f32tof16", "uint r = f32tof16(s);"),
+]:
+    G("pack", cid, body)
+
+for cid, body in [
     ("oos_double", "double r = 1.0lf;"),
     ("oos_dvec3", "dvec3 r = dvec3(a);"),
 ]:

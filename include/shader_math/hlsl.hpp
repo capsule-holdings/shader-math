@@ -722,6 +722,35 @@ SM_HLSL_BITFN(firstbitlow, low_fn)
 SM_HLSL_BITFN(reversebits, reverse_fn)
 #undef SM_HLSL_BITFN
 
+// f32tof16 / f16tof32: the binary16 bits of a float in the low 16 bits of a
+// uint (rounded to nearest even), and back from the low 16 bits; vectors and
+// scalars
+template <class A>
+    requires(detail::VecOf<A, lang_tag> && std::is_same_v<detail::vec_elem_t<A>, float>)
+SHADER_MATH_INLINE auto f32tof16(const A& a) {
+    return detail::map_int_lanes<uint>(
+        a, [](float x) { return static_cast<uint>(detail::half_bits::from_f32(x)); });
+}
+template <class S>
+    requires(!detail::VecLike<S> && std::is_arithmetic_v<typename detail::scalar_value<std::remove_cvref_t<S>>::type> &&
+             !std::is_same_v<typename detail::scalar_value<std::remove_cvref_t<S>>::type, bool>)
+SHADER_MATH_INLINE uint f32tof16(const S& s) {
+    using V = typename detail::scalar_value<std::remove_cvref_t<S>>::type;
+    return detail::half_bits::from_f32(static_cast<float>(static_cast<V>(s)));
+}
+template <class A>
+    requires(detail::VecOf<A, lang_tag> && detail::IntVec<A>)
+SHADER_MATH_INLINE auto f16tof32(const A& a) {
+    return detail::map_int_lanes<float>(a, [](auto x) {
+        return detail::half_bits::to_f32(static_cast<unsigned short>(static_cast<uint>(x) & 0xFFFFu));
+    });
+}
+template <class S>
+    requires detail::is_int32_scalar_v<S>
+SHADER_MATH_INLINE float f16tof32(const S& s) {
+    return detail::half_bits::to_f32(static_cast<unsigned short>(static_cast<uint>(s) & 0xFFFFu));
+}
+
 // ---- mul: the 9 official overloads ------------------------------------------
 SHADER_MATH_INLINE float mul(float a, float b) { return a * b; }
 #if defined(SHADER_MATH_HAS_HALF)

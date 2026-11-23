@@ -357,3 +357,24 @@ vec4 case_bits_int_bitfns(vec4 a, vec4 b)
     uvec4 w = sum + diff * 3u + carry * 5u + borrow * 7u + hi + (lo >> 1) + uvec4(shi) + uvec4(slo);
     return uintBitsToFloat(uvec4(r) ^ w);
 }
+
+// packing: inputs avoid what GLSL leaves to the implementation (ties, NaN,
+// half overflow and subnormals). packSnorm4x8 has a negative value in its
+// last component only: lavapipe (Mesa 25.2) does not mask the others to 8
+// bits, so a negative one sets every byte above it (docs/glsl_interop.md)
+vec4 case_bits_pack(vec4 a, vec4 b)
+{
+    vec4 n = a * 0.3f;  // 0.375, -0.75, 1.125, 0.15
+    vec4 m = abs(n.yxzw) * vec4(1.0f, 1.0f, 1.0f, -1.0f);
+    uvec4 r = uvec4(packUnorm2x16(n.xy), packSnorm2x16(n.yw), packUnorm4x8(n), packSnorm4x8(m));
+    r ^= uvec4(packHalf2x16(a.xy), packHalf2x16(b.zw * 1000.1f), packHalf2x16(vec2(0.001f, 60000.0f)), 0u);
+    return uintBitsToFloat(r);
+}
+
+vec4 case_near_unpack(vec4 a, vec4 b)
+{
+    vec2 h = unpackHalf2x16(floatBitsToUint(a.x) ^ floatBitsToUint(b.y));
+    vec4 u = unpackUnorm4x8(0x12345678u) + unpackSnorm4x8(0x80FF7F01u);
+    vec2 s = unpackUnorm2x16(0xFFFF1234u) + unpackSnorm2x16(0x80007FFFu);
+    return u + vec4(h, s);
+}

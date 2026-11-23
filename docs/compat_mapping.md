@@ -170,6 +170,8 @@ Differences caused by C++ syntax:
 | Bit counts and positions | `countbits` `firstbithigh` `firstbitlow` (uint) | `bitCount` `findMSB` `findLSB` (int) | ○ / ○ | On int, the highest bit that differs from the sign bit; -1 where none. HLSL also takes float (converted to uint) |
 | Bit reversal | `reversebits` (uint) | `bitfieldReverse` (same type) | ○ / ○ | |
 | Bit fields | − | `bitfieldExtract` `bitfieldInsert` (int offset / bits) | ○ / ○ | Sign-extended on int. A field outside the 32 bits (undefined in GLSL) ends at bit 31; negative values count as 0 |
+| Half bits | `f32tof16` / `f16tof32` (uint low 16 bits) | `packHalf2x16` / `unpackHalf2x16` | ○ / ○ | Round to nearest even |
+| unorm / snorm packing | − | `packUnorm2x16` `packSnorm2x16` `packUnorm4x8` `packSnorm4x8`, `unpack*` | ○ / ○ | Ties to even (implementation-defined in GLSL); NaN packs as 0 |
 | Carry, borrow, 64-bit product | − | `uaddCarry` `usubBorrow` `umulExtended` (uint), `imulExtended` (int) | ○ / ○ | |
 
 ## Tolerated for compatibility
@@ -247,13 +249,13 @@ GPU ABI. Shader compilers also differ from each other (Slang's CPU `round`, DXC'
 | Category | Examples |
 | --- | --- |
 | Other numeric types | Integer matrices (`int3x3`), 16- / 64-bit integers, `double` / `dvec3`, `1.0L` / `1.0lf` |
-| Packing and half conversion | `f32tof16` `f16tof32` `packHalf2x16` `unpackUnorm4x8` |
+| 8-bit packing (HLSL SM 6.6) | `pack_u8` `pack_s8` `unpack_s8s32` `int8_t4_packed` |
 | GPU-only | Derivatives (`ddx` / `dFdx`), textures, wave / subgroup, atomics, `clip` / `discard` |
 | Qualifiers and layout | `precise`, semantics, `cbuffer` / `uniform` packing (`sizeof(float3) == 16` is not the GPU ABI) |
 
 ## Conformance rate (2026-11-23)
 
-The fraction of the 672 cases in `tests/conformance/` (HLSL 350, GLSL 322) for which shader-math accepts and rejects
+The fraction of the 693 cases in `tests/conformance/` (HLSL 357, GLSL 336) for which shader-math accepts and rejects
 the same code as the language. The values exclude the out-of-scope categories. The int / uint cases were added with
 the integer vectors; the earlier columns cover the float / half cases only.
 
@@ -263,8 +265,10 @@ the integer vectors; the earlier columns cover the float / half cases only.
 | GLSL float / half (256) | 78.5% | 96.1% | 96.9% |
 | HLSL int / uint (61) | − | − | 98.4% |
 | GLSL int / uint (63) | − | − | 100.0% |
-| HLSL total (347) | − | − | 92.8% |
-| GLSL total (319) | − | − | 97.5% |
+| HLSL packing (8) | − | − | 100.0% |
+| GLSL packing (15) | − | − | 100.0% |
+| HLSL total (355) | − | − | 93.0% |
+| GLSL total (334) | − | − | 97.6% |
 
 The one int / uint mismatch is HLSL's implicit bool → int (`int3 r = bb;`), kept explicit like bool → float. GLSL's
 float / half cases went up with `frexp` / `ldexp` taking int exponents.

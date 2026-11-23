@@ -29,4 +29,6 @@
     X(bits_int_compare, case_bits_int_compare(IN_A, IN_B))                \
     X(bits_int_convert, case_bits_int_convert(IN_A, IN_B))                \
     X(bits_int_mixed, case_bits_int_mixed(IN_A, IN_B))                    \
-    X(bits_int_bitfns, case_bits_int_bitfns(IN_A, IN_B))
+    X(bits_int_bitfns, case_bits_int_bitfns(IN_A, IN_B))                  \
+    X(bits_pack, case_bits_pack(IN_A, IN_B))                              \
+    X(near_unpack, case_near_unpack(IN_A, IN_B))

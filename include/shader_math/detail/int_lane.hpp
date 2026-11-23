@@ -10,6 +10,7 @@
 #endif
 
 #include <bit>
+#include <cmath>
 #include <cstdint>
 
 namespace shader_math {
@@ -108,6 +109,19 @@ struct int_lane {
         const std::uint32_t sign = 1u << (bits - 1);
         return static_cast<std::int32_t>((f ^ sign) - sign);
     }
+    // packUnorm / packSnorm (GLSL): round(clamp(c, 0 or -1, 1) * scale) to
+    // nearest, ties to even (GLSL leaves ties to the implementation); NaN,
+    // undefined in GLSL, packs as 0
+    static SHADER_MATH_INLINE std::uint32_t unorm(float c, float scale) {
+        c = !(c > 0.0f) ? 0.0f : (c > 1.0f ? 1.0f : c);
+        return static_cast<std::uint32_t>(std::nearbyint(c * scale));
+    }
+    static SHADER_MATH_INLINE std::int32_t snorm(float c, float scale) {
+        if (!(c == c)) return 0;
+        c = c < -1.0f ? -1.0f : (c > 1.0f ? 1.0f : c);
+        return static_cast<std::int32_t>(std::nearbyint(c * scale));
+    }
+
     static SHADER_MATH_INLINE std::uint32_t insert(std::uint32_t base, std::uint32_t ins, int offset,
                                                    int bits) {
         clamp_field(offset, bits);

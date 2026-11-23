@@ -63,6 +63,13 @@ built with this macro (`glsl_interop_nested_check`).
   `uintBitsToFloat`; the cases avoid what GLSL leaves undefined (division by zero, signed overflow, shifts by 32 or
   more, `%` with a negative operand).
 
+## Known reference bugs
+
+- **`packSnorm4x8` on lavapipe (Mesa 25.2)**: a negative component other than the last is not masked to 8 bits, so it
+  sets every byte above it (`packSnorm4x8(vec4(0, -1, 0, 0))` gives `0xFFFF8100` instead of `0x00008100`). The shared
+  case keeps negative values in the last component; shader-math's own results for the other components are checked
+  by the unit tests (`tests/test_int_vectors.cpp`).
+
 ## Writing the shared files
 
 - Use only forms that compile in both GLSL 4.50 and C++ (literals with the `f` suffix, no definitions of functions
