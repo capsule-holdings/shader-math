@@ -34,7 +34,18 @@ struct hops {
                          _mm_cvtps_ph(f, _MM_FROUND_TO_NEAREST_INT));
         return r;
     }
-#elif defined(SHADER_MATH_ISA_NEON) && !defined(_MSC_VER)
+#elif defined(SHADER_MATH_ISA_NEON) && defined(_MSC_VER) && !defined(__clang__)
+    // MSVC's NEON vectors are untyped (__n64 / __n128), so the same FCVTL /
+    // FCVTN conversions as below need no reinterpret
+    static SHADER_MATH_INLINE freg widen(hreg v) {
+        return vcvt_f32_f16(vld1_u16(reinterpret_cast<const uint16_t*>(v.h)));
+    }
+    static SHADER_MATH_INLINE hreg narrow(freg f) {
+        hreg r;
+        vst1_u16(reinterpret_cast<uint16_t*>(r.h), vcvt_f16_f32(f));
+        return r;
+    }
+#elif defined(SHADER_MATH_ISA_NEON)
     // AArch64 without FEAT_FP16 arithmetic still has the half <-> single
     // conversions (FCVTL / FCVTN) in base Advanced SIMD: one instruction each
     // way, rounding per FPCR (round to nearest even by default), the same
