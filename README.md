@@ -60,6 +60,9 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
     `umulExtended` `imulExtended`. On int, `firstbithigh` / `findMSB` give the highest bit that differs from the sign bit, and
     -1 (`0xFFFFFFFF` in HLSL) where there is no such bit. A `bitfieldExtract` / `bitfieldInsert` field outside the 32 bits
     (undefined in GLSL) ends at bit 31, and negative offsets and counts count as 0
+  - Packing: HLSL `f32tof16` / `f16tof32` (the binary16 bits in the low 16 bits of a uint); GLSL `packHalf2x16`
+    `packUnorm2x16` `packSnorm2x16` `packUnorm4x8` `packSnorm4x8` and their `unpack*`. Rounding is to nearest even (GLSL leaves
+    ties to the implementation); NaN packs as 0 in the unorm / snorm forms
 - Half matrices: `hlsl::halfRxC` and `glsl::f16matCxR` (as with float, **distinct types** with explicit conversion; the correspondence of non-square shapes is also the same as for float).
   `determinant` / `inverse` are also computed in half. Real fp16 underflows / overflows early, so do not pass ill-conditioned matrices
   - `sizeof(half3) == 8` (four packed binary16 values). As with `sizeof(float3) == 16`, this is **language compatibility, not GPU ABI compatibility**
@@ -336,7 +339,7 @@ MSVC and Apple Clang are checked only at the CI runners' default versions.
 - GLSL's `not()` is `not_()` because `not` is a C++ alternative token (for `!`)
 - `v.x` is a proxy type (when passing it directly to variadic arguments, write `float(v.x)`)
 - The covered types are float and half (vectors and matrices) and int / uint (vectors). Integer matrices, 16- / 64-bit integers, `double`,
-  `1xN` matrices, the packing and half conversion functions (`packHalf2x16`, `f32tof16`, …) and GPU-only features (textures, derivatives, atomics) are out of scope
+  `1xN` matrices, HLSL's 8-bit packing (`pack_u8`, `int8_t4_packed`, …) and GPU-only features (textures, derivatives, atomics) are out of scope
 - Language-compatible, not memory-ABI-compatible (`sizeof(float3) == 16`; this is unrelated to constant buffer packing)
 - Component access and swizzles are implemented with type punning through a union with the SIMD register.
   This is undefined behavior in ISO C++ and depends on how gcc / clang / MSVC handle it in practice (on gcc / clang the proxy types

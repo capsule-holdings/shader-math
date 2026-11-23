@@ -206,6 +206,62 @@ static void test_int_bits() {
     }
 }
 
+template <class A>
+concept HasPackHalf = requires(const A& a) { g::packHalf2x16(a); };
+template <class A>
+concept HasF32ToF16 = requires(const A& a) { h::f32tof16(a); };
+static_assert(HasPackHalf<g::vec2> && !HasPackHalf<g::vec3> && !HasPackHalf<g::ivec2> &&
+              !HasPackHalf<h::float2>);
+static_assert(HasF32ToF16<h::float3> && HasF32ToF16<float> && !HasF32ToF16<g::vec3>);
+
+static void test_int_pack() {
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    {
+        using namespace shader_math::glsl;
+        CHECK(packHalf2x16(vec2(1.0f, -2.0f)) == 0xC0003C00u);
+        const vec2 h = unpackHalf2x16(0xC0003C00u);
+        CHECK_EQF(h.x, 1.0f);
+        CHECK_EQF(h.y, -2.0f);
+        // nearest even; overflow to infinity; NaN stays NaN
+        CHECK((packHalf2x16(vec2(1.0f + 1.0f / 2048.0f, 1.0f + 3.0f / 2048.0f)) & 0xFFFFu) == 0x3C00u);
+        CHECK((packHalf2x16(vec2(1.0f + 1.0f / 2048.0f, 1.0f + 3.0f / 2048.0f)) >> 16) == 0x3C02u);
+        CHECK((packHalf2x16(vec2(70000.0f, nan)) & 0xFFFFu) == 0x7C00u);
+        CHECK(((packHalf2x16(vec2(70000.0f, nan)) >> 16) & 0x7C00u) == 0x7C00u);
+        CHECK(((packHalf2x16(vec2(70000.0f, nan)) >> 16) & 0x03FFu) != 0u);
+        CHECK_EQF(unpackHalf2x16(1u).x, 5.9604645e-8f);  // the smallest subnormal
+        // unorm / snorm: clamp, round to nearest even, the first component low
+        CHECK(packUnorm2x16(vec2(0.5f, 1.5f)) == 0xFFFF8000u);
+        CHECK(packSnorm2x16(vec2(-1.5f, 0.25f)) == 0x20008001u);
+        CHECK(packUnorm4x8(vec4(0.0f, 1.0f, 0.5f, -1.0f)) == 0x0080FF00u);
+        CHECK(packSnorm4x8(vec4(1.0f, -1.0f, 0.5f, nan)) == 0x0040817Fu);
+        const vec4 u8 = unpackUnorm4x8(0x0080FF00u);
+        CHECK_EQF(u8.y, 1.0f);
+        CHECK_EQF(u8.z, 128.0f / 255.0f);
+        CHECK_EQF(unpackSnorm4x8(0x80u).x, -1.0f);  // -128 clamps to -1
+        CHECK_EQF(unpackSnorm2x16(0x8000u).x, -1.0f);
+        CHECK_EQF(unpackSnorm2x16(0x7FFFu).x, 1.0f);
+        const vec2 u16 = unpackUnorm2x16(0xFFFF0000u);
+        CHECK_EQF(u16.x, 0.0f);
+        CHECK_EQF(u16.y, 1.0f);
+        // round trips
+        CHECK(packUnorm4x8(unpackUnorm4x8(0x12345678u)) == 0x12345678u);
+        CHECK(packSnorm2x16(unpackSnorm2x16(0x7FFF8001u)) == 0x7FFF8001u);
+    }
+    {
+        using namespace shader_math::hlsl;
+        CHECK(f32tof16(1.0f) == 0x3C00u);
+        const uint2 b = f32tof16(float2(65504.0f, -0.0f));
+        CHECK(b.x == 0x7BFFu && b.y == 0x8000u);
+        CHECK_EQF(f16tof32(0x3C00u), 1.0f);
+        const float2 f = f16tof32(uint2(0x12343C00u, 0x7C00u));  // the low 16 bits only
+        CHECK_EQF(f.x, 1.0f);
+        CHECK(std::isinf(f.y));
+        CHECK_EQF(f16tof32(f32tof16(float3(0.1f, 3.0f, -7.25f))).z, -7.25f);
+        const float3 v(2.0f, 0.5f, 1.0f);
+        CHECK(f32tof16(v.y) == 0x3800u);  // one component
+    }
+}
+
 static void test_int_mixed() {
     {
         using namespace shader_math::hlsl;
@@ -500,6 +556,7 @@ static void test_int_std() {
 void test_int_vectors() {
     test_int_construction();
     test_int_mixed();
+    test_int_pack();
     test_int_bits();
     test_int_swizzles();
     test_int_operators();

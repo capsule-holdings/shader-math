@@ -12,6 +12,7 @@
 
 #include "detail/simd_concepts.hpp"
 #include "detail/int_lane.hpp"
+#include "detail/half_bits.hpp"
 
 #if defined(SHADER_MATH_ISA_NEON)
 #  include "detail/simd_neon.hpp"

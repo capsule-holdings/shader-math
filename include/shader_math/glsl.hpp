@@ -442,6 +442,90 @@ SHADER_MATH_INLINE void imulExtended(const X& x, const Y& y, int& msb, int& lsb)
     lsb = static_cast<int>(static_cast<uint>(p));
 }
 
+// ---- packing (GLSL 8.4) ------------------------------------------------------
+// packUnorm*: round(clamp(c, 0, 1) * (2^n - 1)); packSnorm*: round(clamp(c,
+// -1, 1) * (2^(n-1) - 1)), ties to even; the first component in the low bits.
+// unpack* divide back (Snorm clamped to -1). packHalf2x16 rounds to nearest
+// even binary16.
+template <class A>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVecN<A, 2>)
+SHADER_MATH_INLINE uint packUnorm2x16(const A& a) {
+    const vec2 v = detail::to_vec(a);
+    return detail::int_lane::unorm(v[0], 65535.0f) | (detail::int_lane::unorm(v[1], 65535.0f) << 16);
+}
+template <class A>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVecN<A, 2>)
+SHADER_MATH_INLINE uint packSnorm2x16(const A& a) {
+    const vec2 v = detail::to_vec(a);
+    const auto lo = static_cast<uint>(detail::int_lane::snorm(v[0], 32767.0f)) & 0xFFFFu;
+    const auto hi = static_cast<uint>(detail::int_lane::snorm(v[1], 32767.0f)) & 0xFFFFu;
+    return lo | (hi << 16);
+}
+template <class A>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVecN<A, 4>)
+SHADER_MATH_INLINE uint packUnorm4x8(const A& a) {
+    const vec4 v = detail::to_vec(a);
+    uint r = 0u;
+    for (int i = 0; i < 4; ++i) r |= detail::int_lane::unorm(v[i], 255.0f) << (8 * i);
+    return r;
+}
+template <class A>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVecN<A, 4>)
+SHADER_MATH_INLINE uint packSnorm4x8(const A& a) {
+    const vec4 v = detail::to_vec(a);
+    uint r = 0u;
+    for (int i = 0; i < 4; ++i)
+        r |= (static_cast<uint>(detail::int_lane::snorm(v[i], 127.0f)) & 0xFFu) << (8 * i);
+    return r;
+}
+template <class A>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVecN<A, 2>)
+SHADER_MATH_INLINE uint packHalf2x16(const A& a) {
+    const vec2 v = detail::to_vec(a);
+    return static_cast<uint>(detail::half_bits::from_f32(v[0])) |
+           (static_cast<uint>(detail::half_bits::from_f32(v[1])) << 16);
+}
+template <class P>
+    requires detail::is_int32_scalar_v<P>
+SHADER_MATH_INLINE vec2 unpackUnorm2x16(const P& p0) {
+    const auto p = static_cast<uint>(p0);
+    return vec2(static_cast<float>(p & 0xFFFFu) / 65535.0f, static_cast<float>(p >> 16) / 65535.0f);
+}
+template <class P>
+    requires detail::is_int32_scalar_v<P>
+SHADER_MATH_INLINE vec2 unpackSnorm2x16(const P& p0) {
+    const auto p = static_cast<uint>(p0);
+    auto f = [](uint h) {
+        const float v = static_cast<float>(static_cast<std::int16_t>(static_cast<std::uint16_t>(h))) / 32767.0f;
+        return v < -1.0f ? -1.0f : v;
+    };
+    return vec2(f(p & 0xFFFFu), f(p >> 16));
+}
+template <class P>
+    requires detail::is_int32_scalar_v<P>
+SHADER_MATH_INLINE vec4 unpackUnorm4x8(const P& p0) {
+    const auto p = static_cast<uint>(p0);
+    return vec4(static_cast<float>(p & 0xFFu) / 255.0f, static_cast<float>((p >> 8) & 0xFFu) / 255.0f,
+                static_cast<float>((p >> 16) & 0xFFu) / 255.0f, static_cast<float>(p >> 24) / 255.0f);
+}
+template <class P>
+    requires detail::is_int32_scalar_v<P>
+SHADER_MATH_INLINE vec4 unpackSnorm4x8(const P& p0) {
+    const auto p = static_cast<uint>(p0);
+    auto f = [](uint b) {
+        const float v = static_cast<float>(static_cast<std::int8_t>(static_cast<std::uint8_t>(b))) / 127.0f;
+        return v < -1.0f ? -1.0f : v;
+    };
+    return vec4(f(p & 0xFFu), f((p >> 8) & 0xFFu), f((p >> 16) & 0xFFu), f(p >> 24));
+}
+template <class P>
+    requires detail::is_int32_scalar_v<P>
+SHADER_MATH_INLINE vec2 unpackHalf2x16(const P& p0) {
+    const auto p = static_cast<uint>(p0);
+    return vec2(detail::half_bits::to_f32(static_cast<unsigned short>(p & 0xFFFFu)),
+                detail::half_bits::to_f32(static_cast<unsigned short>(p >> 16)));
+}
+
 // scalar arguments (detail::ScalarCall): GLSL-only spellings
 SHADER_MATH_SCALAR_FN3(mix)
 SHADER_MATH_SCALAR_FN1(fract)

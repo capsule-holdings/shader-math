@@ -308,7 +308,14 @@ h_reversebits	ok
 h_reversebits_scalar	ok	
 h_glsl_bitCount	err	use of undeclared identifier 'bitCount'
 h_glsl_findMSB	err	use of undeclared identifier 'findMSB'
-h_oos_f32tof16	ok	
+h_f32tof16	ok	
+h_f32tof16_vec	ok	
+h_f32tof16_int	ok	
+h_f16tof32	ok	
+h_f16tof32_vec	ok	
+h_f16tof32_int	ok	
+h_glsl_packHalf2x16	err	use of undeclared identifier 'packHalf2x16'
+h_glsl_unpackUnorm4x8	err	use of undeclared identifier 'unpackUnorm4x8'
 h_oos_double	ok	
 h_oos_ddx	ok	
 h_mat_ctor_from_vec4	ok	
@@ -627,7 +634,21 @@ g_umulExtended	ok
 g_imulExtended	ok	
 g_uaddCarry_scalar	ok	
 g_hlsl_countbits	err	g_hlsl_countbits.comp:4: 'countbits' : no matching overloaded function found
-g_oos_packHalf2x16	ok	
+g_packHalf2x16	ok	
+g_packHalf2x16_vec3	err	g_packHalf2x16_vec3.comp:4: 'packHalf2x16' : no matching overloaded function found
+g_unpackHalf2x16	ok	
+g_unpackHalf2x16_int	ok	
+g_packUnorm2x16	ok	
+g_packSnorm2x16	ok	
+g_packUnorm4x8	ok	
+g_packSnorm4x8	ok	
+g_packUnorm4x8_vec3	err	g_packUnorm4x8_vec3.comp:4: 'packUnorm4x8' : no matching overloaded function found
+g_unpackUnorm2x16	ok	
+g_unpackSnorm2x16	ok	
+g_unpackUnorm4x8	ok	
+g_unpackSnorm4x8	ok	
+g_unpack_float_arg	err	g_unpack_float_arg.comp:4: 'unpackHalf2x16' : no matching overloaded function found
+g_hlsl_f32tof16	err	g_hlsl_f32tof16.comp:4: 'f32tof16' : no matching overloaded function found
 g_oos_double	ok	
 g_oos_dvec3	ok	
 g_ctor_vec2_unused_arg	err	g_ctor_vec2_unused_arg.comp:4: 'constructor' : too many arguments

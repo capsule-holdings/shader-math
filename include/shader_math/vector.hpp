@@ -936,6 +936,9 @@ template <class V>
 concept IntVec = VecLike<V> && is_int_elem_v<vec_elem_t<V>>;
 template <class A, class B>
 concept SameFloatVec = SameVec<A, B> && FloatVec<A>;
+// a float vector of N components (the packing functions)
+template <class A, int N>
+concept FloatVecN = VecLike<A> && std::is_same_v<vec_elem_t<A>, float> && vec_size_v<A> == N;
 
 // Scalar operand rules for vector-scalar operators:
 //   float vectors: any arithmetic scalar (int / double literals keep working)

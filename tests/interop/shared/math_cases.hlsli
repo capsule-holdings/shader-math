@@ -353,6 +353,14 @@ float4 case_bits_int_bitfns(float4 a, float4 b)
     return asfloat(r);
 }
 
+// f32tof16 / f16tof32: the binary16 bits in the low 16 bits of a uint
+float4 case_bits_f16_bits(float4 a, float4 b)
+{
+    uint4 h = f32tof16(a * 3.1f) | (f32tof16(b * 1000.1f) << 16);
+    float4 back = f16tof32(h) + f16tof32(h >> 16);
+    return asfloat(h ^ asuint(back));
+}
+
 // lit's specular term is (n.h)^m (Microsoft's lit documentation, Slang,
 // DXC's DXIL backend, shader-math); DXC's SPIR-V backend emits (n.h) * m,
 // so only its SPIR-V check leaves this case out (dxc/dxc_case_list.h)
