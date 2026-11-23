@@ -112,11 +112,17 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "SKIP: %ls has no native 16-bit shader ops\n", ad.Description);
             return 77;
         }
-        // the 16-bit kernel also carries the 64-bit integer case
+        // the 16-bit kernel also carries the 64-bit integer and double cases
         D3D12_FEATURE_DATA_D3D12_OPTIONS1 o1{};
         if (FAILED(dev->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &o1, sizeof(o1))) ||
             !o1.Int64ShaderOps) {
             std::fprintf(stderr, "SKIP: %ls has no 64-bit integer shader ops\n", ad.Description);
+            return 77;
+        }
+        D3D12_FEATURE_DATA_D3D12_OPTIONS o0{};
+        if (FAILED(dev->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &o0, sizeof(o0))) ||
+            !o0.DoublePrecisionFloatShaderOps) {
+            std::fprintf(stderr, "SKIP: %ls has no double-precision shader ops\n", ad.Description);
             return 77;
         }
     }
@@ -191,14 +197,15 @@ int main(int argc, char** argv) {
     cl->ResourceBarrier(1, &to_copy);
     cl->CopyResource(readback.Get(), buf.Get());
     if (!ok(cl->Close(), "Close")) return 1;
-    ID3D12CommandList* lists[] = {cl.Get()};
-    queue->ExecuteCommandLists(1, lists);
-
     ComPtr<ID3D12Fence> fence;
     if (!ok(dev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)), "CreateFence"))
         return 1;
     const HANDLE done = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-    if (!done || !ok(queue->Signal(fence.Get(), 1), "Signal") ||
+    if (!done) return 1;
+
+    ID3D12CommandList* lists[] = {cl.Get()};
+    queue->ExecuteCommandLists(1, lists);
+    if (!ok(queue->Signal(fence.Get(), 1), "Signal") ||
         !ok(fence->SetEventOnCompletion(1, done), "SetEventOnCompletion"))
         return 1;
     WaitForSingleObject(done, INFINITE);

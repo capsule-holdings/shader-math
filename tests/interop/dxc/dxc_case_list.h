@@ -37,8 +37,10 @@
     SM_INTEROP_HALF_CASES(X)                                   \
     X(bits_double_hlsl, case_bits_double_hlsl(IN_A, IN_B))
 
-// DXIL's half list adds the 16- and 64-bit bit functions that DXC's SPIR-V
+// DXIL's half list uses the WARP-safe double case (inbox Windows WARP lacks
+// double FMad) and adds the 16- and 64-bit bit functions that DXC's SPIR-V
 // backend does not compile
 #define SM_DXIL_HALF_CASES(X)                                  \
-    SM_DXC_HALF_CASES(X)                                       \
+    SM_INTEROP_HALF_CASES(X)                                   \
+    X(bits_double_dxil, case_bits_double_dxil(IN_A, IN_B))     \
     X(bits_int_width_firstbit, case_bits_int_width_firstbit(IN_A, IN_B))
