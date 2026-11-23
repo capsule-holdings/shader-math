@@ -14,7 +14,9 @@
   documentation (`docs/`, `CONTEXT.md`) are in English.
 - **There are two READMEs: `README.md` (English, canonical) and `README.ja.md` (Japanese translation).**
   When user-facing content changes (types, functions, semantic differences, usage), update `README.md`
-  and bring `README.ja.md` in line with it.
+  and bring `README.ja.md` in line with it. The `docs` workflow fails when `README.ja.md` no longer has
+  the same headings, code blocks and table rows as `README.md`, or when a relative link is broken
+  (`python3 .github/scripts/check_docs.py` runs the same checks locally).
 - **Never create a release tag (`vX.Y.Z`) without a human's confirmation.** The procedure and its
   automated checks are in the "Versions and releases" section of CONTEXT.md. When the version changes,
   change both `project(VERSION)` and `include/shader_math/version.hpp`.
