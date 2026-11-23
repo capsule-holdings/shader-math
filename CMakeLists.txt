@@ -1,4 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
+# FetchContent populates in place instead of through a sub-build per
+# dependency (CMake 3.30+); the sub-builds cost seconds each under MSBuild
+if(POLICY CMP0168)
+    cmake_policy(SET CMP0168 NEW)
+endif()
 project(shader_math VERSION 0.6.0 LANGUAGES CXX)
 
 # include/shader_math/version.hpp carries the same version for non-CMake

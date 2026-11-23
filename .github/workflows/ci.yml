@@ -319,10 +319,10 @@ jobs:
         if: matrix.compile_time
         continue-on-error: true
         run: |
-          python3 bench/compile_time.py ${{ matrix.cxx }}
+          python3 bench/compile_time.py ${{ matrix.cxx }} --markdown | tee compile-time.md
           {
             echo "### ${{ matrix.name }}"
-            python3 bench/compile_time.py ${{ matrix.cxx }} --markdown
+            cat compile-time.md
           } >> "$GITHUB_STEP_SUMMARY"
 
       # The clip animates, so identical first / last frames mean the
