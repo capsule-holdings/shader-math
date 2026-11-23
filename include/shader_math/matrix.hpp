@@ -723,7 +723,8 @@ struct matrix
     }
 
     // Explicit conversion from the corresponding GLSL matrix (same math object).
-    SHADER_MATH_INLINE explicit matrix(const glsl::matrix<C, R, T>& g)
+    SHADER_MATH_INLINE explicit matrix(
+        const glsl::matrix<(C >= 2 ? C : 2), (R >= 2 ? R : 2), T>& g)
         requires(R >= 2 && C >= 2);
 
     // Extension (not an HLSL intrinsic): identity for convenience.
@@ -740,7 +741,7 @@ struct matrix
     // HLSL converts a matrix to the vector of the same component count, row
     // by row (float4 v = m22, float3 v = m13 / m31, float1 v = m11), and a
     // 1x1 matrix also converts to its scalar element
-    SHADER_MATH_INLINE operator detail::hvec<R * C, T>() const
+    SHADER_MATH_INLINE operator detail::hvec<(R * C <= 4 ? R * C : 4), T>() const
         requires(R * C >= 1 && R * C <= 4)
     {
         if constexpr (R == 1 && C == 1) {
@@ -772,6 +773,7 @@ struct matrix<bool, R, C> {
     using elem_t = bool;
     using row_t = std::conditional_t<C == 1, detail::fvec<1, bool, lang_tag>,
                                      detail::bvec<C, lang_tag>>;
+    static constexpr int flat_bvec_n = (R * C >= 2 && R * C <= 4) ? R * C : 2;
 
     row_t row_[R];
 
@@ -793,7 +795,7 @@ struct matrix<bool, R, C> {
         const row_t rr[R] = {rows...};
         for (int r = 0; r < R; ++r) row_[r] = rr[r];
     }
-    SHADER_MATH_INLINE matrix(const detail::bvec<R * C, lang_tag>& v)
+    SHADER_MATH_INLINE matrix(const detail::bvec<flat_bvec_n, lang_tag>& v)
         requires(R * C >= 2 && R * C <= 4 && !(R == 1 && C == R * C))
     {
         for (int r = 0; r < R; ++r)
@@ -813,10 +815,10 @@ struct matrix<bool, R, C> {
     {
         return row_[0];
     }
-    SHADER_MATH_INLINE operator detail::bvec<R * C, lang_tag>() const
+    SHADER_MATH_INLINE operator detail::bvec<flat_bvec_n, lang_tag>() const
         requires(R * C >= 2 && R * C <= 4)
     {
-        detail::bvec<R * C, lang_tag> v;
+        detail::bvec<flat_bvec_n, lang_tag> v;
         for (int r = 0; r < R; ++r)
             for (int c = 0; c < C; ++c) v[r * C + c] = static_cast<bool>(row_[r][c]);
         return v;
@@ -951,7 +953,8 @@ struct mat_traits<glsl::matrix<Cn, Rn, T>> {
 // object) is exactly a register-array transpose.
 namespace hlsl {
 template <class T, int R, int C>
-SHADER_MATH_INLINE matrix<T, R, C>::matrix(const glsl::matrix<C, R, T>& g)
+SHADER_MATH_INLINE matrix<T, R, C>::matrix(
+    const glsl::matrix<(C >= 2 ? C : 2), (R >= 2 ? R : 2), T>& g)
     requires(R >= 2 && C >= 2)
 SM_HMAT_INIT {
     detail::transpose_regs<C, R>(g.col_, row_);

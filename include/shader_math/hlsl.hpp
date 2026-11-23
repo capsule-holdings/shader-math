@@ -587,7 +587,7 @@ SHADER_MATH_INLINE auto select(bool c, const A& a, const B& b) {
         requires(!std::is_same_v<T, bool> && R * C >= 2 && R * C <= 4 &&                 \
                  detail::VecOf<V, lang_tag> && detail::vec_size_v<V> == R * C &&         \
                  std::is_same_v<detail::vec_elem_t<V>, T>)                               \
-    SHADER_MATH_INLINE vector<T, R * C> operator sym(const V& a, const matrix<T, R, C>& b) { \
+    SHADER_MATH_INLINE auto operator sym(const V& a, const matrix<T, R, C>& b) {         \
         return detail::to_vec(a) sym vector<T, R * C>(b);                                 \
     }
 
@@ -913,8 +913,7 @@ SHADER_MATH_INLINE matrix<T, R, C>& operator%=(matrix<T, R, C>& a, const B& b) {
         requires(!std::is_same_v<T, bool> && R * C >= 2 && R * C <= 4 &&                 \
                  detail::VecOf<V, lang_tag> && detail::vec_size_v<V> == R * C &&         \
                  std::is_same_v<detail::vec_elem_t<V>, T>)                               \
-    SHADER_MATH_INLINE detail::bvec<R * C, lang_tag> operator sym(                       \
-        const V& a, const matrix<T, R, C>& b) {                                          \
+    SHADER_MATH_INLINE auto operator sym(const V& a, const matrix<T, R, C>& b) {         \
         return detail::to_vec(a) sym vector<T, R * C>(b);                                 \
     }
 
