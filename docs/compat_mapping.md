@@ -152,18 +152,19 @@ Differences caused by C++ syntax:
 | Types | `int3` `uint3` `vector<int, 3>`, `uint` `dword` | `ivec3` `uvec3`, `uint` | ○ / ○ | Distinct types per language, as for float |
 | Splat | `int3 v = 1;` | `ivec3(1)` | ○ / ○ | Implicit in HLSL only, as for float |
 | Constructors | `int4(v.xy, 2.9, k)` | same | ○ / ○ | Arguments convert; float → int truncates toward zero |
-| float → int conversion | `int3(a)`, `int3 v = a;` | `ivec3(a)` | △ / ○ | HLSL's implicit form is × for now. NaN gives 0 and out-of-range values saturate (both languages leave them undefined) |
-| int → float, int ↔ uint, bool ↔ int | implicit | implicit (int → float, int → uint) | △ / △ | Explicit only for now (`float3(i)`, `uint3(i)`, `int3(b)`) |
+| float → int conversion | `int3(a)`, `int3 v = a;` | `ivec3(a)` (no implicit form) | ○ / ○ | NaN gives 0 and out-of-range values saturate (both languages leave them undefined) |
+| int → float, int ↔ uint | implicit either way | implicit int → uint, int / uint → float only | ○ / ○ | |
+| bool ↔ int | implicit | constructor only | △ / ○ | HLSL's implicit form is × (`int3(b)` / `bool3(i)`), as for bool ↔ float |
 | `+ - * /` | ○ | ○ | ○ / ○ | Wrap around. `x / 0` gives all bits set, `INT_MIN / -1` wraps (undefined in the languages) |
 | `%` | truncating | truncating | ○ / ○ | Sign of the dividend; `x % 0` gives all bits set |
 | `& \| ^ ~` | ○ | ○ | ○ / ○ | |
 | `<< >>` | count masked to 5 bits | undefined for counts ≥ 32 | ○ / ○ | Count modulo 32 in both. The count may have the other signedness (`i >> u`). `k << v` is HLSL only |
-| Mixed operands | `i * 2.5` → float3, `i + u` → uint3 | `i * 2.5` → vec3, `i + u` → uvec3 | × / × | Planned (docs/design/int_vectors.md); explicit conversion for now |
+| Mixed operands | `i * 2.5` → float3, `i + u` → uint3 | `i * 2.5` → vec3, `i + u` → uvec3 | ○ / ○ | Compound assignment keeps the left type: HLSL `i += a` truncates, GLSL `i += a` is an error |
 | `!` | `!i` → bool3 | − | ○ / ○ | |
 | Comparisons | `i < j` → bool3 | `lessThan(i, j)`, `i == j` → bool | ○ / ○ | As for float vectors |
 | `abs` `min` `max` `clamp` `sign` | ○ | ○ | ○ / ○ | `abs(INT_MIN)` wraps; `sign` takes int, not uint |
 | `dot` | ○ | − (floats only) | ○ / ○ | Wraps |
-| Float functions on int | `sqrt(i)` → float3 | `sqrt(i)` → ambiguous (error) | × / ○ | Explicit `sqrt(float3(i))` for now |
+| Float functions on int | `sqrt(i)` → float3 | `sqrt(i)` → ambiguous (error) | ○ / ○ | |
 | Bit casts | `asint` `asuint` `asfloat` | `floatBitsToInt` `floatBitsToUint` `intBitsToFloat` `uintBitsToFloat` | ○ / ○ | Vectors and scalars |
 | `frexp` / `ldexp` | float exponent | int exponent | ○ / ○ | |
 
@@ -256,13 +257,13 @@ the integer vectors; the earlier columns cover the float / half cases only.
 | --- | --- | --- | --- |
 | HLSL float / half (286) | 74.8% | 91.6% | 91.6% |
 | GLSL float / half (256) | 78.5% | 96.1% | 96.9% |
-| HLSL int / uint (50) | − | − | 82.0% |
-| GLSL int / uint (45) | − | − | 88.9% |
-| HLSL total (336) | − | − | 90.2% |
-| GLSL total (301) | − | − | 95.7% |
+| HLSL int / uint (50) | − | − | 98.0% |
+| GLSL int / uint (45) | − | − | 100.0% |
+| HLSL total (336) | − | − | 92.6% |
+| GLSL total (301) | − | − | 97.3% |
 
-The int / uint mismatches are the mixed operands and implicit conversions planned next. GLSL float / half went up
-with `frexp` / `ldexp` taking int exponents.
+The one int / uint mismatch is HLSL's implicit bool → int (`int3 r = bb;`), kept explicit like bool → float. GLSL's
+float / half cases went up with `frexp` / `ldexp` taking int exponents.
 
 Measured with Apple Clang. With g++ (libstdc++), one more GLSL case matches (the case where the scalar `round(s)`
 becomes ambiguous because of libc++'s `::round(float)`). The remaining mismatches correspond to the × and △ entries in

@@ -46,11 +46,15 @@ void glsl_side() {
   範囲外は飽和（[docs/design/int_vectors.md](docs/design/int_vectors.md)）
   - 演算子: `+ - * / %`（切り捨て）、`& | ^ ~`、`<< >>`（シフト量は同じ幅の int / uint ベクトルか整数スカラー。`>>` は int で
     算術、uint で論理）、比較は float ベクトルと同じ。HLSL では `!`（0 の成分が真）と `スカラー << ベクトル` も
-  - **暗黙の混在はまだ無い**: `int3 * 2.5f`、`int3 + uint3`、`float3 r = i;`、`sqrt(i)` はコンパイルエラー（`float3(i)` と明示的に
-    変換する）。各言語の変換規則に従う予定。コンストラクタは変換する（`int3(a)`、`int4(i.xy, 2.9f, k)`）
+  - **各言語の暗黙変換と混在演算**: HLSL は int / uint / float の間を双方向に変換する（`float3 f = i;`、`int3 t = a;` は切り捨て）。
+    GLSL は拡げる方向だけ（int → uint、int / uint → float。`ivec3 t = a;` はエラー）。混在した演算は両言語とも、片方が float なら
+    float、int と uint なら uint で計算する（`int3 * 2.5` と `int3 + float3` は `float3`、`int3 + uint3` は `uint3`）。複合代入は
+    左辺の型のままなので、戻す方向の暗黙変換が要る（HLSL の `int3 += float3` は切り捨て、GLSL の `ivec3 += vec3` はエラー）。
+    HLSL では浮動小数点の関数が int ベクトルを float として受け取る（`sqrt(int3)` は `float3`）。bool ↔ int、half ↔ int、
+    もう一方の言語との変換は明示的なまま。コンストラクタは変換する（`int3(a)`、`int4(i.xy, 2.9f, k)`）
   - 関数: `abs` `sign`（int のみ）`min` `max` `clamp`、HLSL の `dot` `mul(v, v)` `all` `any` `select` `asint` `asuint`
     `asfloat`、GLSL の `equal` / `lessThan` / … `mix(x, y, bvec)` `floatBitsToInt` `floatBitsToUint` `intBitsToFloat`
-    `uintBitsToFloat`。浮動小数点の関数（`sqrt`、`length` など）は整数ベクトルを取らない
+    `uintBitsToFloat`。GLSL では浮動小数点の関数（`sqrt`、`length` など）は整数ベクトルを取らない
 - half 行列: `hlsl::halfRxC` と `glsl::f16matCxR`（float と同じく**別型**・explicit 変換。非正方の形対応も float と同一）。
   `determinant` / `inverse` も half のまま計算する。真の fp16 は underflow / overflow が早いので、条件の悪い行列を渡さないこと
   - `sizeof(half3) == 8`（4×binary16 パック）。`sizeof(float3) == 16` と同様、**言語互換であり GPU ABI ではない**

@@ -323,6 +323,22 @@ float4 case_bits_int_convert(float4 a, float4 b)
     return asfloat(asuint(f + g) + bits + uint4(i) + u + asuint(float4(int4(-7, 0, 9, -100))));
 }
 
+// mixed operands and implicit conversions: int with float computes in float,
+// int with uint in uint; float -> int truncates; the floating-point
+// functions take int vectors as float
+float4 case_bits_int_mixed(float4 a, float4 b)
+{
+    int4 i = int4(a * 4.0f);
+    uint4 u = uint4(abs(b) * 4.0f);
+    float4 f = i + a;
+    f += i * 0.5f;
+    uint4 s = i + u;
+    int4 t = a * 3.0f;
+    float4 g = u;
+    float4 r = sqrt(i * i) + f + g * 0.25f;  // exact roots: only the conversion is checked
+    return asfloat(asuint(r) + s + uint4(t) + uint4(i < a));
+}
+
 // lit's specular term is (n.h)^m (Microsoft's lit documentation, Slang,
 // DXC's DXIL backend, shader-math); DXC's SPIR-V backend emits (n.h) * m,
 // so only its SPIR-V check leaves this case out (dxc/dxc_case_list.h)

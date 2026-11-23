@@ -119,6 +119,60 @@ SHADER_MATH_LANG_FORWARD(step)
 SHADER_MATH_LANG_FORWARD(tan)
 SHADER_MATH_LANG_FORWARD(trunc)
 
+// int / uint vector arguments of the floating-point functions convert to
+// float (sqrt(int3) is a float3), as HLSL converts them implicitly; GLSL does
+// not. Functions that take integer vectors themselves (abs, min, max, clamp,
+// sign, dot) keep them.
+#define SM_HLSL_INT_PROMOTE(name, impl)                                                   \
+    template <class... As>                                                                \
+        requires(detail::ArgsOf<lang_tag, As...> && (detail::IntVec<As> || ...) &&        \
+                 !requires(const As&... as) { ::shader_math::detail::impl(as...); } &&    \
+                 requires(const As&... as) {                                              \
+                     ::shader_math::detail::impl(::shader_math::detail::float_arg(as)...); \
+                 })                                                                       \
+    SHADER_MATH_INLINE auto name(const As&... as) {                                       \
+        return ::shader_math::detail::impl(::shader_math::detail::float_arg(as)...);       \
+    }
+SM_HLSL_INT_PROMOTE(cross, cross)
+SM_HLSL_INT_PROMOTE(length, length)
+SM_HLSL_INT_PROMOTE(normalize, normalize)
+SM_HLSL_INT_PROMOTE(distance, distance)
+SM_HLSL_INT_PROMOTE(reflect, reflect)
+SM_HLSL_INT_PROMOTE(refract, refract)
+SM_HLSL_INT_PROMOTE(faceforward, faceforward)
+SM_HLSL_INT_PROMOTE(acos, acos)
+SM_HLSL_INT_PROMOTE(asin, asin)
+SM_HLSL_INT_PROMOTE(atan, atan)
+SM_HLSL_INT_PROMOTE(cosh, cosh)
+SM_HLSL_INT_PROMOTE(degrees, degrees)
+SM_HLSL_INT_PROMOTE(radians, radians)
+SM_HLSL_INT_PROMOTE(sinh, sinh)
+SM_HLSL_INT_PROMOTE(tanh, tanh)
+SM_HLSL_INT_PROMOTE(ceil, ceil)
+SM_HLSL_INT_PROMOTE(cos, cos)
+SM_HLSL_INT_PROMOTE(exp, exp)
+SM_HLSL_INT_PROMOTE(exp2, exp2)
+SM_HLSL_INT_PROMOTE(floor, floor)
+SM_HLSL_INT_PROMOTE(log, log)
+SM_HLSL_INT_PROMOTE(log2, log2)
+SM_HLSL_INT_PROMOTE(pow, pow)
+SM_HLSL_INT_PROMOTE(sin, sin)
+SM_HLSL_INT_PROMOTE(smoothstep, smoothstep)
+SM_HLSL_INT_PROMOTE(sqrt, sqrt)
+SM_HLSL_INT_PROMOTE(step, step)
+SM_HLSL_INT_PROMOTE(tan, tan)
+SM_HLSL_INT_PROMOTE(trunc, trunc)
+SM_HLSL_INT_PROMOTE(round, round)
+SM_HLSL_INT_PROMOTE(frac, fract_impl)
+SM_HLSL_INT_PROMOTE(saturate, saturate_impl)
+SM_HLSL_INT_PROMOTE(rcp, rcp_impl)
+SM_HLSL_INT_PROMOTE(rsqrt, rsqrt_impl)
+SM_HLSL_INT_PROMOTE(log10, log10_impl)
+SM_HLSL_INT_PROMOTE(lerp, lerp_impl)
+SM_HLSL_INT_PROMOTE(atan2, atan2_impl)
+SM_HLSL_INT_PROMOTE(fmod, fmod_impl)
+#undef SM_HLSL_INT_PROMOTE
+
 // isnan / isinf / round / all / any have explicit signatures. The vector
 // forms name the vector type because the MSVC UCRT declares unconstrained
 // isnan(_Ty) / isinf(_Ty) templates that only a more specialized parameter
@@ -484,6 +538,13 @@ template <class A, class B>
 SHADER_MATH_INLINE auto operator%(const A& a, const B& b) {
     return detail::fmod_impl(a, b);
 }
+template <class A, class B>
+    requires(detail::MixedVec<A, B> && detail::VecOf<A, lang_tag> &&
+             std::is_same_v<detail::common_elem_t<detail::vec_elem_t<A>, detail::vec_elem_t<B>>, float>)
+SHADER_MATH_INLINE auto operator%(const A& a, const B& b) {
+    using M = detail::mixed_t<A, B>;
+    return detail::fmod_impl(M(detail::to_vec(a)), M(detail::to_vec(b)));
+}
 template <int R, int C, class T>
 SHADER_MATH_INLINE matrix<R, C, T> operator%(const matrix<R, C, T>& a, const matrix<R, C, T>& b) {
     matrix<R, C, T> o;
@@ -540,6 +601,22 @@ SHADER_MATH_INLINE matrix<R, C, T>& operator%=(matrix<R, C, T>& a, const B& b) {
         using T = detail::vec_elem_t<B>;                                                 \
         return detail::bvec<n, lang_tag>(                                                \
             detail::vops<T>::fn(detail::vops<T>::splat(static_cast<T>(s)), detail::to_vec(b).q_)); \
+    }                                                                                    \
+    template <class A, class B>                                                          \
+        requires(detail::MixedVec<A, B> && detail::VecOf<A, lang_tag>)                   \
+    SHADER_MATH_INLINE auto operator sym(const A& a, const B& b) {                       \
+        using M = detail::mixed_t<A, B>;                                                 \
+        return M(detail::to_vec(a)) sym M(detail::to_vec(b));                            \
+    }                                                                                    \
+    template <class A, class S>                                                          \
+        requires(detail::VecOf<A, lang_tag> && detail::IntVecFloatScalar<A, S>)          \
+    SHADER_MATH_INLINE auto operator sym(const A& a, const S& s) {                       \
+        return detail::float_vec_t<A>(detail::to_vec(a)) sym static_cast<float>(s);      \
+    }                                                                                    \
+    template <class B, class S>                                                          \
+        requires(detail::VecOf<B, lang_tag> && detail::IntVecFloatScalar<B, S>)          \
+    SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                       \
+        return static_cast<float>(s) sym detail::float_vec_t<B>(detail::to_vec(b));      \
     }                                                                                    \
     template <int R, int C, class T>                                                     \
     SHADER_MATH_INLINE detail::bmat<R, C> operator sym(const matrix<R, C, T>& a,         \

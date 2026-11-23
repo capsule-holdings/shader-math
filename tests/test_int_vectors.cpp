@@ -1,7 +1,8 @@
 // int / uint vectors (hlsl intN / uintN, glsl ivecN / uvecN): construction and
 // conversion, swizzles, the integer operators with their defined results,
-// comparisons, functions, bit casts, std.hpp, and the forms the languages
-// reject (docs/design/int_vectors.md, phase 1: no implicit mixing).
+// comparisons, functions, bit casts, std.hpp, each language's implicit
+// conversions and mixed operands, and the forms the languages reject
+// (docs/design/int_vectors.md).
 #include <climits>
 #include <cmath>
 #include <concepts>
@@ -57,25 +58,37 @@ template <class A>
 concept HasOuterProduct = requires(const A& a) { g::outerProduct(a, a); };
 template <class V, class S>
 concept CompAssignable = requires(V& v, const S& s) { v.x = s; };
+template <class A, class B>
+concept AddAssignable = requires(A& a, const B& b) { a += b; };
+template <class A, class B>
+using sum_t = decltype(std::declval<const A&>() + std::declval<const B&>());
 
 namespace hlsl_scope {
 using namespace shader_math::hlsl;
 static_assert(Addable<int3, int3> && Addable<int3, int> && Addable<uint3, unsigned>);
-static_assert(!Addable<int3, float>);      // int3 * 2.5f: phase 2 (promotion)
-static_assert(!Addable<int3, uint3>);      // int3 + uint3: phase 2
-static_assert(!Addable<float3, int3>);     // float3 + int3: phase 2
-static_assert(!Addable<int3, bool>);
+// mixed operands: float when either side is float, else uint
+static_assert(std::is_same_v<sum_t<int3, float3>, float3> && std::is_same_v<sum_t<float3, uint3>, float3>);
+static_assert(std::is_same_v<sum_t<int3, uint3>, uint3> && std::is_same_v<sum_t<int3, double>, float3>);
+static_assert(std::is_same_v<sum_t<float, int3>, float3>);
+static_assert(AddAssignable<int3, float3> && AddAssignable<int3, uint3> && AddAssignable<float3, int3>);
+static_assert(!Addable<int3, bool3> && !Addable<int3, bool>);
+#if defined(SHADER_MATH_HAS_HALF)
+static_assert(!Addable<int3, half3> && !std::is_convertible_v<half3, int3>);
+#endif
 static_assert(!Addable<int3, int4>);
 static_assert(Shiftable<int3, uint3> && Shiftable<uint3, int> && !Shiftable<int3, float>);
 static_assert(!Shiftable<float3, int3>);
 static_assert(Ordered<int3, int3>);
-static_assert(!HasSqrt<int3>);  // HLSL converts to float: phase 2
+static_assert(HasSqrt<int3>);  // converted to float, as HLSL does
 static_assert(HasNot<int3> && HasDot<int3, int3>);
-static_assert(!std::is_convertible_v<float3, int3> && !std::is_convertible_v<int3, float3>);
+// implicit conversions both ways between int, uint and float (not half, bool or glsl)
+static_assert(std::is_convertible_v<float3, int3> && std::is_convertible_v<int3, float3>);
+static_assert(std::is_convertible_v<uint3, int3> && std::is_convertible_v<int3, uint3>);
+static_assert(!std::is_convertible_v<g::ivec3, int3>);
 static_assert(std::is_convertible_v<int, int3>);  // int3 v = 1;
 static_assert(!std::is_convertible_v<bool3, int3> && !std::is_convertible_v<int3, bool3>);
 static_assert(!HasHlslIsnan<int3> && HasHlslIsnan<float3>);
-static_assert(!HasHlslFrac<int3> && !HasHlslLength<int3>);
+static_assert(HasHlslFrac<int3> && HasHlslLength<int3>);
 static_assert(!HasHlslSign<uint3> && HasHlslSign<int3>);
 static_assert(Shiftable<int, int3> && !Shiftable<float, int3>);  // k << v
 static_assert(CompAssignable<int3, float> && CompAssignable<int3, bool>);
@@ -83,7 +96,17 @@ static_assert(CompAssignable<int3, float> && CompAssignable<int3, bool>);
 
 namespace glsl_scope {
 using namespace shader_math::glsl;
-static_assert(Addable<ivec3, ivec3> && !Addable<ivec3, uvec3> && !Addable<ivec3, float>);
+static_assert(Addable<ivec3, ivec3>);
+static_assert(std::is_same_v<sum_t<ivec3, uvec3>, uvec3> && std::is_same_v<sum_t<ivec3, vec3>, vec3>);
+static_assert(std::is_same_v<sum_t<uvec3, float>, vec3>);
+// GLSL converts implicitly only int -> uint and int / uint -> float
+static_assert(std::is_convertible_v<ivec3, uvec3> && std::is_convertible_v<ivec3, vec3> &&
+              std::is_convertible_v<uvec3, vec3>);
+static_assert(!std::is_convertible_v<uvec3, ivec3> && !std::is_convertible_v<vec3, ivec3> &&
+              !std::is_convertible_v<vec3, uvec3>);
+static_assert(AddAssignable<vec3, ivec3> && AddAssignable<uvec3, ivec3>);
+static_assert(!AddAssignable<ivec3, vec3> && !AddAssignable<ivec3, uvec3> && !AddAssignable<ivec3, float>);
+static_assert(!HasSqrt<ivec3>);  // GLSL: ambiguous (float and double), an error
 static_assert(!Ordered<ivec3, ivec3>);  // GLSL: lessThan(), not <
 static_assert(!HasNot<ivec3>);           // GLSL's ! takes a bool only
 static_assert(!HasDot<ivec3, ivec3>);    // GLSL's dot takes floats only
@@ -94,6 +117,67 @@ static_assert(CompAssignable<ivec3, int> && CompAssignable<ivec3, unsigned>);
 static_assert(!CompAssignable<ivec3, float> && !CompAssignable<ivec3, bool>);
 static_assert(CompAssignable<vec3, int>);  // int -> float converts in GLSL
 }  // namespace glsl_scope
+
+static void test_int_mixed() {
+    {
+        using namespace shader_math::hlsl;
+        const int3 i(3, -4, 7);
+        const uint3 u(1u, 2u, 0xFFFFFFFFu);
+        const float3 f(0.5f, 0.25f, 2.0f);
+        const float3 fi = i + f;
+        CHECK_EQF(fi.x, 3.5f);
+        CHECK_EQF(fi.y, -3.75f);
+        const uint3 ui = i + u;  // i converts to uint
+        CHECK(ui.x == 4u && ui.y == 0xFFFFFFFEu && ui.z == 6u);
+        const float3 scaled = i * 2.5;
+        CHECK_EQF(scaled.y, -10.0f);
+        CHECK_EQF((1.5f - i).z, -5.5f);
+        int3 t = f * 7.0f;  // implicit float3 -> int3 truncates
+        CHECK(t.x == 3 && t.y == 1 && t.z == 14);
+        t += f;             // computes in float, truncates back
+        CHECK(t.x == 3 && t.z == 16);
+        t *= 0.5;
+        CHECK(t.x == 1 && t.z == 8);
+        float3 g = i;  // implicit int3 -> float3
+        CHECK_EQF(g.y, -4.0f);
+        g = u;
+        CHECK_EQF(g.z, 4294967296.0f);
+        const uint3 iu = i;
+        CHECK(iu.y == 0xFFFFFFFCu);
+        // comparisons in the common type
+        const bool3 lt = i < f;
+        CHECK(!lt.x && lt.y && !lt.z);
+        CHECK(all((int3(1, 2, 3) == float3(1.0f, 2.0f, 3.0f))));
+        CHECK(any(i > 6.5));
+        // functions convert int vectors to float
+        const float3 r = sqrt(int3(4, 9, 16));
+        CHECK_EQF(r.x, 2.0f);
+        CHECK_EQF(r.z, 4.0f);
+        CHECK_EQF(length(int2(3, 4)), 5.0f);
+        CHECK_EQF(lerp(int2(0, 10), float2(10.0f, 20.0f), 0.5f).y, 15.0f);
+        CHECK_EQF(frac(int2(3, -2)).x, 0.0f);
+        CHECK_EQF((int2(7, -7) % float2(3.0f, 3.0f)).y, -1.0f);  // fmod
+        CHECK(abs(int2(-3, 3)).x == 3);  // abs keeps int
+        const int3 sg = sign(float3(-2.0f, 0.0f, 5.0f));  // float3 -> int3
+        CHECK(sg.x == -1 && sg.y == 0 && sg.z == 1);
+        CHECK(((int2(6, 7) & uint2(3u, 3u)).y) == 3u);
+    }
+    {
+        using namespace shader_math::glsl;
+        const ivec3 i(3, -4, 7);
+        const vec3 v = i * 0.5;
+        CHECK_EQF(v.y, -2.0f);
+        const uvec3 w = i + uvec3(1u, 5u, 0u);
+        CHECK(w.y == 1u);
+        vec3 acc(0.5f);
+        acc += i;
+        CHECK_EQF(acc.z, 7.5f);
+        const vec3 fromi = i;
+        CHECK_EQF(fromi.x, 3.0f);
+        const uvec3 fromi_u = i;
+        CHECK(fromi_u.y == 0xFFFFFFFCu);
+    }
+}
 
 static void test_int_construction() {
     using namespace shader_math::hlsl;
@@ -327,6 +411,7 @@ static void test_int_std() {
 
 void test_int_vectors() {
     test_int_construction();
+    test_int_mixed();
     test_int_swizzles();
     test_int_operators();
     test_int_comparisons();
