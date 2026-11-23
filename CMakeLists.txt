@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
 if(POLICY CMP0168)
     cmake_policy(SET CMP0168 NEW)
 endif()
-project(shader_math VERSION 0.7.0 LANGUAGES CXX)
+project(shader_math VERSION 0.8.0 LANGUAGES CXX)
 
 # include/shader_math/version.hpp carries the same version for non-CMake
 # users; keep the two in step.
