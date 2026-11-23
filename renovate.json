@@ -44,6 +44,24 @@
         "raw\\.githubusercontent\\.com/(?<depName>ufbx/ufbx)/(?<currentValue>v[^/\\s]+)/"
       ],
       "datasourceTemplate": "github-tags"
+    },
+    {
+      "customType": "regex",
+      "description": "Slang release of the interop job, with the sha256 of its Linux asset (Renovate recomputes the digest for the new release)",
+      "managerFilePatterns": ["/(^|/)\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": [
+        "slang_tag: \"(?<currentValue>[^\"]+)\"\\s+slang_sha256: (?<currentDigest>[0-9a-f]{64})"
+      ],
+      "depNameTemplate": "shader-slang/slang",
+      "datasourceTemplate": "github-release-attachments"
+    },
+    {
+      "customType": "regex",
+      "description": "DXC release of the interop jobs (CI looks up the asset and its digest in the immutable release)",
+      "managerFilePatterns": ["/(^|/)\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": ["dxc_tag: \"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "microsoft/DirectXShaderCompiler",
+      "datasourceTemplate": "github-releases"
     }
   ],
   "packageRules": [
