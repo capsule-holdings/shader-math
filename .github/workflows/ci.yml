@@ -151,10 +151,9 @@ jobs:
           - name: linux-x64-dxc-interop
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
-            dxc_version: "1.9.2609"
-            dxc_asset: linux_dxc_2026_09_28.x86_x64.tar.gz
-            # sha256 of dxc_asset (the release asset digest); update together
-            dxc_sha256: 96faadc7f5c282d2ffda49804beb4c3ee38127bc252b723234e3c5cdf7aa39a1
+            # DXC release (Renovate updates it); the asset is looked up by name
+            dxc_tag: "v1.9.2609"
+            dxc_asset_regex: '^linux_dxc_[0-9_]+\.x86_x64\.tar\.gz$'
             packages: libvulkan-dev mesa-vulkan-drivers
             interop_tests: dxc_interop
             cmake_extra: -DSHADER_MATH_INTEROP_DXC=ON -DSHADER_MATH_DXC_DIR=/tmp/dxc
@@ -162,21 +161,19 @@ jobs:
           - name: windows-x64-dxil-interop
             runner: blacksmith-2vcpu-windows-2025
             cxx: cl
-            dxc_version: "1.9.2609"
-            dxc_asset: dxc_2026_09_29.zip
-            # sha256 of dxc_asset (the release asset digest); update together
-            dxc_sha256: ad31b1fc8443175d204f77a611fdb3ef2ec42759bdc2f1167368de24a4a7e7f1
+            dxc_tag: "v1.9.2609"
+            dxc_asset_regex: '^dxc_[0-9_]+\.zip$'
             interop_tests: dxil_interop
             cmake_extra: -DSHADER_MATH_INTEROP_DXIL=ON -DSHADER_MATH_DXC_DIR=C:/dxc
           - name: linux-x64-slang-interop
             runner: blacksmith-2vcpu-ubuntu-2404
             cxx: g++
-            slang_version: "2026.20"
+            # Slang release and the sha256 of its slang-<version>-linux-x86_64.tar.gz
+            # (Renovate updates both)
+            slang_tag: "v2026.20"
+            slang_sha256: e863e568c204810d6e8bc31852f056aef6763c55ea9925db2db7affa060347c9
             # lavapipe runs the half cases compiled to SPIR-V
             packages: libvulkan-dev mesa-vulkan-drivers
-            # sha256 of slang-<version>-linux-x86_64.tar.gz (matches the
-            # release asset digest); update together with slang_version
-            slang_sha256: e863e568c204810d6e8bc31852f056aef6763c55ea9925db2db7affa060347c9
             interop_tests: slang_interop
             cmake_extra: -DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=/tmp/slang
     name: ${{ matrix.name }}
@@ -191,39 +188,62 @@ jobs:
           sudo apt-get install -y -qq cmake g++ clang libboost-dev ${{ matrix.packages }}
 
       - name: Install Slang (interop job only)
-        if: matrix.slang_version != ''
+        if: matrix.slang_tag != ''
+        env:
+          TAG: ${{ matrix.slang_tag }}
         run: |
           curl -fsSL -o /tmp/slang.tar.gz \
-            https://github.com/shader-slang/slang/releases/download/v${{ matrix.slang_version }}/slang-${{ matrix.slang_version }}-linux-x86_64.tar.gz
+            "https://github.com/shader-slang/slang/releases/download/$TAG/slang-${TAG#v}-linux-x86_64.tar.gz"
           echo "${{ matrix.slang_sha256 }}  /tmp/slang.tar.gz" | sha256sum -c -
           mkdir -p /tmp/slang
           tar -xzf /tmp/slang.tar.gz -C /tmp/slang
           /tmp/slang/bin/slangc -v
 
       - name: Committed SPIR-V matches shader.slang (interop job only)
-        if: matrix.slang_version != ''
+        if: matrix.slang_tag != ''
         run: |
           bash examples/sdl_gpu_skinning/build_shaders.sh /tmp/slang/bin/slangc
           git diff --exit-code -- examples/sdl_gpu_skinning/
 
+      # DXC releases are immutable (their assets cannot be replaced), so the
+      # digest GitHub records for an asset pins it just as a sha256 kept here
+      # would; a release that is not immutable is refused.
       - name: Install DXC (dxc interop job only)
-        if: matrix.dxc_version != '' && runner.os == 'Linux'
+        if: matrix.dxc_tag != '' && runner.os == 'Linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ matrix.dxc_tag }}
+          ASSET_REGEX: ${{ matrix.dxc_asset_regex }}
         run: |
-          curl -fsSL -o /tmp/dxc.tar.gz \
-            https://github.com/microsoft/DirectXShaderCompiler/releases/download/v${{ matrix.dxc_version }}/${{ matrix.dxc_asset }}
-          echo "${{ matrix.dxc_sha256 }}  /tmp/dxc.tar.gz" | sha256sum -c -
+          rel=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/microsoft/DirectXShaderCompiler/releases/tags/$TAG")
+          test "$(jq -r .immutable <<<"$rel")" = true
+          assets=$(jq -c --arg re "$ASSET_REGEX" '[.assets[] | select(.name | test($re))]' <<<"$rel")
+          test "$(jq length <<<"$assets")" = 1
+          curl -fsSL -o /tmp/dxc.tar.gz "$(jq -r '.[0].browser_download_url' <<<"$assets")"
+          echo "$(jq -r '.[0].digest | ltrimstr("sha256:")' <<<"$assets")  /tmp/dxc.tar.gz" | sha256sum -c -
           mkdir -p /tmp/dxc
           tar -xzf /tmp/dxc.tar.gz -C /tmp/dxc
           LD_LIBRARY_PATH=/tmp/dxc/lib /tmp/dxc/bin/dxc --version
 
       - name: Install DXC (dxil interop job only)
-        if: matrix.dxc_version != '' && runner.os == 'Windows'
+        if: matrix.dxc_tag != '' && runner.os == 'Windows'
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ matrix.dxc_tag }}
+          ASSET_REGEX: ${{ matrix.dxc_asset_regex }}
         run: |
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN" }
+          $rel = Invoke-RestMethod -Headers $headers `
+            -Uri "https://api.github.com/repos/microsoft/DirectXShaderCompiler/releases/tags/$env:TAG"
+          if (-not $rel.immutable) { throw "DXC $env:TAG is not an immutable release" }
+          $assets = @($rel.assets | Where-Object { $_.name -match $env:ASSET_REGEX })
+          if ($assets.Count -ne 1) { throw "expected one DXC asset, found $($assets.Count)" }
           $zip = "$env:RUNNER_TEMP\dxc.zip"
-          Invoke-WebRequest -Uri "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v${{ matrix.dxc_version }}/${{ matrix.dxc_asset }}" -OutFile $zip
+          Invoke-WebRequest -Uri $assets[0].browser_download_url -OutFile $zip
           $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
-          if ($hash -ne "${{ matrix.dxc_sha256 }}") { throw "dxc sha256 mismatch: $hash" }
+          if ("sha256:$hash" -ne $assets[0].digest) { throw "dxc sha256 mismatch: $hash" }
           Expand-Archive -Path $zip -DestinationPath C:\dxc
           C:\dxc\bin\x64\dxc.exe --version
 

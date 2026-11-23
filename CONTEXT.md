@@ -227,8 +227,8 @@ CPU 実行）と shader-math（`cpp_harness.cpp`）の両方でビルド・実�
 `half_` = 相対 2e-3）で照合する。dual compile 自体がサブセットの lint。
 実行方法: `-DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=<slang展開先>` で
 configure し `ctest -R slang_interop`。CI は `linux-x64-slang-interop` ジョブが
-Slang v2026.20（バージョン固定、renovate 対象外の手動更新）をダウンロードして実行する。
-更新時は `ci.yml` の `slang_version` と `slang_sha256`（リリースアセットの digest）を一緒に変える。
+`ci.yml` の `slang_tag` で固定した Slang をダウンロードして実行する。Renovate が `slang_tag` と
+`slang_sha256`（Linux 版アセットの sha256）を一緒に更新する（14 日待ってから）。
 
 実測記録（Slang v2026.16、v2026.20 でも同じ）: CPU ターゲットの C++ prelude は half ベクトル演算が未実装
 （`Vector<_Float16, 4>` に `operator*` 等が無い）ため、half ケースは共有ファイルに

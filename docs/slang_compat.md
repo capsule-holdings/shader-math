@@ -7,7 +7,7 @@
 サブセット外の構文はどちらかのコンパイラで必ずエラーになる。
 
 検証ハーネスの実行方法は `tests/interop/` と README の「ビルドとテスト」を参照。
-検証済み Slang バージョン: **v2026.20**（CI で固定ダウンロード）。
+照合している Slang の版は `ci.yml` の `slang_tag`（CI で固定してダウンロードし、Renovate が更新する）。
 
 ## 共有可能サブセット（両方でそのままコンパイル・一致確認済み）
 
@@ -118,5 +118,6 @@ DXC で分かった差:
 - **inf / NaN（DXIL）**: DXC は DXIL を fast-math（inf / NaN が無い前提）で生成するので、inf / NaN を扱うケース
   （`case_exact_inf_edges` など）は Slang と DXC の SPIR-V だけで照合する
 - half: `-enable-16bit-types` を付けないと DXC の `half` は 32 ビット float（min precision）になる
-- DXC は手動更新（`ci.yml` の `dxc_version` / `dxc_asset` / `dxc_sha256` を一緒に変える）
+- DXC の版は `ci.yml` の `dxc_tag`（Renovate が更新する）。DXC のリリースは変更できない（immutable）ので、
+  CI はアセットを名前の正規表現で探し、GitHub が記録しているダイジェストで照合する（immutable でなければ失敗する）
 
