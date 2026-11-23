@@ -81,6 +81,27 @@ using bool4x2 = detail::bmat<4, 2>;
 using bool4x3 = detail::bmat<4, 3>;
 using bool4x4 = detail::bmat<4, 4>;
 
+// Integer matrices (HLSL only; GLSL has none): the int / uint vector rules
+// row by row, and mul / transpose as for float
+using int2x2 = matrix<2, 2, int>;
+using int2x3 = matrix<2, 3, int>;
+using int2x4 = matrix<2, 4, int>;
+using int3x2 = matrix<3, 2, int>;
+using int3x3 = matrix<3, 3, int>;
+using int3x4 = matrix<3, 4, int>;
+using int4x2 = matrix<4, 2, int>;
+using int4x3 = matrix<4, 3, int>;
+using int4x4 = matrix<4, 4, int>;
+using uint2x2 = matrix<2, 2, uint>;
+using uint2x3 = matrix<2, 3, uint>;
+using uint2x4 = matrix<2, 4, uint>;
+using uint3x2 = matrix<3, 2, uint>;
+using uint3x3 = matrix<3, 3, uint>;
+using uint3x4 = matrix<3, 4, uint>;
+using uint4x2 = matrix<4, 2, uint>;
+using uint4x3 = matrix<4, 3, uint>;
+using uint4x4 = matrix<4, 4, uint>;
+
 // shared functions under hlsl:: names, for hlsl arguments only
 SHADER_MATH_LANG_FORWARD(cross)
 SHADER_MATH_LANG_FORWARD(dot)
@@ -530,6 +551,79 @@ SM_HLSL_MAT_COMPOUND(*)
 SM_HLSL_MAT_COMPOUND(/)
 #undef SM_HLSL_MAT_COMPOUND
 
+// ---- integer matrices: bitwise operators and shifts, row by row -------------
+#define SM_HLSL_IMAT_BINOP(sym)                                                          \
+    template <int R, int C, class T, class B>                                            \
+        requires(detail::is_int_elem_v<T> &&                                             \
+                 (std::is_same_v<B, matrix<R, C, T>> || detail::is_int_scalar_v<B>))      \
+    SHADER_MATH_INLINE matrix<R, C, T> operator sym(const matrix<R, C, T>& a, const B& b) { \
+        matrix<R, C, T> o;                                                               \
+        for (int r = 0; r < R; ++r) {                                                    \
+            if constexpr (std::is_same_v<B, matrix<R, C, T>>)                            \
+                o.row_[r] = a.row_[r] sym b.row_[r];                                     \
+            else                                                                         \
+                o.row_[r] = a.row_[r] sym b;                                             \
+        }                                                                                \
+        return o;                                                                        \
+    }                                                                                    \
+    template <int R, int C, class T, class B>                                            \
+        requires requires(const matrix<R, C, T>& a, const B& b) {                        \
+            { a sym b } -> std::same_as<matrix<R, C, T>>;                                \
+        }                                                                                \
+    SHADER_MATH_INLINE matrix<R, C, T>& operator sym##=(matrix<R, C, T>& a, const B& b) { \
+        a = a sym b;                                                                     \
+        return a;                                                                        \
+    }
+SM_HLSL_IMAT_BINOP(&)
+SM_HLSL_IMAT_BINOP(|)
+SM_HLSL_IMAT_BINOP(^)
+SM_HLSL_IMAT_BINOP(<<)
+SM_HLSL_IMAT_BINOP(>>)
+#undef SM_HLSL_IMAT_BINOP
+template <int R, int C, class T>
+    requires detail::is_int_elem_v<T>
+SHADER_MATH_INLINE matrix<R, C, T> operator~(const matrix<R, C, T>& a) {
+    matrix<R, C, T> o;
+    for (int r = 0; r < R; ++r) o.row_[r] = ~a.row_[r];
+    return o;
+}
+
+// ---- mixed int / uint / float matrices: the common type, as for vectors -----
+// (int3x3 + float3x3 is a float3x3, an int matrix with a floating-point
+// scalar computes in float); compound assignment converts back implicitly
+#define SM_HLSL_MIXED_MAT_BINOP(sym)                                                     \
+    template <int R, int C, class T, class U>                                            \
+        requires detail::MixedElems<T, U>                                                        \
+    SHADER_MATH_INLINE auto operator sym(const matrix<R, C, T>& a, const matrix<R, C, U>& b) { \
+        using E = detail::common_elem_t<T, U>;                                           \
+        return matrix<R, C, E>(a) sym matrix<R, C, E>(b);                                \
+    }                                                                                    \
+    template <int R, int C, class T, class S>                                            \
+        requires(detail::is_int_elem_v<T> && std::is_floating_point_v<S>)                \
+    SHADER_MATH_INLINE auto operator sym(const matrix<R, C, T>& a, const S& s) {         \
+        return matrix<R, C, float>(a) sym static_cast<float>(s);                         \
+    }                                                                                    \
+    template <int R, int C, class T, class S>                                            \
+        requires(detail::is_int_elem_v<T> && std::is_floating_point_v<S>)                \
+    SHADER_MATH_INLINE auto operator sym(const S& s, const matrix<R, C, T>& b) {         \
+        return static_cast<float>(s) sym matrix<R, C, float>(b);                         \
+    }                                                                                    \
+    template <int R, int C, class T, class B>                                            \
+        requires(((detail::is_int_elem_v<T> && std::is_floating_point_v<B>) ||           \
+                  requires { requires detail::MixedElems<T, typename B::elem_t>; }) &&           \
+                 requires(const matrix<R, C, T>& a, const B& b) {                        \
+                     { a sym b } -> std::convertible_to<matrix<R, C, T>>;                \
+                 })                                                                      \
+    SHADER_MATH_INLINE matrix<R, C, T>& operator sym##=(matrix<R, C, T>& a, const B& b) { \
+        a = a sym b;                                                                     \
+        return a;                                                                        \
+    }
+SM_HLSL_MIXED_MAT_BINOP(+)
+SM_HLSL_MIXED_MAT_BINOP(-)
+SM_HLSL_MIXED_MAT_BINOP(*)
+SM_HLSL_MIXED_MAT_BINOP(/)
+#undef SM_HLSL_MIXED_MAT_BINOP
+
 // ---- % on float vectors / matrices: fmod (trunc-based, sign of x) ----------
 // HLSL defines % for floats; GLSL does not (its mod() is floor-based).
 template <class A, class B>
@@ -545,17 +639,18 @@ SHADER_MATH_INLINE auto operator%(const A& a, const B& b) {
     using M = detail::mixed_t<A, B>;
     return detail::fmod_impl(M(detail::to_vec(a)), M(detail::to_vec(b)));
 }
+// matrices: row by row (fmod on float rows, the truncating % on int rows)
 template <int R, int C, class T>
 SHADER_MATH_INLINE matrix<R, C, T> operator%(const matrix<R, C, T>& a, const matrix<R, C, T>& b) {
     matrix<R, C, T> o;
-    for (int r = 0; r < R; ++r) o.row_[r] = detail::fmod_impl(a.row_[r], b.row_[r]);
+    for (int r = 0; r < R; ++r) o.row_[r] = a.row_[r] % b.row_[r];
     return o;
 }
 template <int R, int C, class T, class S>
     requires detail::ScalarFor<S, T>
 SHADER_MATH_INLINE matrix<R, C, T> operator%(const matrix<R, C, T>& a, const S& s) {
     matrix<R, C, T> o;
-    for (int r = 0; r < R; ++r) o.row_[r] = detail::fmod_impl(a.row_[r], s);
+    for (int r = 0; r < R; ++r) o.row_[r] = a.row_[r] % s;
     return o;
 }
 template <int N, class T, class B>
@@ -617,6 +712,20 @@ SHADER_MATH_INLINE matrix<R, C, T>& operator%=(matrix<R, C, T>& a, const B& b) {
         requires(detail::VecOf<B, lang_tag> && detail::IntVecFloatScalar<B, S>)          \
     SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                       \
         return static_cast<float>(s) sym detail::float_vec_t<B>(detail::to_vec(b));      \
+    }                                                                                    \
+    template <int R, int C, class T, class S>                                            \
+        requires detail::ScalarFor<S, T>                                                 \
+    SHADER_MATH_INLINE detail::bmat<R, C> operator sym(const matrix<R, C, T>& a, const S& s) { \
+        detail::bmat<R, C> o;                                                            \
+        for (int r = 0; r < R; ++r) o.row_[r] = a.row_[r] sym s;                         \
+        return o;                                                                        \
+    }                                                                                    \
+    template <int R, int C, class T, class S>                                            \
+        requires detail::ScalarFor<S, T>                                                 \
+    SHADER_MATH_INLINE detail::bmat<R, C> operator sym(const S& s, const matrix<R, C, T>& b) { \
+        detail::bmat<R, C> o;                                                            \
+        for (int r = 0; r < R; ++r) o.row_[r] = s sym b.row_[r];                         \
+        return o;                                                                        \
     }                                                                                    \
     template <int R, int C, class T>                                                     \
     SHADER_MATH_INLINE detail::bmat<R, C> operator sym(const matrix<R, C, T>& a,         \
@@ -802,7 +911,7 @@ template <int M, int K, class T, class V>
 SHADER_MATH_INLINE vector<T, M> mul(const matrix<M, K, T>& m, const V& v0) {
     const vector<T, K> v = detail::to_vec(v0);
     T t[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
-    for (int r = 0; r < M; ++r) t[r] = detail::dot(m.row_[r], v);
+    for (int r = 0; r < M; ++r) t[r] = mul(m.row_[r], v);
     return vector<T, M>(detail::vops<T>::load4(t));
 }
 
@@ -849,20 +958,26 @@ SHADER_MATH_INLINE matrix<C, R, T> transpose(const matrix<R, C, T>& m) {
 }
 
 template <int R, int C, class T>
-SHADER_MATH_INLINE T determinant(const matrix<R, C, T>& m) {
+SHADER_MATH_INLINE auto determinant(const matrix<R, C, T>& m) {
     static_assert(R == C, "shader-math: determinant requires a square matrix");
-    return detail::det_regs<R>(m.row_);
+    if constexpr (detail::is_int_elem_v<T>)  // converted to float, as HLSL does
+        return detail::det_regs<R>(matrix<R, C, float>(m).row_);
+    else
+        return detail::det_regs<R>(m.row_);
 }
 
 
 // ---- component-wise intrinsics on matrices ----------------------------------
 // HLSL applies its component-wise intrinsics to matrices too; GLSL's generic
 // functions take genType (scalars / vectors) only, so these exist in hlsl
-// alone. Each row goes through the vector intrinsic of the same name.
+// alone. Each row goes through the vector intrinsic of the same name; an
+// overload exists only where the row function does, and the result element is
+// the row result's (sqrt(int3x3) is a float3x3, as in HLSL).
 #define SM_HLSL_MAT_UNARY(name)                                                       \
     template <int R, int C, class T>                                                  \
-    SHADER_MATH_INLINE matrix<R, C, T> name(const matrix<R, C, T>& m) {               \
-        matrix<R, C, T> o;                                                            \
+        requires requires(const detail::hvec<C, T>& v) { name(v); }                   \
+    SHADER_MATH_INLINE auto name(const matrix<R, C, T>& m) {                          \
+        detail::hmat_of_rows<R, decltype(name(m.row_[0]))> o;                                  \
         for (int r = 0; r < R; ++r) o.row_[r] = name(m.row_[r]);                      \
         return o;                                                                     \
     }
@@ -897,16 +1012,17 @@ SM_HLSL_MAT_UNARY(degrees)
 // matrix (op) matrix of the same shape, and matrix (op) scalar
 #define SM_HLSL_MAT_BINARY(name)                                                      \
     template <int R, int C, class T>                                                  \
-    SHADER_MATH_INLINE matrix<R, C, T> name(const matrix<R, C, T>& a,                 \
-                                            const matrix<R, C, T>& b) {               \
-        matrix<R, C, T> o;                                                            \
+        requires requires(const detail::hvec<C, T>& v) { name(v, v); }                \
+    SHADER_MATH_INLINE auto name(const matrix<R, C, T>& a, const matrix<R, C, T>& b) { \
+        detail::hmat_of_rows<R, decltype(name(a.row_[0], b.row_[0]))> o;                       \
         for (int r = 0; r < R; ++r) o.row_[r] = name(a.row_[r], b.row_[r]);           \
         return o;                                                                     \
     }                                                                                 \
     template <int R, int C, class T, class S>                                         \
-        requires detail::ScalarFor<S, T>                                              \
-    SHADER_MATH_INLINE matrix<R, C, T> name(const matrix<R, C, T>& a, const S& s) {   \
-        matrix<R, C, T> o;                                                            \
+        requires(detail::ScalarFor<S, T> &&                                           \
+                 requires(const detail::hvec<C, T>& v, const S& s) { name(v, s); })   \
+    SHADER_MATH_INLINE auto name(const matrix<R, C, T>& a, const S& s) {              \
+        detail::hmat_of_rows<R, decltype(name(a.row_[0], s))> o;                               \
         for (int r = 0; r < R; ++r) o.row_[r] = name(a.row_[r], s);                   \
         return o;                                                                     \
     }
@@ -917,6 +1033,7 @@ SM_HLSL_MAT_BINARY(fmod)
 #undef SM_HLSL_MAT_BINARY
 
 template <int R, int C, class T>
+    requires requires(const detail::hvec<C, T>& v) { atan2(v, v); }
 SHADER_MATH_INLINE matrix<R, C, T> atan2(const matrix<R, C, T>& y, const matrix<R, C, T>& x) {
     matrix<R, C, T> o;
     for (int r = 0; r < R; ++r) o.row_[r] = atan2(y.row_[r], x.row_[r]);
@@ -925,13 +1042,14 @@ SHADER_MATH_INLINE matrix<R, C, T> atan2(const matrix<R, C, T>& y, const matrix<
 
 // step(edge, x): edge-first, so the scalar form is (scalar, matrix)
 template <int R, int C, class T>
+    requires requires(const detail::hvec<C, T>& v) { step(v, v); }
 SHADER_MATH_INLINE matrix<R, C, T> step(const matrix<R, C, T>& edge, const matrix<R, C, T>& x) {
     matrix<R, C, T> o;
     for (int r = 0; r < R; ++r) o.row_[r] = step(edge.row_[r], x.row_[r]);
     return o;
 }
 template <int R, int C, class T, class S>
-    requires detail::ScalarFor<S, T>
+    requires(detail::ScalarFor<S, T> && requires(const detail::hvec<C, T>& v) { step(v, v); })
 SHADER_MATH_INLINE matrix<R, C, T> step(const S& edge, const matrix<R, C, T>& x) {
     matrix<R, C, T> o;
     for (int r = 0; r < R; ++r) o.row_[r] = step(edge, x.row_[r]);
@@ -939,6 +1057,7 @@ SHADER_MATH_INLINE matrix<R, C, T> step(const S& edge, const matrix<R, C, T>& x)
 }
 
 template <int R, int C, class T>
+    requires requires(const detail::hvec<C, T>& v) { lerp(v, v, v); }
 SHADER_MATH_INLINE matrix<R, C, T> lerp(const matrix<R, C, T>& a, const matrix<R, C, T>& b,
                                         const matrix<R, C, T>& t) {
     matrix<R, C, T> o;
@@ -946,7 +1065,7 @@ SHADER_MATH_INLINE matrix<R, C, T> lerp(const matrix<R, C, T>& a, const matrix<R
     return o;
 }
 template <int R, int C, class T, class S>
-    requires detail::ScalarFor<S, T>
+    requires(detail::ScalarFor<S, T> && requires(const detail::hvec<C, T>& v) { lerp(v, v, v); })
 SHADER_MATH_INLINE matrix<R, C, T> lerp(const matrix<R, C, T>& a, const matrix<R, C, T>& b,
                                         const S& t) {
     matrix<R, C, T> o;
@@ -970,6 +1089,7 @@ SHADER_MATH_INLINE matrix<R, C, T> clamp(const matrix<R, C, T>& x, const SL& lo,
 }
 
 template <int R, int C, class T>
+    requires requires(const detail::hvec<C, T>& v) { smoothstep(v, v, v); }
 SHADER_MATH_INLINE matrix<R, C, T> smoothstep(const matrix<R, C, T>& lo,
                                               const matrix<R, C, T>& hi,
                                               const matrix<R, C, T>& x) {
@@ -978,7 +1098,8 @@ SHADER_MATH_INLINE matrix<R, C, T> smoothstep(const matrix<R, C, T>& lo,
     return o;
 }
 template <int R, int C, class T, class SL, class SH>
-    requires(detail::ScalarFor<SL, T> && detail::ScalarFor<SH, T>)
+    requires(detail::ScalarFor<SL, T> && detail::ScalarFor<SH, T> &&
+             requires(const detail::hvec<C, T>& v) { smoothstep(v, v, v); })
 SHADER_MATH_INLINE matrix<R, C, T> smoothstep(const SL& lo, const SH& hi,
                                               const matrix<R, C, T>& x) {
     matrix<R, C, T> o;
@@ -987,6 +1108,7 @@ SHADER_MATH_INLINE matrix<R, C, T> smoothstep(const SL& lo, const SH& hi,
 }
 
 template <int R, int C, class T>
+    requires requires(const detail::hvec<C, T>& v) { mad(v, v, v); }
 SHADER_MATH_INLINE matrix<R, C, T> mad(const matrix<R, C, T>& a, const matrix<R, C, T>& b,
                                        const matrix<R, C, T>& c) {
     matrix<R, C, T> o;
@@ -997,6 +1119,7 @@ SHADER_MATH_INLINE matrix<R, C, T> mad(const matrix<R, C, T>& a, const matrix<R,
 // classification -> boolRxC
 #define SM_HLSL_MAT_CLASSIFY(name)                                                    \
     template <int R, int C, class T>                                                  \
+        requires requires(const detail::hvec<C, T>& v) { name(v); }                   \
     SHADER_MATH_INLINE detail::bmat<R, C> name(const matrix<R, C, T>& m) {            \
         detail::bmat<R, C> o;                                                         \
         for (int r = 0; r < R; ++r) o.row_[r] = name(m.row_[r]);                      \
@@ -1019,6 +1142,7 @@ namespace ext {
 // shader-style arithmetic. True fp16 inputs underflow/overflow much sooner
 // than float; keep half matrices well conditioned.
 template <int R, int C, class T>
+    requires(!detail::is_int_elem_v<T>)
 SHADER_MATH_INLINE hlsl::matrix<R, C, T> inverse(const hlsl::matrix<R, C, T>& m) {
     static_assert(R == C, "shader-math: inverse requires a square matrix");
     hlsl::matrix<R, C, T> o;

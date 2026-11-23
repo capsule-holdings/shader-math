@@ -430,7 +430,10 @@ template <int K, int L, class T, class Lg>
 SHADER_MATH_INLINE vreg<T> mad_accum(vreg<T> coeff, const fvec<L, T, Lg>* regs) {
     vreg<T> acc = vops<T>::zero();
     unroll<K>([&]<int J>() {
-        acc = vops<T>::fmadd(vops<T>::template bcast<J>(coeff), regs[J].q_, acc);
+        if constexpr (is_int_elem_v<T>)  // int matrices (HLSL): wrapping multiply and add
+            acc = vops<T>::add(vops<T>::mul(vops<T>::template bcast<J>(coeff), regs[J].q_), acc);
+        else
+            acc = vops<T>::fmadd(vops<T>::template bcast<J>(coeff), regs[J].q_, acc);
     });
     return acc;
 }
@@ -664,9 +667,15 @@ struct matrix
         }
     }
 
-    // Explicit element-type conversion (half <-> float); no implicit mixing.
+    // Element-type conversion: implicit between int, uint and float (HLSL
+    // converts them implicitly, as for vectors), explicit for half
     template <class U>
-        requires(!std::is_same_v<U, T>)
+        requires(detail::implicit_elem_v<U, T, hlsl::lang_tag>)
+    SHADER_MATH_INLINE matrix(const matrix<R, C, U>& o) SM_HMAT_INIT {
+        for (int r = 0; r < R; ++r) row_[r] = detail::hvec<C, T>(o.row_[r]);
+    }
+    template <class U>
+        requires(!std::is_same_v<U, T> && !detail::implicit_elem_v<U, T, hlsl::lang_tag>)
     SHADER_MATH_INLINE explicit matrix(const matrix<R, C, U>& o) SM_HMAT_INIT {
         for (int r = 0; r < R; ++r) row_[r] = detail::hvec<C, T>(o.row_[r]);
     }
@@ -835,5 +844,12 @@ SHADER_MATH_INLINE matrix<Cn, Rn, T>::matrix(const hlsl::matrix<Rn, Cn, T>& h) {
     detail::transpose_regs<Rn, Cn>(h.row_, col_);
 }
 }  // namespace glsl
+
+namespace detail {
+// The hlsl matrix whose R rows are vectors of type V (the component-wise
+// intrinsics on matrices take their result element from the row result)
+template <int R, class V>
+using hmat_of_rows = hlsl::matrix<R, vec_size_v<V>, vec_elem_t<V>>;
+}  // namespace detail
 
 }  // namespace shader_math

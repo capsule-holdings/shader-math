@@ -63,6 +63,11 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
   - Packing: HLSL `f32tof16` / `f16tof32` (the binary16 bits in the low 16 bits of a uint); GLSL `packHalf2x16`
     `packUnorm2x16` `packSnorm2x16` `packUnorm4x8` `packSnorm4x8` and their `unpack*`. Rounding is to nearest even (GLSL leaves
     ties to the implementation); NaN packs as 0 in the unorm / snorm forms
+- Integer matrices (HLSL only; GLSL has none): `hlsl::int2x2`–`int4x4` and `uint2x2`–`uint4x4`. Component-wise operators
+  (including `%`, bitwise operators and shifts), `mul` (wrapping), `transpose`, comparisons, `abs` `sign` `min` `max` `clamp`,
+  and the implicit conversions and mixed operands of the integer vectors (`float3x3 f = im;`, `im + m` is a `float3x3`). The
+  floating-point functions give float matrices (`sqrt(int3x3)` is a `float3x3`), and `determinant` converts to float.
+  Matrices of every element type also compare with a scalar (`m > 1.0` is a `bool3x3`)
 - Half matrices: `hlsl::halfRxC` and `glsl::f16matCxR` (as with float, **distinct types** with explicit conversion; the correspondence of non-square shapes is also the same as for float).
   `determinant` / `inverse` are also computed in half. Real fp16 underflows / overflows early, so do not pass ill-conditioned matrices
   - `sizeof(half3) == 8` (four packed binary16 values). As with `sizeof(float3) == 16`, this is **language compatibility, not GPU ABI compatibility**
@@ -338,7 +343,7 @@ MSVC and Apple Clang are checked only at the CI runners' default versions.
   (measured with `bench/compile_time.py`: 3.2x on both gcc and clang). This is why it is disabled by default
 - GLSL's `not()` is `not_()` because `not` is a C++ alternative token (for `!`)
 - `v.x` is a proxy type (when passing it directly to variadic arguments, write `float(v.x)`)
-- The covered types are float and half (vectors and matrices) and int / uint (vectors). Integer matrices, 16- / 64-bit integers, `double`,
+- The covered types are float and half (vectors and matrices), int / uint vectors, and HLSL's int / uint matrices. 16- / 64-bit integers, `double`,
   `1xN` matrices, HLSL's 8-bit packing (`pack_u8`, `int8_t4_packed`, …) and GPU-only features (textures, derivatives, atomics) are out of scope
 - Language-compatible, not memory-ABI-compatible (`sizeof(float3) == 16`; this is unrelated to constant buffer packing)
 - Component access and swizzles are implemented with type punning through a union with the SIMD register.
