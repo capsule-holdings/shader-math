@@ -42,6 +42,8 @@
 
 // 16- and 64-bit integer lanes, on the selected backend's 32-bit and float ops
 #include "detail/simd_int_widths.hpp"
+// 64-bit IEEE double lanes, sharing the backend's 32-bit comparison mask
+#include "detail/simd_double.hpp"
 
 // Contract check: the selected backend must satisfy the full interface,
 // whether or not every function is currently used somewhere.
@@ -63,6 +65,8 @@ static_assert(SimdIntLaneOps<narrow_ops<std::int16_t>, nreg<std::int16_t>, mreg,
               SimdIntLaneOps<narrow_ops<std::uint16_t>, nreg<std::uint16_t>, mreg, freg, std::uint16_t>);
 static_assert(SimdIntLaneOps<wide_ops<std::int64_t>, wreg<std::int64_t>, mreg, freg, std::int64_t> &&
               SimdIntLaneOps<wide_ops<std::uint64_t>, wreg<std::uint64_t>, mreg, freg, std::uint64_t>);
+static_assert(SimdHalfOps<dops, dreg, mreg, double>,
+              "shader-math: the double backend does not satisfy SimdHalfOps");
 #if defined(SHADER_MATH_HAS_HALF)
 static_assert(SimdHalfOps<hops, hreg, mreg, half_t>,
               "shader-math: the selected half backend does not satisfy SimdHalfOps");

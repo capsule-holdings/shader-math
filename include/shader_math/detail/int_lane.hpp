@@ -64,7 +64,32 @@ struct int_lane {
         return static_cast<std::uint32_t>(f);
     }
 
-    // ... at any integer width
+    // ... at any integer width (from float or double)
+    template <class T>
+    static SHADER_MATH_INLINE T f2int(double d) {
+        if constexpr (std::is_same_v<T, std::int64_t>) {
+            if (!(d == d)) return 0;
+            if (d >= 9223372036854775808.0) return INT64_MAX;
+            if (d <= -9223372036854775808.0) return INT64_MIN;
+            return static_cast<std::int64_t>(d);
+        } else if constexpr (std::is_same_v<T, std::uint64_t>) {
+            if (!(d > 0.0)) return 0u;
+            if (d >= 18446744073709551616.0) return UINT64_MAX;
+            return static_cast<std::uint64_t>(d);
+        } else if constexpr (std::is_unsigned_v<T>) {
+            if (!(d > 0.0)) return T(0);
+            if (d >= static_cast<double>(std::numeric_limits<T>::max()))
+                return std::numeric_limits<T>::max();
+            return static_cast<T>(d);
+        } else {
+            if (!(d == d)) return T(0);
+            if (d <= static_cast<double>(std::numeric_limits<T>::min()))
+                return std::numeric_limits<T>::min();
+            if (d >= static_cast<double>(std::numeric_limits<T>::max()))
+                return std::numeric_limits<T>::max();
+            return static_cast<T>(d);
+        }
+    }
     template <class T>
     static SHADER_MATH_INLINE T f2int(float f) {
         if constexpr (std::is_same_v<T, std::int32_t>) {
@@ -72,13 +97,7 @@ struct int_lane {
         } else if constexpr (std::is_same_v<T, std::uint32_t>) {
             return f2u(f);
         } else {
-            if (!(f == f)) return T(0);
-            const double d = f;
-            if (d <= static_cast<double>(std::numeric_limits<T>::min()))
-                return std::numeric_limits<T>::min();
-            if (d >= static_cast<double>(std::numeric_limits<T>::max()))
-                return std::numeric_limits<T>::max();
-            return static_cast<T>(d);
+            return f2int<T>(static_cast<double>(f));
         }
     }
 

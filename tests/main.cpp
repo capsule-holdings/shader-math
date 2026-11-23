@@ -14,6 +14,7 @@ void test_int_ops();
 void test_int_vectors();
 void test_int_widths();
 void test_half();
+void test_double();
 void test_funcs();
 void test_pad_lanes();
 void test_random();
@@ -50,6 +51,7 @@ int main() {
     test_int_vectors();
     test_int_widths();
     test_half();
+    test_double();
     test_funcs();
     test_pad_lanes();
     test_random();
