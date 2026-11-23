@@ -249,6 +249,13 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
 - `isnan` / `isinf` / `isfinite` は `bool2/3/4` を返す（`-ffast-math` 下では NaN 判定が消えうる）
 - Windows で `<windows.h>` を使う場合は `NOMINMAX` が必要（`min` / `max` マクロと衝突）
 
+## 0.7 からの移行
+
+0.8 はパック関数、HLSL の整数行列、16 / 64 ビットの整数ベクトルを追加する。0.7 向けのコードはそのままコンパイルできるが、
+`using namespace hlsl` / `using namespace glsl` の下で新しい名前と自前の宣言がぶつかる場合を除く: `int2x2`〜`uint4x4`（HLSL）、
+`int16_t2`〜`uint64_t4`（HLSL）、`i16vec2`〜`u64vec4`（GLSL）、`f32tof16` / `f16tof32`（HLSL）、`packHalf2x16`、`packUnorm4x8`
+など（GLSL）。`find_package(shader_math 0.7)` は `0.8` に変える。
+
 ## 0.6 からの移行
 
 0.7 は int / uint ベクトルを追加する。0.6 向けのコードはそのままコンパイルできるが、`using namespace hlsl` /
@@ -290,12 +297,12 @@ cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON  # scalar 強制
 include(FetchContent)
 FetchContent_Declare(shader_math
     GIT_REPOSITORY https://github.com/capsule-holdings/shader-math.git
-    GIT_TAG v0.7.0)
+    GIT_TAG v0.8.0)
 FetchContent_MakeAvailable(shader_math)
 
 # B) インストール済みパッケージ
 #    cmake --install build --prefix <prefix> したものを CMAKE_PREFIX_PATH で指す
-find_package(shader_math 0.7 REQUIRED CONFIG)
+find_package(shader_math 0.8 REQUIRED CONFIG)
 
 target_link_libraries(app PRIVATE shader_math::shader_math)
 ```
