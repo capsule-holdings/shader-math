@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795404740391,
+  "lastUpdate": 1795404743116,
   "repoUrl": "https://github.com/capsule-holdings/shader-math",
   "entries": {
     "linux-x64-gcc": [
@@ -10895,6 +10895,160 @@ window.BENCHMARK_DATA = {
           {
             "name": "half4 a * b + c [scalar]",
             "value": 3.125,
+            "unit": "ns/elem"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "emuesuenu@hotmail.com",
+            "name": "Hidenori Kondo",
+            "username": "emuesuenu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "39847843a470729f843ac916038144346841afdd",
+          "message": "Check that README.ja.md follows README.md, and relative links in docs (#109)\n\nA docs workflow runs .github/scripts/check_docs.py on changes to Markdown, docs/ or the check itself (the changes ci.yml skips), so docs-only pull requests get a check:\n\n- README.ja.md must keep README.md's sequence of headings, code blocks and table rows, with the same code apart from comments and <placeholders>; prose is not compared.\n- Every relative link in a tracked Markdown file must resolve.\n\nAGENTS.md and the ci.yml header mention it.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-23T12:30:27+09:00",
+          "tree_id": "75c8d243958221240b9d628e8b04f366f5b46949",
+          "url": "https://github.com/capsule-holdings/shader-math/commit/39847843a470729f843ac916038144346841afdd"
+        },
+        "date": 1795404742396,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "hlsl mul(float4x4, float4x4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.187,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.206,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.927,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.579,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 4.559,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [SSE2+SSE4.1+FMA+AVX]",
+            "value": 11.816,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.387,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.417,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [SSE2+SSE4.1+FMA+AVX]",
+            "value": 7.499,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.194,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.193,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.349,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [SSE2+SSE4.1+FMA+AVX]",
+            "value": 2.3,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4x4) [scalar]",
+            "value": 2.652,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [scalar]",
+            "value": 2.617,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [scalar]",
+            "value": 0.688,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [scalar]",
+            "value": 2.804,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [scalar]",
+            "value": 4.331,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [scalar]",
+            "value": 12.055,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [scalar]",
+            "value": 0.751,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [scalar]",
+            "value": 0.837,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [scalar]",
+            "value": 7.636,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [scalar]",
+            "value": 0.593,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [scalar]",
+            "value": 0.145,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [scalar]",
+            "value": 1.067,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [scalar]",
+            "value": 3.099,
             "unit": "ns/elem"
           }
         ]
