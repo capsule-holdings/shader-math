@@ -1,11 +1,11 @@
-# GLSL ⇔ shader-math 相互検証
+# GLSL ⇔ shader-math cross-checking
 
-同一の数式ソース（`tests/interop/glsl/math_cases.glsl`）を
-(a) glslang で SPIR-V にして Vulkan（CI では lavapipe = llvmpipe）で実行、
-(b) C++（shader-math の `glsl` 面）でビルド・実行し、数値を照合する。
-HLSL 側の Slang 相互検証（[slang_compat.md](slang_compat.md)）の GLSL 版。
+The same math source (`tests/interop/glsl/math_cases.glsl`) is
+(a) compiled to SPIR-V with glslang and run on Vulkan (in CI, lavapipe = llvmpipe), and
+(b) built and run as C++ (the `glsl` surface of shader-math), and the numeric results are compared.
+This is the GLSL counterpart of the Slang cross-checking on the HLSL side ([slang_compat.md](slang_compat.md)).
 
-## 実行方法
+## How to run
 
 ```bash
 # Ubuntu: glslang-tools libvulkan-dev mesa-vulkan-drivers python3
@@ -14,53 +14,53 @@ cmake --build build-glsl
 ctest --test-dir build-glsl -R glsl_interop --output-on-failure
 ```
 
-CI は `linux-x64-glsl-interop` ジョブで実行する。
+CI runs this in the `linux-x64-glsl-interop` job.
 
-## 照合している GLSL 固有の意味
+## GLSL-specific semantics that are checked
 
-| ケース | 内容 |
+| Case | What it checks |
 | --- | --- |
-| `exact_ctor_layout` | 行列 ctor は列優先、`matCxR` は C 列 × R 行（`mat2x3` / `mat3x2`） |
-| `exact_ctor_special` | `mat3(s)` は対角、`mat4(mat2)` は単位行列で拡大、`mat2(mat3)` は左上を切り出し、ベクトルの連結 ctor |
-| `exact_componentwise` | `matrixCompMult`、非正方の `transpose`、`outerProduct`、成分ごとの関数 |
-| `exact_rounding` | `roundEven`（.5 は偶数へ）、`trunc` `ceil` `min` `max` `clamp` `step` |
-| `exact_compare` | ベクトル / 行列の `==` `!=` はスカラー bool、`lessThan` `equal` `greaterThanEqual` + `all` `any` |
-| `exact_mix_ends` | `mix` は `x*(1 - a) + y*a`（GLSL の定義式）なので `a = 0` / `a = 1` で x / y がそのまま返る（x が y より桁違いに大きくても） |
-| `near_matrix_product` | `*` は行列積、`v * m` は行ベクトル形、非正方の積（`mat3x2 * mat2x3`） |
-| `near_inverse` | `inverse`、`determinant` |
-| `near_mod` | `mod` は floor 基準で y の符号（HLSL の `fmod` と逆）、`mix`、`modf`、`fma` |
+| `exact_ctor_layout` | Matrix ctors are column-major; `matCxR` is C columns × R rows (`mat2x3` / `mat3x2`) |
+| `exact_ctor_special` | `mat3(s)` is diagonal, `mat4(mat2)` extends with the identity matrix, `mat2(mat3)` takes the upper-left part, and vector concatenation ctors |
+| `exact_componentwise` | `matrixCompMult`, non-square `transpose`, `outerProduct`, and component-wise functions |
+| `exact_rounding` | `roundEven` (.5 rounds to even), `trunc` `ceil` `min` `max` `clamp` `step` |
+| `exact_compare` | `==` `!=` on vectors / matrices yield a scalar bool; `lessThan` `equal` `greaterThanEqual` + `all` `any` |
+| `exact_mix_ends` | `mix` is `x*(1 - a) + y*a` (the defining formula in GLSL), so `a = 0` / `a = 1` return x / y exactly (even when x is orders of magnitude larger than y) |
+| `near_matrix_product` | `*` is the matrix product, `v * m` is the row-vector form, and non-square products (`mat3x2 * mat2x3`) |
+| `near_inverse` | `inverse`, `determinant` |
+| `near_mod` | `mod` is floor-based and takes the sign of y (the opposite of HLSL's `fmod`); `mix`, `modf`, `fma` |
 | `near_geometry` | `reflect` `refract` `faceforward` `distance` `inversesqrt` `smoothstep` |
-| `near_edges` | `mod` の負の被除数・除数、`step` の等しい境界（1 になる）、`fract(-0)` |
-| `approx_transcend` | `atan(y, x)`、逆三角・三角・指数・対数・`pow`・`radians` `degrees` |
+| `near_edges` | `mod` with a negative dividend / divisor, `step` at an equal boundary (it returns 1), `fract(-0)` |
+| `approx_transcend` | `atan(y, x)`, inverse trigonometric, trigonometric, exponential, and logarithmic functions, `pow`, `radians` `degrees` |
 
-## half（`f16vec` / `f16mat`）
+## half (`f16vec` / `f16mat`)
 
-`kernels_half.comp`（`GL_EXT_shader_explicit_arithmetic_types_float16`）と `half_cases.glsl` で、
-`f16vec` の演算・`min` `abs` `clamp` `mix` `dot`・`f16mat2 * f16vec2` を照合する
-（`glsl_interop_half_check`）。デバイスの `shaderFloat16` が必要で、無ければスキップ（終了コード 77）。
-共有ファイルでは `float16_t` を書かない（ARM では `arm_neon.h` のグローバル `float16_t` と曖昧になる）。
+`kernels_half.comp` (`GL_EXT_shader_explicit_arithmetic_types_float16`) and `half_cases.glsl` check `f16vec`
+arithmetic, `min` `abs` `clamp` `mix` `dot`, and `f16mat2 * f16vec2`
+(`glsl_interop_half_check`). This requires `shaderFloat16` on the device; without it the check is skipped (exit code 77).
+The shared files do not use `float16_t` (on ARM it is ambiguous with the global `float16_t` from `arm_neon.h`).
 
 ## `.stpq`
 
-`.stpq` は GLSL のベクトルにだけある（HLSL には無い）。`stpq_cases.glsl`（`kernels_stpq.comp`）を
-専用の C++ 側と照合する（`glsl_interop_stpq_check`）。
+`.stpq` exists only on GLSL vectors (HLSL does not have it). `stpq_cases.glsl` (`kernels_stpq.comp`) is checked
+against a dedicated C++ side (`glsl_interop_stpq_check`).
 
-## swizzle の重ねがけ（オプトイン）
+## Nested swizzles (opt-in)
 
-2・3 成分の swizzle に対する重ねがけ（`a.zw.yx`、`b.stp.ps`）も `SHADER_MATH_NESTED_SWIZZLE` を
-定義したときだけ有効なので、`nested_cases.glsl`（`kernels_nested.comp`）を、このマクロ付きで
-ビルドした C++ 側と照合する（`glsl_interop_nested_check`）。
+Nested swizzles on 2- and 3-component swizzles (`a.zw.yx`, `b.stp.ps`) are also enabled only when
+`SHADER_MATH_NESTED_SWIZZLE` is defined, so `nested_cases.glsl` (`kernels_nested.comp`) is checked against a C++ side
+built with this macro (`glsl_interop_nested_check`).
 
-## 許容誤差（名前の接頭辞で決まる）
+## Tolerances (determined by the name prefix)
 
-- `exact_`: ビット一致。1 回丸めの演算だけを置く（GLSL コンパイラは `a * b + c` を融合してよく、
-  除算や超越関数の精度も緩い）
-- `near_`: 相対 1e-5（積和・除算）
-- `approx_`: 相対 1e-4（超越関数。lavapipe の実装は libm と 1e-5 程度ずれる）
-- `half_`: 相対 2e-3（binary16 の ulp と、f32 に広げて計算する経路の丸め）
+- `exact_`: bit-exact. Only operations with a single rounding are placed here (GLSL compilers may fuse `a * b + c`,
+  and the precision of division and transcendental functions is also relaxed).
+- `near_`: relative 1e-5 (multiply-add and division).
+- `approx_`: relative 1e-4 (transcendental functions; the lavapipe implementation differs from libm by about 1e-5).
+- `half_`: relative 2e-3 (the binary16 ulp, plus rounding in the path that widens to f32 for the computation).
 
-## 共有ファイルの書き方
+## Writing the shared files
 
-- GLSL 4.50 と C++ の両方で通る書き方に限る（`f` 付きリテラル、`out` 引数を持つ関数を
-  定義しない、組み込み関数はベクトル引数のみ）
-- 入力は非正規化数を避ける（Vulkan 実装がフラッシュしうる）
+- Use only forms that compile in both GLSL 4.50 and C++ (literals with the `f` suffix, no definitions of functions
+  with `out` parameters, and built-in functions with vector arguments only).
+- Avoid denormal inputs (Vulkan implementations may flush them).

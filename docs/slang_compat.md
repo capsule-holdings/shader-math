@@ -1,123 +1,130 @@
-# Slang ⇔ shader-math 対応表
+# Slang ⇔ shader-math mapping
 
-同一の数式ソース（`tests/interop/shared/math_cases.hlsli`）を
-(a) Slang コンパイラ（`slangc -target cpp`、CPU 実行）と
-(b) C++（shader-math の `hlsl` 面）の両方でビルド・実行し、数値を照合するための
-「共有可能サブセット」の定義。dual compile 自体がこの表の lint になる:
-サブセット外の構文はどちらかのコンパイラで必ずエラーになる。
+This document defines the "shareable subset" used to build and run the same math source
+(`tests/interop/shared/math_cases.hlsli`) with both
+(a) the Slang compiler (`slangc -target cpp`, run on the CPU) and
+(b) C++ (the `hlsl` surface of shader-math), and to compare the numeric results.
+The dual compile itself acts as a lint for this table:
+syntax outside the subset always fails to compile with one of the two compilers.
 
-検証ハーネスの実行方法は `tests/interop/` と README の「ビルドとテスト」を参照。
-照合している Slang の版は `ci.yml` の `slang_tag`（CI で固定してダウンロードし、Renovate が更新する）。
+For how to run the verification harness, see `tests/interop/` and the "Build and test" section of the README.
+The Slang version being checked is `slang_tag` in `ci.yml` (CI pins it and downloads it, and Renovate updates it).
 
-## 共有可能サブセット（両方でそのままコンパイル・一致確認済み）
+## Shareable subset (compiles as-is with both, and verified to match)
 
-| 分類 | 内容 |
+| Category | Contents |
 | --- | --- |
-| ベクトル型 | `float2` / `float3` / `float4`（コンストラクタ・要素アクセス含む） |
-| 成分ごと演算子 | `+` `-` `*` `/`（ベクトル同士、ベクトル×スカラー） |
-| swizzle | `.xyzw` の読み書き（重複書き込みは両方でエラー） |
-| swizzle の重ねがけ | 2・3 成分の swizzle に対する読み出し（`a.zw.yx`、`b.bgr.rrgb`）。shader-math ではオプトインなので、`shared/nested_cases.hlsli` を `kernels_nested.slang` と `SHADER_MATH_NESTED_SWIZZLE` 付きの C++ 側で照合する（`slang_interop_nested_check`） |
-| 行列の複数成分アクセス | `m._m30_m31_m32`、`m._11_22_33`、`m._m00_m11` の読み出しと書き込み（重複無し）。shader-math ではオプトインなので、`shared/matrix_swizzle_cases.hlsli` を `kernels_matrix_swizzle.slang` と `SHADER_MATH_MATRIX_SWIZZLE3` 付きの C++ 側で照合する（`slang_interop_matrix_swizzle_check`） |
-| 行列 | `floatRxC`（R,C ∈ {2,3,4}）、行優先 ctor、Hadamard `*` |
-| 行列演算 | `mul` 全形（vec×mat / mat×vec / mat×mat）、`transpose`、`determinant` |
-| ベクトル演算 | `dot` / `cross` / `length` / `normalize` |
-| 比較 | 成分ごと `==` `<` 等 + `all` / `any` での還元 |
-| 成分ごと関数（v2） | `abs` `sign` `min` `max` `clamp` `step` `smoothstep` `floor` `ceil` `trunc` `round` `sqrt` `exp` `exp2` `log` `log2` `pow` `sin` `cos` `tan` + HLSL 別名 `lerp` `frac` `rcp` `rsqrt` `saturate`（ベクトルとスカラー。スカラーは `case_near_scalar`） |
-| 逆三角・双曲線・角度 | `asin` `acos` `atan` `atan2(y, x)` `sinh` `cosh` `tanh` `radians` `degrees` |
-| 剰余・積和・分解 | `fmod`（trunc 基準、x の符号）、`mad`、`modf(x, out ip)`、`sincos(x, out s, out c)` |
-| 幾何 | `distance` `reflect` `refract`（全反射でゼロベクトル）`faceforward` |
-| 判定 | `isnan` `isinf` `isfinite`（結果の bool ベクトルは**添字**で読む。下記除外参照） |
-| 行列への成分ごと関数 | 上記の成分ごと関数の行列版（`abs(m)` `lerp(a, b, t)` `clamp` `min(m, s)` `step(s, m)` `atan2` `fmod` `mad` など） |
-| リテラル | float リテラルは必ず `f` サフィックスを付ける |
+| Vector types | `float2` / `float3` / `float4` (including constructors and element access) |
+| Component-wise operators | `+` `-` `*` `/` (vector with vector, and vector × scalar) |
+| swizzle | Reading and writing `.xyzw` (writing the same component twice is an error in both) |
+| Nested swizzles | Reading from 2- and 3-component swizzles (`a.zw.yx`, `b.bgr.rrgb`). These are opt-in in shader-math, so `shared/nested_cases.hlsli` is checked with `kernels_nested.slang` against a C++ side built with `SHADER_MATH_NESTED_SWIZZLE` (`slang_interop_nested_check`) |
+| Multi-component matrix access | Reading and writing (without duplicates) `m._m30_m31_m32`, `m._11_22_33`, `m._m00_m11`. These are opt-in in shader-math, so `shared/matrix_swizzle_cases.hlsli` is checked with `kernels_matrix_swizzle.slang` against a C++ side built with `SHADER_MATH_MATRIX_SWIZZLE3` (`slang_interop_matrix_swizzle_check`) |
+| Matrices | `floatRxC` (R,C ∈ {2,3,4}), row-major ctor, Hadamard `*` |
+| Matrix operations | All forms of `mul` (vec×mat / mat×vec / mat×mat), `transpose`, `determinant` |
+| Vector operations | `dot` / `cross` / `length` / `normalize` |
+| Comparison | Component-wise `==` `<` and so on, plus reduction with `all` / `any` |
+| Component-wise functions (v2) | `abs` `sign` `min` `max` `clamp` `step` `smoothstep` `floor` `ceil` `trunc` `round` `sqrt` `exp` `exp2` `log` `log2` `pow` `sin` `cos` `tan` + the HLSL aliases `lerp` `frac` `rcp` `rsqrt` `saturate` (vector and scalar; the scalar forms are in `case_near_scalar`) |
+| Inverse trigonometric, hyperbolic, and angle functions | `asin` `acos` `atan` `atan2(y, x)` `sinh` `cosh` `tanh` `radians` `degrees` |
+| Remainder, multiply-add, and decomposition | `fmod` (trunc-based, sign of x), `mad`, `modf(x, out ip)`, `sincos(x, out s, out c)` |
+| Geometry | `distance` `reflect` `refract` (zero vector on total internal reflection) `faceforward` |
+| Classification | `isnan` `isinf` `isfinite` (read the resulting bool vector **by index**; see the exclusions below) |
+| Component-wise functions on matrices | Matrix versions of the component-wise functions above (`abs(m)` `lerp(a, b, t)` `clamp` `min(m, s)` `step(s, m)` `atan2` `fmod` `mad`, and so on) |
+| Literals | Float literals must always have the `f` suffix |
 
-## 除外（共有ファイルに書いてはいけないもの）
+## Exclusions (things that must not be written in the shared files)
 
-| 項目 | 理由 |
+| Item | Reason |
 | --- | --- |
-| `inverse` | HLSL / Slang に同名 intrinsic が無い（shader-math では拡張の `shader_math::ext::inverse`） |
-| リソース型・テクスチャ | `StructuredBuffer` 等はラッパ（`kernels.slang`）側のみ。共有数式は純関数に限る |
-| Slang のジェネリクス / `interface` | C++ 側に対応物が無い（このハーネスの対象は数式サブセットのみ） |
-| `v.x` の可変長引数直渡し | shader-math の `v.x` はプロキシ型。`printf` 等には `float(v.x)`（共有数式では非該当だが注意） |
-| bool ベクトルの `.xyzw` | shader-math の `boolN` は成分名アクセスを持たない（比較結果のマスク型）。`isnan(v)[2]` のように添字で読む |
-| **half（`half2/3/4`）の CPU 実行** | Slang（v2026.20）の CPU ターゲットの C++ prelude が half ベクトル演算を未実装（`Vector<_Float16, 4>` の `operator*` 等が無い）。half のケースは `SM_INTEROP_HALF_CASES` に分け、`kernels_half.slang` を `-target spirv` で SPIR-V にして Vulkan（lavapipe）で実行し照合する（`slang_interop_half_check`、`shaderFloat16` の無いデバイスではスキップ） |
+| `inverse` | HLSL / Slang have no intrinsic with this name (in shader-math it is the extension `shader_math::ext::inverse`) |
+| Resource types and textures | `StructuredBuffer` and the like appear only in the wrapper (`kernels.slang`). Shared math is limited to pure functions |
+| Slang generics / `interface` | There is no counterpart on the C++ side (this harness covers only the math subset) |
+| Passing `v.x` directly to variadic arguments | In shader-math, `v.x` is a proxy type. For `printf` and similar, use `float(v.x)` (this does not apply to shared math, but take care) |
+| `.xyzw` on bool vectors | shader-math's `boolN` has no access by component name (it is a mask type for comparison results). Read it by index, as in `isnan(v)[2]` |
+| **CPU execution of half (`half2/3/4`)** | The C++ prelude of the CPU target in Slang (v2026.20) does not implement half vector arithmetic (`operator*` and others for `Vector<_Float16, 4>` are missing). The half cases are separated into `SM_INTEROP_HALF_CASES`, and `kernels_half.slang` is compiled to SPIR-V with `-target spirv`, run on Vulkan (lavapipe), and compared (`slang_interop_half_check`; skipped on devices without `shaderFloat16`) |
 
-## 意味差（コンパイルは通るが結果・規則が異なりうるもの）
+## Semantic differences (things that compile but whose results or rules may differ)
 
-- **`frexp` の指数の型**: HLSL（DXC）と shader-math は指数を float で返すが、Slang（v2026.20）は int
-  ベクトルで返す（`out` 引数の型が違うので共有ファイルでは呼べない）。`ldexp` も Slang は int の指数を
-  取る（float は暗黙変換）ので、共有ケースでは整数値の指数だけを渡す
-- **`dst`**: Slang（v2026.20）では CPU ターゲットの C++ prelude に実装が無く、`-target spirv` でも
-  コア側の組み込みコードの解析に失敗する（`snippet parsing failed`）。共有ファイルには書かない
-  （shader-math 側は単体テストのみ）。`frexp` も SPIR-V 経由で同じく int の指数を取る
+- **Type of the `frexp` exponent**: HLSL (DXC) and shader-math return the exponent as float, but Slang (v2026.20)
+  returns it as an int vector (the type of the `out` parameter differs, so it cannot be called in the shared files).
+  Slang's `ldexp` also takes an int exponent (float is converted implicitly), so the shared cases pass only
+  integer-valued exponents.
+- **`dst`**: In Slang (v2026.20), the C++ prelude of the CPU target has no implementation of it, and with
+  `-target spirv` parsing of the core built-in code fails (`snippet parsing failed`). Do not write it in the shared
+  files (shader-math covers it with unit tests only). Via SPIR-V, `frexp` likewise takes an int exponent.
 
-- **half/float の暗黙混合**: Slang（HLSL 規則）は暗黙昇格を許すが、shader-math は
-  コンパイルエラーにする。共有ファイルでは**明示変換必須**（`half4(f4)` / `float4(h4)`）。
-  C++ 側のコンパイルがこの規則を機械的に強制する = dual compile が lint。
-- **fp contraction（fmadd 融合）**: ターゲット・コンパイラ依存で丸めが変わる。
-  ハーネスは Slang 生成コードを `-ffp-contract=off` でビルドし、`near_` 階層は
-  相対 1e-5 で吸収する（`compare.py` の階層許容誤差: `exact_` = ビット一致、
-  `near_` = 相対 1e-5、`half_` = 相対 2e-3）。
-- **`round` の半端値（.5）**: HLSL の `round` は .5 を偶数へ丸める（DXC は DXIL で `Round_ne`、SPIR-V で
-  `RoundEven`）。shader-math も同じ。Slang の CPU ターゲットは `::roundf`（0 から遠い方へ）なので、
-  共有ケースでは .5 ちょうどを避け、.5 は DXC 専用の `case_exact_round_ties` で照合する。
-- **`rcp` / `rsqrt`**: shader-math は近似命令を使わない正確版。GPU 実行では
-  近似命令になりうる（CPU 照合では一致、SPIR-V フェーズでは許容緩和が必要）。
-- **メモリレイアウト**: 言語互換であって ABI 互換ではない（`sizeof(float3) == 16`、
-  cbuffer パッキング等）。本検証の対象外。
+- **Implicit mixing of half and float**: Slang (following HLSL rules) allows implicit promotion, but shader-math makes
+  it a compile error. The shared files **require explicit conversion** (`half4(f4)` / `float4(h4)`).
+  Compiling the C++ side enforces this rule mechanically; that is, the dual compile is the lint.
+- **fp contraction (fmadd fusion)**: Rounding changes depending on the target and compiler.
+  The harness builds the Slang-generated code with `-ffp-contract=off`, and the `near_` tier absorbs the difference
+  with a relative 1e-5 (the tiered tolerances in `compare.py`: `exact_` = bit-exact,
+  `near_` = relative 1e-5, `half_` = relative 2e-3).
+- **Halfway values (.5) in `round`**: HLSL's `round` rounds .5 to even (DXC emits `Round_ne` in DXIL and `RoundEven`
+  in SPIR-V). shader-math does the same. Slang's CPU target uses `::roundf` (away from zero), so the shared cases
+  avoid exact .5 values, and .5 is checked in the DXC-only `case_exact_round_ties`.
+- **`rcp` / `rsqrt`**: shader-math uses exact versions, not approximate instructions. On GPU execution they may become
+  approximate instructions (they match in the CPU comparison; the SPIR-V phase needs relaxed tolerances).
+- **Memory layout**: The compatibility is at the language level, not at the ABI level (`sizeof(float3) == 16`,
+  cbuffer packing, and so on). This is out of scope for this verification.
 
-## DXC（公式 HLSL コンパイラ）との照合
+## Cross-checking against DXC (the official HLSL compiler)
 
-同じ共有ケースを DXC（v1.9.2609）で 2 通りに照合する。
+The same shared cases are checked against DXC (v1.9.2609) in two ways.
 
-- **SPIR-V**（Linux 版）: Vulkan（lavapipe）で実行する（`dxc_interop_check`、half は
-  `-enable-16bit-types` 付きで `dxc_interop_half_check`）
-- **DXIL**（Windows 版）: D3D12 の WARP（Windows 標準のソフトウェア実装）で実行する
-  （`dxil_interop_check` / `dxil_interop_half_check`、`tests/interop/d3d12_runner.cpp`）。
-  DXC は DXIL の生成時に定数入力の組み込み関数を畳み込むので、入力を出力バッファ（0 初期化）の
-  ビットと XOR してコンパイル時には分からない値にしている（`SM_INTEROP_OPAQUE_INPUTS`）
+- **SPIR-V** (Linux build): run on Vulkan (lavapipe) (`dxc_interop_check`; half is checked with
+  `-enable-16bit-types` in `dxc_interop_half_check`).
+- **DXIL** (Windows build): run on D3D12 WARP (the software implementation that ships with Windows)
+  (`dxil_interop_check` / `dxil_interop_half_check`, `tests/interop/d3d12_runner.cpp`).
+  When generating DXIL, DXC folds built-in functions whose inputs are constants, so the inputs are XORed with the
+  bits of the output buffer (zero-initialized) to turn them into values that are unknown at compile time
+  (`SM_INTEROP_OPAQUE_INPUTS`).
 
-Slang では照合できない `frexp` / `dst` / `round` の .5 は `tests/interop/dxc/dxc_cases.hlsli` で照合する。
-オプトインの行列の複数成分アクセスも、`SM_INTEROP_MATRIX_SWIZZLE` 付きで `shared/matrix_swizzle_cases.hlsli`
-を DXC で SPIR-V にして照合する（`dxc_interop_matrix_swizzle_check`）。
+`frexp` / `dst` / .5 in `round`, which cannot be checked with Slang, are checked in `tests/interop/dxc/dxc_cases.hlsli`.
+The opt-in multi-component matrix access is also checked by compiling `shared/matrix_swizzle_cases.hlsli` with
+`SM_INTEROP_MATRIX_SWIZZLE` to SPIR-V with DXC (`dxc_interop_matrix_swizzle_check`).
 
 ```bash
-# SPIR-V: DXC の Linux リリースを展開して（x86_64 のみ）
+# SPIR-V: extract the DXC Linux release (x86_64 only)
 cmake -S . -B build-dxc -DCMAKE_BUILD_TYPE=Release \
-  -DSHADER_MATH_INTEROP_DXC=ON -DSHADER_MATH_DXC_DIR=<dxc 展開先>
+  -DSHADER_MATH_INTEROP_DXC=ON -DSHADER_MATH_DXC_DIR=<dxc extract dir>
 cmake --build build-dxc
 ctest --test-dir build-dxc -R dxc_interop --output-on-failure
 
-# DXIL（Windows）: DXC の Windows リリース（zip）を展開して。bin/x64 か bin/arm64 の dxc を使う
-cmake -S . -B build-dxil -DSHADER_MATH_INTEROP_DXIL=ON -DSHADER_MATH_DXC_DIR=<dxc 展開先>
+# DXIL (Windows): extract the DXC Windows release (zip). Use the dxc in bin/x64 or bin/arm64
+cmake -S . -B build-dxil -DSHADER_MATH_INTEROP_DXIL=ON -DSHADER_MATH_DXC_DIR=<dxc extract dir>
 cmake --build build-dxil --config Release
 ctest --test-dir build-dxil -C Release -R dxil_interop --output-on-failure
 ```
 
-DXC で分かった差:
+Differences found with DXC:
 
-- **スカラー 1 つの行列 ctor**: DXC は `float3x3(0.25f)` を「要素が足りない」とエラーにする。HLSL で
-  全成分に広げる綴りはキャスト `(float3x3)0.25f` か代入 `float3x3 m = 0.25f;`。Slang と shader-math は
-  ctor の綴りも受け付ける（共有ケースはキャストで書く）
-- **`lit` の鏡面項**: Microsoft の `lit` のドキュメントは `(n·h)^m`、Slang と shader-math も累乗だが、
-  DXC v1.9.2609 の SPIR-V 出力（`SpirvEmitter::processIntrinsicLit`）は `(n·h) * m`。DXIL 出力は
-  `Exp(Log(n·h) * m)` で累乗になっており、WARP での実行も shader-math と一致する。SPIR-V の照合からだけ
-  `lit` のケース（`case_near_lit`）を外している
-- **`frexp` の仮数の符号（DXIL）**: DXC の DXIL への変換は仮数を `(bits & 0x007fffff) | 0x3f000000` で
-  作るので、負の入力でも仮数が正になる（`frexp(-7.5)` の仮数が 0.9375）。SPIR-V 出力（GLSL の `Frexp`）・
-  Slang・shader-math は C の `frexp` と同じく符号付き（-0.9375）。DXIL の照合からだけ `case_exact_frexp` を
-  外している
-- **swizzle と行列の要素への `++` / `--`（SPIR-V）**: DXC v1.9.2609 の SPIR-V 出力は `v.yz--` や `m._12++` で
-  不正な SPIR-V を生成してエラーになる（`OpStore Pointer ... is not a logical pointer`）。1 成分の `v.x++` と
-  DXIL 出力は問題ない。この形は DXIL の照合（`case_exact_step_writes`）だけで照合している
-- **`frac` の定数畳み込み（DXIL）**: DXC が DXIL を生成するときの定数畳み込みは `frac(-0.75)` を 0.75 にする
-  （`x - floor(x)` なら 0.25）。実行時の入力なら DXIL の `Frc` 命令になり、WARP の結果は 0.25 で shader-math と
-  一致する。照合が畳み込みでなく実行を見るよう、DXIL 版は入力を不透明にしている（上記）
-- **WARP の逆三角関数の精度**: WARP の `asin` / `acos` / `atan`（`atan2` も）は libm と最大 1e-3 程度ずれる
-  （sin / cos / exp2 / log2 / pow などは `near_` の 1e-5 に収まる）。DXIL の照合だけ、これらを使う
-  `near_inverse_trig` と `near_matrix_intrinsics` の許容誤差を相対 2e-3 にしている（`compare.py --tol=`）
-- **inf / NaN（DXIL）**: DXC は DXIL を fast-math（inf / NaN が無い前提）で生成するので、inf / NaN を扱うケース
-  （`case_exact_inf_edges` など）は Slang と DXC の SPIR-V だけで照合する
-- half: `-enable-16bit-types` を付けないと DXC の `half` は 32 ビット float（min precision）になる
-- DXC の版は `ci.yml` の `dxc_tag`（Renovate が更新する）。DXC のリリースは変更できない（immutable）ので、
-  CI はアセットを名前の正規表現で探し、GitHub が記録しているダイジェストで照合する（immutable でなければ失敗する）
-
+- **Matrix ctor from a single scalar**: DXC rejects `float3x3(0.25f)` with an error saying there are not enough
+  elements. In HLSL, the spellings that broadcast to all components are the cast `(float3x3)0.25f` or the assignment
+  `float3x3 m = 0.25f;`. Slang and shader-math also accept the ctor spelling (the shared cases are written with the
+  cast).
+- **Specular term of `lit`**: Microsoft's documentation for `lit` gives `(n·h)^m`, and Slang and shader-math also use
+  a power, but the SPIR-V output of DXC v1.9.2609 (`SpirvEmitter::processIntrinsicLit`) computes `(n·h) * m`. The
+  DXIL output is `Exp(Log(n·h) * m)`, which is a power, and execution on WARP also matches shader-math. The `lit` case
+  (`case_near_lit`) is excluded from the SPIR-V comparison only.
+- **Sign of the `frexp` mantissa (DXIL)**: DXC's lowering to DXIL builds the mantissa as
+  `(bits & 0x007fffff) | 0x3f000000`, so the mantissa is positive even for negative inputs (the mantissa of
+  `frexp(-7.5)` is 0.9375). The SPIR-V output (GLSL's `Frexp`), Slang, and shader-math return a signed mantissa
+  (-0.9375), like C's `frexp`. `case_exact_frexp` is excluded from the DXIL comparison only.
+- **`++` / `--` on swizzles and matrix elements (SPIR-V)**: The SPIR-V output of DXC v1.9.2609 generates invalid
+  SPIR-V for `v.yz--` and `m._12++` and fails with an error (`OpStore Pointer ... is not a logical pointer`). The
+  single-component `v.x++` and the DXIL output have no problem. These forms are checked only in the DXIL comparison
+  (`case_exact_step_writes`).
+- **Constant folding of `frac` (DXIL)**: The constant folding that DXC performs when generating DXIL turns
+  `frac(-0.75)` into 0.75 (`x - floor(x)` gives 0.25). With a run-time input it becomes the DXIL `Frc` instruction,
+  and the result on WARP is 0.25, which matches shader-math. So that the comparison observes execution rather than
+  folding, the DXIL version makes its inputs opaque (see above).
+- **Precision of inverse trigonometric functions on WARP**: WARP's `asin` / `acos` / `atan` (and also `atan2`) differ
+  from libm by up to about 1e-3 (sin / cos / exp2 / log2 / pow and others stay within the 1e-5 of `near_`). For the
+  DXIL comparison only, the tolerance of `near_inverse_trig` and `near_matrix_intrinsics`, which use these functions,
+  is set to relative 2e-3 (`compare.py --tol=`).
+- **inf / NaN (DXIL)**: DXC generates DXIL with fast-math (which assumes there is no inf / NaN), so the cases that
+  involve inf / NaN (such as `case_exact_inf_edges`) are checked only with Slang and with DXC's SPIR-V output.
+- half: without `-enable-16bit-types`, DXC's `half` is a 32-bit float (min precision).
+- The DXC version is `dxc_tag` in `ci.yml` (Renovate updates it). DXC releases cannot be changed (they are immutable),
+  so CI finds the assets with a regular expression on their names and verifies them against the digest that GitHub
+  records (it fails if a release is not immutable).

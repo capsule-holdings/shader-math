@@ -1,233 +1,239 @@
-# HLSL / GLSL / shader-math 対応表
+# HLSL / GLSL / shader-math compatibility mapping
 
-シェーダで書けるものが、shader-math（`hlsl::` / `glsl::`）でどう書けるかの一覧。対象は float / half の
-ベクトル・行列とその演算・組み込み関数（int / double・テクスチャなどは末尾の「対象外」）。
+This is a list of how the constructs you can write in shaders are written in shader-math (`hlsl::` / `glsl::`). The
+scope is float / half vectors and matrices, their operations, and built-in functions (int / double, textures, and so
+on are listed under "Out of scope" at the end).
 
-- 記号: **○** そのまま書けて同じ意味 / **△** 書けるが規則か書き方が違う（注記） / **×** 言語では書けるが
-  shader-math では書けない（理由） / **−** その言語に無い（shader-math でもエラーになる）
-- 「書けるか・エラーになるか」は `tests/conformance/` のケース集で DXC（`-HV 2021 -enable-16bit-types`）
-  と glslang に照らして確かめている（[conformance.md](conformance.md)）。値の一致は `tests/interop/` の照合
-  ハーネス（[slang_compat.md](slang_compat.md)、[glsl_interop.md](glsl_interop.md)）
-- 1 つのスコープで `using namespace` するのは片方の言語だけ（`mul` / `transpose` などが衝突する）
+- Symbols: **○** can be written as is, with the same meaning / **△** can be written, but the rules or the syntax
+  differ (see the notes) / **×** valid in the language but cannot be written in shader-math (reason given) / **−**
+  does not exist in that language (also an error in shader-math)
+- Whether something compiles or is an error is checked against DXC (`-HV 2021 -enable-16bit-types`) and glslang
+  using the case collection in `tests/conformance/` ([conformance.md](conformance.md)). Agreement of values is checked
+  by the comparison harness in `tests/interop/` ([slang_compat.md](slang_compat.md), [glsl_interop.md](glsl_interop.md))
+- Use `using namespace` for only one of the two languages in a given scope (`mul`, `transpose`, and others collide)
 
-## 型
+## Types
 
-| 概念 | HLSL | GLSL | shader-math | 注記 |
+| Concept | HLSL | GLSL | shader-math | Notes |
 | --- | --- | --- | --- | --- |
-| float ベクトル | `float2` 〜 `float4` | `vec2` 〜 `vec4` | ○ / ○ | `hlsl::float3` と `glsl::vec3` は別型。変換は explicit（`glsl::vec3(f)`） |
-| テンプレート表記 | `vector<float, 3>` | − | ○ | `hlsl::vector<T = float, N = 4>`。`<>` 無しの `vector` は △（clang は可、gcc は不可） |
-| half ベクトル | `half2` 〜 `half4`（16 ビット型有効時） | `f16vec2` 〜 `f16vec4`（`GL_EXT_shader_explicit_arithmetic_types`） | ○ / ○ | C++ で使える `_Float16` が必要（README の「型」） |
-| half スカラー | `half` | `float16_t` | ○ / △ | ARM では `arm_neon.h` の `::float16_t` と曖昧になるので `glsl::float16_t` と書く |
-| bool ベクトル | `bool2` 〜 `bool4` | `bvec2` 〜 `bvec4` | ○ / ○ | 比較結果の型。算術は無い（どちらの言語も同じ） |
-| 行列 | `floatRxC`（R 行 C 列） | `matCxR`（C 列 R 行） | ○ / ○ | `float3x4` と `mat4x3` が同じ形。両者は別型で変換は explicit |
-| half 行列 | `halfRxC` | `f16matCxR` | ○ / ○ | |
-| bool 行列 | `boolRxC` | − | ○ / − | HLSL の行列比較の結果 |
-| 行列のテンプレート表記 | `matrix<float, R, C>` | − | × | `hlsl::matrix<R, C, T>` と引数の順が違う |
-| 1 成分・1xN | `float1`、`float1x3` など | − | × / − | |
-| 型の言語 | − | − | `hlsl::lang_tag` / `glsl::lang_tag` | shader-math の内部用。演算子と言語固有の関数を ADL で見つけるため |
+| float vector | `float2` to `float4` | `vec2` to `vec4` | ○ / ○ | `hlsl::float3` and `glsl::vec3` are distinct types. Conversion is explicit (`glsl::vec3(f)`) |
+| Template syntax | `vector<float, 3>` | − | ○ | `hlsl::vector<T = float, N = 4>`. `vector` without `<>` is △ (accepted by clang, rejected by gcc) |
+| half vector | `half2` to `half4` (when 16-bit types are enabled) | `f16vec2` to `f16vec4` (`GL_EXT_shader_explicit_arithmetic_types`) | ○ / ○ | Requires `_Float16` usable in C++ ("Types" in the README) |
+| half scalar | `half` | `float16_t` | ○ / △ | On ARM this is ambiguous with `::float16_t` from `arm_neon.h`, so write `glsl::float16_t` |
+| bool vector | `bool2` to `bool4` | `bvec2` to `bvec4` | ○ / ○ | Type of comparison results. No arithmetic (same in both languages) |
+| Matrix | `floatRxC` (R rows, C columns) | `matCxR` (C columns, R rows) | ○ / ○ | `float3x4` and `mat4x3` have the same shape. They are distinct types, and conversion is explicit |
+| half matrix | `halfRxC` | `f16matCxR` | ○ / ○ | |
+| bool matrix | `boolRxC` | − | ○ / − | Result of HLSL matrix comparisons |
+| Matrix template syntax | `matrix<float, R, C>` | − | × | The argument order differs from `hlsl::matrix<R, C, T>` |
+| Single component, 1xN | `float1`, `float1x3`, etc. | − | × / − | |
+| Language of a type | − | − | `hlsl::lang_tag` / `glsl::lang_tag` | Internal to shader-math. Used so that operators and language-specific functions are found by ADL |
 
-## コンストラクタと変換
+## Constructors and conversions
 
-| 書き方 | HLSL | GLSL | shader-math | 注記 |
+| Syntax | HLSL | GLSL | shader-math | Notes |
 | --- | --- | --- | --- | --- |
-| スカラーを並べる `float3(1, 2, 3)` / `vec3(1.0, 2.0, 3.0)` | ○ | ○ | ○ / ○ | int の引数も変換される |
-| ベクトルとスカラーを混ぜる `float4(v2, 0, 1)` | ○ | ○ | ○ / ○ | |
-| 成分数ちょうどでない `vec3(v2, w2)` | エラー | ○（最後の引数だけ余ってよい） | ○ / ○ | GLSL は全引数が使われる必要がある（`vec2(v2, s)` はエラー）。shader-math も同じ |
-| 1 つのスカラー `float3(s)` / `vec3(s)` | エラー | ○（全成分） | △ / ○ | HLSL はキャスト `(float3)s` と暗黙変換 `float3 v = s` なら可。C++ では同じコンストラクタを通るので `float3(s)` も通る |
-| スカラーの暗黙変換 `float3 v = 1.0` | ○ | エラー | ○ / ○ | GLSL は `vec3(1.0)` と書く |
-| 切り詰め `float3(v4)` / `vec3(v4)` | エラー（キャスト `(float3)v4` は可） | ○ | △ / ○ | HLSL の `float3(v4)` は C++ ではキャストと区別できず通る |
-| 暗黙の切り詰め `float3 v = v4` | ○（DXC は警告） | エラー | × / ○ | 意図して弾いている（`(float3)v4` / `float3(v4)` と書く） |
-| 拡張 `float4 v = v3` | エラー | エラー | ○ / ○ | |
-| 行列: スカラーを並べる | ○（行優先で埋まる） | ○（列優先で埋まる） | ○ / ○ | |
-| 行列: 行 / 列ベクトル `float2x2(r0, r1)` / `mat2(c0, c1)` | ○ | ○ | ○ / ○ | |
-| 行列: 混ぜる `float2x2(v2, 3, 4)` / `mat2(v2, 3.0, 4.0)` | ○（成分数ちょうど） | ○（最後の引数だけ余ってよい） | ○ / ○ | `mat2(v4)`、`mat2(v3, v3)` も GLSL では可 |
-| 行列: 1 つのスカラー | エラー（キャストと暗黙変換は全成分） | ○（対角、`mat3(1.0)` = 単位行列） | △ / ○ | HLSL の `float3x3(s)` は C++ では通る |
-| 行列: ベクトル 1 つから暗黙に `float2x2 m = v4` | ○ | エラー | ○ / ○ | |
-| 行列 → 行列 | 縮小キャスト `(float2x2)m3` | 拡大（単位行列で補完）・縮小 `mat2(m3)` | ○ / ○ | HLSL の `float2x2(m3)`（エラー）は C++ では △ で通る |
-| 行列 → ベクトル `float4 v = m22` / `vec4(m2)` | ○（同じ成分数、行の順） | ○（列の順で先頭 N 成分） | ○ / ○ | HLSL は 2x2 と `float4` の間だけ（暗黙も可）。GLSL は明示のみ（`vec3(m2)`、`vec4(m3)`） |
-| コンストラクタの引数に行列を混ぜる | 行列の ctor で成分数ちょうど（`float3x3(m22, s, s, s, s, s)`、行の順） | ベクトルの ctor で最後の引数だけ余ってよい（`vec4(s, m2)`、列の順）。行列の ctor には不可 | ○ / ○ | HLSL のベクトルの ctor（`float4(s, m2)`）は成分数が合わずエラー |
-| half と float の明示変換 `half3(f)` / `f16vec3(v)` | ○ | ○ | ○ / ○ | |
-| half と float の暗黙変換・混ぜた演算 `h * a`、`float3 v = h` | ○ | 一部○（f16 → f32 方向） | × / × | 意図して弾いている（丸めが混ざるため） |
-| half と float のベクトルを 1 つの ctor に混ぜる `float4(v2, h2)` | ○ | ○ | ○ / ○ | 引数 1 つの暗黙変換（`float2x2 m = h4`）は × のまま |
-| bool と float の明示変換 `float3(b)` / `bool3(v)` | ○ | ○ | ○ / ○ | 0 以外が真（NaN も真）、真は 1 |
-| bool と float の暗黙変換 `float3 v = b` | ○ | エラー | × / ○ | 意図して弾いている |
-| bool の暗黙 splat `bool3 b = true` | ○ | エラー | ○ / ○ | |
-| 初期化子リスト `float3 v = {1, 2, 3}` | ○ | ○ | ○ / ○ | HLSL の平坦化 `float4 v = {v3, 1}`、`float2x2 m = {v2, 3, 4}` も可。GLSL の `mat2 m = {v2, 3.0, 4.0}` はエラー（shader-math も同じ） |
-| C 形式のキャスト `(float3)x` | ○ | エラー（`vec3(x)` と書く） | ○ / △ | GLSL の `(vec3)x` は C++ の文法なので通ってしまう |
-| HLSL ⇔ GLSL の変換 | − | − | 明示のみ | `glsl::vec3(f)`、`hlsl::float3x3(gm)`（転置して同じ数学的対象） |
+| List of scalars `float3(1, 2, 3)` / `vec3(1.0, 2.0, 3.0)` | ○ | ○ | ○ / ○ | int arguments are converted too |
+| Mixing vectors and scalars `float4(v2, 0, 1)` | ○ | ○ | ○ / ○ | |
+| Component count not exact `vec3(v2, w2)` | Error | ○ (only the last argument may have components left over) | ○ / ○ | GLSL requires every argument to be used (`vec2(v2, s)` is an error). shader-math does the same |
+| Single scalar `float3(s)` / `vec3(s)` | Error | ○ (all components) | △ / ○ | HLSL allows the cast `(float3)s` and the implicit conversion `float3 v = s`. In C++ these go through the same constructor, so `float3(s)` also compiles |
+| Implicit conversion from a scalar `float3 v = 1.0` | ○ | Error | ○ / ○ | In GLSL, write `vec3(1.0)` |
+| Truncation `float3(v4)` / `vec3(v4)` | Error (the cast `(float3)v4` is allowed) | ○ | △ / ○ | HLSL `float3(v4)` cannot be distinguished from a cast in C++, so it compiles |
+| Implicit truncation `float3 v = v4` | ○ (DXC warns) | Error | × / ○ | Rejected on purpose (write `(float3)v4` / `float3(v4)`) |
+| Widening `float4 v = v3` | Error | Error | ○ / ○ | An error in shader-math as well |
+| Matrix: list of scalars | ○ (filled in row-major order) | ○ (filled in column-major order) | ○ / ○ | |
+| Matrix: row / column vectors `float2x2(r0, r1)` / `mat2(c0, c1)` | ○ | ○ | ○ / ○ | |
+| Matrix: mixed `float2x2(v2, 3, 4)` / `mat2(v2, 3.0, 4.0)` | ○ (exact component count) | ○ (only the last argument may have components left over) | ○ / ○ | `mat2(v4)` and `mat2(v3, v3)` are also allowed in GLSL |
+| Matrix: single scalar | Error (casts and implicit conversions fill all components) | ○ (diagonal; `mat3(1.0)` = identity matrix) | △ / ○ | HLSL `float3x3(s)` compiles in C++ |
+| Matrix: implicitly from a single vector `float2x2 m = v4` | ○ | Error | ○ / ○ | |
+| Matrix → matrix | Narrowing cast `(float2x2)m3` | Widening (filled in from the identity matrix) and narrowing `mat2(m3)` | ○ / ○ | HLSL `float2x2(m3)` (an error) compiles in C++ as △ |
+| Matrix → vector `float4 v = m22` / `vec4(m2)` | ○ (same component count, row order) | ○ (first N components in column order) | ○ / ○ | HLSL allows this only between 2x2 and `float4` (implicitly as well). GLSL allows it only explicitly (`vec3(m2)`, `vec4(m3)`) |
+| Matrices mixed into constructor arguments | In a matrix ctor, with an exact component count (`float3x3(m22, s, s, s, s, s)`, row order) | In a vector ctor, only the last argument may have components left over (`vec4(s, m2)`, column order). Not allowed in a matrix ctor | ○ / ○ | An HLSL vector ctor (`float4(s, m2)`) is an error because the component count does not match |
+| Explicit conversion between half and float `half3(f)` / `f16vec3(v)` | ○ | ○ | ○ / ○ | |
+| Implicit conversion between half and float, and mixed operations `h * a`, `float3 v = h` | ○ | Partly ○ (f16 → f32 direction) | × / × | Rejected on purpose (because rounding would be mixed in) |
+| Mixing half and float vectors in one ctor `float4(v2, h2)` | ○ | ○ | ○ / ○ | Single-argument implicit conversion (`float2x2 m = h4`) remains × |
+| Explicit conversion between bool and float `float3(b)` / `bool3(v)` | ○ | ○ | ○ / ○ | Nonzero is true (NaN is also true); true becomes 1 |
+| Implicit conversion between bool and float `float3 v = b` | ○ | Error | × / ○ | Rejected on purpose |
+| Implicit bool splat `bool3 b = true` | ○ | Error | ○ / ○ | |
+| Initializer list `float3 v = {1, 2, 3}` | ○ | ○ | ○ / ○ | HLSL flattening `float4 v = {v3, 1}` and `float2x2 m = {v2, 3, 4}` are also allowed. GLSL `mat2 m = {v2, 3.0, 4.0}` is an error (same in shader-math) |
+| C-style cast `(float3)x` | ○ | Error (write `vec3(x)`) | ○ / △ | GLSL `(vec3)x` is valid C++ syntax, so it compiles |
+| HLSL ⇔ GLSL conversion | − | − | Explicit only | `glsl::vec3(f)`, `hlsl::float3x3(gm)` (transposed, so that it is the same mathematical object) |
 
-## 成分アクセス
+## Component access
 
-| 書き方 | HLSL | GLSL | shader-math | 注記 |
+| Syntax | HLSL | GLSL | shader-math | Notes |
 | --- | --- | --- | --- | --- |
-| `.xyzw` / `.rgba`（全組み合わせ、読み書き） | ○ | ○ | ○ / ○ | 集合をまたぐ `a.xg`、範囲外、重複への書き込みはエラー（両言語・shader-math とも） |
+| `.xyzw` / `.rgba` (all combinations, read and write) | ○ | ○ | ○ / ○ | Mixing sets (`a.xg`), out-of-range components, and writes to repeated components are errors (in both languages and in shader-math) |
 | `.stpq` | − | ○ | − / ○ | |
-| swizzle への複合代入 `v.yz += w` | ○ | ○ | ○ / ○ | |
-| swizzle の重ねがけ `v.xy.yx` | ○ | ○ | △ / △ | `SHADER_MATH_NESTED_SWIZZLE` でオプトイン。2・3 成分の swizzle の読み出しのみ |
-| スカラーへの swizzle `s.xxx` | ○ | ○ | × / × | C++ の float にメンバは無い |
-| swizzle への `++` / `--`（`v.x++`、`v.xy--`） | ○ | ○ | ○ / ○ | HLSL の行列の要素 `m._11++` も可 |
-| 添字 `v[i]` | ○ | ○ | ○ / ○ | |
-| 行列の添字 `m[i]` | ○（行） | ○（列） | ○ / ○ | |
+| Compound assignment to a swizzle `v.yz += w` | ○ | ○ | ○ / ○ | |
+| Nested swizzle `v.xy.yx` | ○ | ○ | △ / △ | Opt-in via `SHADER_MATH_NESTED_SWIZZLE`. Reading 2- and 3-component swizzles only |
+| Swizzle on a scalar `s.xxx` | ○ | ○ | × / × | A C++ float has no members |
+| `++` / `--` on a swizzle (`v.x++`, `v.xy--`) | ○ | ○ | ○ / ○ | HLSL matrix elements `m._11++` are also allowed |
+| Index `v[i]` | ○ | ○ | ○ / ○ | |
+| Matrix index `m[i]` | ○ (row) | ○ (column) | ○ / ○ | |
 | `m._m00` / `m._11` | ○ | − | ○ / − | |
-| 行列の複数成分 `m._m00_m11` | ○ | − | △ / − | `SHADER_MATH_MATRIX_SWIZZLE`（2 成分）/ `SHADER_MATH_MATRIX_SWIZZLE3`（3 成分）でオプトイン |
-| `.length()` | − | ○（成分数、行列は列数） | − / ○ | |
-| bool ベクトルの成分の読み出し `b.x` / `b[i]` | ○ | ○ | ○ / ○ | |
-| bool ベクトルの成分への書き込み `b.x = true`、`b.x = c.y`、`b[i] = true` | ○ | ○ | ○ / ○ | bool か別の成分を代入する（HLSL の `b.x = 1` / `b[i] = 1` は ×、`bool3(1)` と同じく int からは作らない） |
-| 可変長引数に `v.x` を渡す | − | − | △ | `v.x` はプロキシ型なので `printf` などには `float(v.x)` |
+| Multiple matrix components `m._m00_m11` | ○ | − | △ / − | Opt-in via `SHADER_MATH_MATRIX_SWIZZLE` (2 components) / `SHADER_MATH_MATRIX_SWIZZLE3` (3 components) |
+| `.length()` | − | ○ (component count; column count for matrices) | − / ○ | |
+| Reading bool vector components `b.x` / `b[i]` | ○ | ○ | ○ / ○ | |
+| Writing bool vector components `b.x = true`, `b.x = c.y`, `b[i] = true` | ○ | ○ | ○ / ○ | Assign a bool or another component (HLSL `b.x = 1` / `b[i] = 1` is ×; as with `bool3(1)`, bools are not created from int) |
+| Passing `v.x` to variadic arguments | − | − | △ | `v.x` is a proxy type, so pass `float(v.x)` to `printf` and similar functions |
 
-## 演算子
+## Operators
 
-| 書き方 | HLSL | GLSL | shader-math | 注記 |
+| Syntax | HLSL | GLSL | shader-math | Notes |
 | --- | --- | --- | --- | --- |
-| `+ - * /`（ベクトル同士、ベクトルとスカラー） | ○ | ○ | ○ / ○ | float ベクトルには int / double のスカラーも可。half ベクトルには half のスカラーのみ（HLSL の `h * 2.0` は ×） |
-| 単項 `-` `+` | ○ | ○ | ○ / ○ | bool ベクトルの `+b` も可 |
-| `++` `--`（ベクトル・行列） | ○ | ○ | ○ / ○ | |
-| 幅の違うベクトルの演算 `a3 + a4` | ○（切り詰め、DXC は警告） | エラー | × / ○ | 意図して弾いている |
-| `%`、`%=`（float） | ○（`fmod` と同じ。x の符号） | − | ○ / − | GLSL は `mod()`（y の符号） |
-| `==` `!=` | 成分ごとの bool ベクトル | 全成分一致の bool | ○ / ○ | `using` なしでも型に合った意味で見つかる |
-| `<` `<=` `>` `>=` | 成分ごとの bool ベクトル | ベクトルには無い（`lessThan()` など） | ○ / ○ | |
-| `if (a == b)`（ベクトル） | エラー（`all()` / `any()`） | ○（bool） | ○ / ○ | |
-| bool ベクトルの `&&` `\|\|`、三項演算子の条件 | エラー（`and()` / `or()` / `select()`） | エラー（`mix(x, y, b)`） | ○ / ○ | HLSL の `and()` / `or()` は C++ の代替トークンと同名で × |
-| bool ベクトルの `!` | ○ | エラー（`not()`） | ○ / ○ | GLSL の `not()` は C++ のキーワードなので `not_()`（△） |
-| 行列同士の `*` | 成分ごと（同じ形のみ） | 行列積（内側の次元が一致） | ○ / ○ | 行列積は HLSL では `mul()` |
-| 行列とベクトルの `*` | エラー（`mul()`） | `m * v` / `v * m` | ○ / ○ | |
-| `mul(a, b)`（9 形） | ○ | − | ○ / − | 次元の違う `mul(v4, m3)` / `mul(m3, m23)` は DXC が切り詰めて通すが shader-math は × |
-| 複合代入 `+= -= *= /=` | ○ | ○ | ○ / ○ | GLSL の `m *= n`（正方）と `v *= m` も可。HLSL の `v *= m` はエラー |
+| `+ - * /` (vector with vector, vector with scalar) | ○ | ○ | ○ / ○ | float vectors also accept int / double scalars. half vectors accept only half scalars (HLSL `h * 2.0` is ×) |
+| Unary `-` `+` | ○ | ○ | ○ / ○ | `+b` on a bool vector is also allowed |
+| `++` `--` (vectors and matrices) | ○ | ○ | ○ / ○ | |
+| Operations on vectors of different widths `a3 + a4` | ○ (truncated; DXC warns) | Error | × / ○ | Rejected on purpose |
+| `%`, `%=` (float) | ○ (same as `fmod`; sign of x) | − | ○ / − | GLSL uses `mod()` (sign of y) |
+| `==` `!=` | Per-component bool vector | bool that is true when all components are equal | ○ / ○ | Found with the meaning that matches the type, even without `using` |
+| `<` `<=` `>` `>=` | Per-component bool vector | Not available for vectors (`lessThan()` and others) | ○ / ○ | |
+| `if (a == b)` (vectors) | Error (`all()` / `any()`) | ○ (bool) | ○ / ○ | |
+| `&&` `\|\|` on bool vectors, condition of the ternary operator | Error (`and()` / `or()` / `select()`) | Error (`mix(x, y, b)`) | ○ / ○ | HLSL `and()` / `or()` have the same names as C++ alternative tokens, so they are × |
+| `!` on bool vectors | ○ | Error (`not()`) | ○ / ○ | GLSL `not()` is a C++ keyword, so use `not_()` (△) |
+| `*` between matrices | Per component (same shape only) | Matrix product (inner dimensions must match) | ○ / ○ | In HLSL, the matrix product is `mul()` |
+| `*` between a matrix and a vector | Error (`mul()`) | `m * v` / `v * m` | ○ / ○ | |
+| `mul(a, b)` (9 forms) | ○ | − | ○ / − | `mul(v4, m3)` / `mul(m3, m23)` with mismatched dimensions are truncated and accepted by DXC, but are × in shader-math |
+| Compound assignment `+= -= *= /=` | ○ | ○ | ○ / ○ | GLSL `m *= n` (square) and `v *= m` are also allowed. HLSL `v *= m` is an error |
 
-## 組み込み関数
+## Built-in functions
 
-ベクトル版はすべて、スカラー（`float` / `half`、`v.x`、`m._11`）にも使える。行列への成分ごと適用は HLSL のみ
-（GLSL の関数は genType だけを取る）。
+Every vector version can also be used on scalars (`float` / `half`, `v.x`, `m._11`). Component-wise application to
+matrices is HLSL only (GLSL functions take only genType).
 
-| HLSL | GLSL | shader-math | 注記 |
+| HLSL | GLSL | shader-math | Notes |
 | --- | --- | --- | --- |
-| `abs` `sign` `floor` `ceil` `trunc` | 同名 | ○ / ○ | HLSL の `sign` は int を返すが、shader-math は同じ型の float を返す（`float3 r = sign(a)` はどちらも可） |
-| `round` | `round` / `roundEven` | ○ / ○ | .5 は偶数へ（DXC と同じ。GLSL の `round` は向きが実装依存なので `roundEven` と同じにしている）。スカラーの修飾なし `round(s)` は libc++ / MSVC で曖昧（△、`hlsl::round(s)` と書く） |
+| `abs` `sign` `floor` `ceil` `trunc` | Same names | ○ / ○ | HLSL `sign` returns int, but shader-math returns a float of the same type (`float3 r = sign(a)` works in both cases) |
+| `round` | `round` / `roundEven` | ○ / ○ | .5 rounds to even (same as DXC; GLSL `round` has an implementation-defined direction, so it is made the same as `roundEven`). An unqualified scalar `round(s)` is ambiguous with libc++ / MSVC (△; write `hlsl::round(s)`) |
 | `frac` | `fract` | ○ / ○ | |
-| `fmod`（trunc 基準、x の符号） | `mod`（floor 基準、y の符号） | ○ / ○ | 意味が違う。`fmod(-7, 3) = -1`、`mod(-7, 3) = 2` |
-| `min` `max` `clamp` | 同名 | ○ / ○ | NaN は IEEE minNum / maxNum（D3D の規則）。全 backend で同じ |
-| `saturate` | − | ○ / − | GLSL は `clamp(x, 0.0, 1.0)` |
-| `lerp`（`a + t*(b - a)`） | `mix`（`x*(1 - a) + y*a`） | ○ / ○ | 違いは丸めだけ |
-| − | `mix(x, y, bvec)` | − / ○ | 真の成分で y |
-| `select(c, a, b)`（HLSL 2021） | − | ○ / − | 真の成分で a（`mix` と引数の順が逆）。スカラーの条件も可 |
-| `step` `smoothstep` | 同名 | ○ / ○ | `step(edge, x)` の引数順は両言語とも同じ |
-| `sqrt` | 同名 | ○ / ○ | |
-| `rsqrt` | `inversesqrt` | ○ / ○ | 近似命令を使わない正確版 |
-| `rcp` | − | ○ / − | 正確な 1/x |
-| `exp` `exp2` `log` `log2` `pow` | 同名 | ○ / ○ | libm をレーンごとに呼ぶ。`pow(負, 非整数)` は NaN |
+| `fmod` (trunc-based, sign of x) | `mod` (floor-based, sign of y) | ○ / ○ | The meanings differ. `fmod(-7, 3) = -1`, `mod(-7, 3) = 2` |
+| `min` `max` `clamp` | Same names | ○ / ○ | NaN follows IEEE minNum / maxNum (the D3D rule). Same on all backends |
+| `saturate` | − | ○ / − | In GLSL, use `clamp(x, 0.0, 1.0)` |
+| `lerp` (`a + t*(b - a)`) | `mix` (`x*(1 - a) + y*a`) | ○ / ○ | They differ only in rounding |
+| − | `mix(x, y, bvec)` | − / ○ | y for true components |
+| `select(c, a, b)` (HLSL 2021) | − | ○ / − | a for true components (the argument order is the reverse of `mix`). A scalar condition is also allowed |
+| `step` `smoothstep` | Same names | ○ / ○ | The argument order of `step(edge, x)` is the same in both languages |
+| `sqrt` | Same name | ○ / ○ | |
+| `rsqrt` | `inversesqrt` | ○ / ○ | Exact version that does not use approximation instructions |
+| `rcp` | − | ○ / − | Exact 1/x |
+| `exp` `exp2` `log` `log2` `pow` | Same names | ○ / ○ | Calls libm per lane. `pow(negative, non-integer)` is NaN |
 | `log10` | − | ○ / − | |
-| `sin` `cos` `tan` `asin` `acos` `atan` `sinh` `cosh` `tanh` | 同名 | ○ / ○ | |
+| `sin` `cos` `tan` `asin` `acos` `atan` `sinh` `cosh` `tanh` | Same names | ○ / ○ | |
 | − | `asinh` `acosh` `atanh` | − / ○ | |
-| `atan2(y, x)` | `atan(y, x)` | ○ / ○ | どちらも y が先 |
-| `degrees` `radians` | 同名 | ○ / ○ | |
-| `mad` | `fma` | ○ / ○ | FMA のある backend では融合。HLSL の `fma` は double 専用（float ではエラー、shader-math も同じ） |
-| `modf(x, out ip)` | 同名 | ○ / ○ | ±inf の小数部は ±0 |
-| `frexp(x, out e)`（指数は float） | `frexp(x, out ivec e)` | ○ / × | GLSL 版は int ベクトルを取る（対象外） |
-| `ldexp(x, e)`（指数は float） | `ldexp(x, ivec e)` | ○ / × | 同上 |
-| `isnan` `isinf` | 同名 | ○ / ○ | スカラーも可。`-ffast-math` では NaN 判定が消えうる |
+| `atan2(y, x)` | `atan(y, x)` | ○ / ○ | y comes first in both |
+| `degrees` `radians` | Same names | ○ / ○ | |
+| `mad` | `fma` | ○ / ○ | Fused on backends with FMA. HLSL `fma` is double-only (an error for float; same in shader-math) |
+| `modf(x, out ip)` | Same name | ○ / ○ | The fractional part of ±inf is ±0 |
+| `frexp(x, out e)` (exponent is float) | `frexp(x, out ivec e)` | ○ / × | The GLSL version takes an int vector (out of scope) |
+| `ldexp(x, e)` (exponent is float) | `ldexp(x, ivec e)` | ○ / × | Same as above |
+| `isnan` `isinf` | Same names | ○ / ○ | Scalars are also allowed. Under `-ffast-math`, NaN checks may be removed |
 | `isfinite` | − | ○ / − | |
 | `sincos(x, out s, out c)` | − | ○ / − | |
-| `dot` `cross` `length` `distance` `normalize` `reflect` `refract` `faceforward` | 同名 | ○ / ○ | スカラー版も可。`refract` は全反射でゼロ |
-| `transpose` `determinant` | 同名 | ○ / ○ | |
-| −（`inverse` は無い） | `inverse` | − / ○ | HLSL の行列には拡張の `shader_math::ext::inverse(m)`（修飾したときだけ使える） |
-| − | `matrixCompMult` `outerProduct` | − / ○ | HLSL の成分ごと積は `*` |
-| `all` `any`（数値・bool のベクトル・行列・スカラー） | `all` `any`（bvec のみ） | ○ / ○ | 数値は 0 以外が真（NaN も真）。HLSL はスカラーの bool（`all(c)`）も可 |
+| `dot` `cross` `length` `distance` `normalize` `reflect` `refract` `faceforward` | Same names | ○ / ○ | Scalar versions are also allowed. `refract` returns zero on total internal reflection |
+| `transpose` `determinant` | Same names | ○ / ○ | |
+| − (there is no `inverse`) | `inverse` | − / ○ | For HLSL matrices, use the extension `shader_math::ext::inverse(m)` (available only when called qualified) |
+| − | `matrixCompMult` `outerProduct` | − / ○ | In HLSL, the component-wise product is `*` |
+| `all` `any` (numeric and bool vectors, matrices, scalars) | `all` `any` (bvec only) | ○ / ○ | For numeric values, nonzero is true (NaN is also true). HLSL also accepts a scalar bool (`all(c)`) |
 | − | `lessThan` `lessThanEqual` `greaterThan` `greaterThanEqual` `equal` `notEqual` | − / ○ | |
-| − | `not` | − / △ | `not_()`（C++ のキーワード） |
-| `dst` `lit` | − | ○ / − | `lit` はスカラー引数で `float4` を返す |
-| `abs(m)` など行列への成分ごと適用 | − | ○ / − | `abs` `sign` `floor` `ceil` `trunc` `round` `frac` `saturate` `sqrt` `rsqrt` `rcp` `exp` `exp2` `log` `log2` 三角・双曲線 `radians` `degrees` `min` `max` `pow` `fmod` `atan2` `step` `lerp` `clamp` `smoothstep` `mad` `isnan` `isinf` `isfinite` |
+| − | `not` | − / △ | `not_()` (C++ keyword) |
+| `dst` `lit` | − | ○ / − | `lit` takes scalar arguments and returns `float4` |
+| Component-wise application to matrices, such as `abs(m)` | − | ○ / − | `abs` `sign` `floor` `ceil` `trunc` `round` `frac` `saturate` `sqrt` `rsqrt` `rcp` `exp` `exp2` `log` `log2` trigonometric / hyperbolic `radians` `degrees` `min` `max` `pow` `fmod` `atan2` `step` `lerp` `clamp` `smoothstep` `mad` `isnan` `isinf` `isfinite` |
 
-C++ の文法による違い:
+Differences caused by C++ syntax:
 
-- double のリテラルだけの呼び出し（`max(1.0, 2.0)`）はスカラー版にならない（`1.0f` と書く。float の引数や
-  ベクトルがあれば `1.0` も可）
-- `out` / `inout` 引数は参照で受ける（`modf(x, ip)` の `ip` は左辺値）
+- A call with only double literals (`max(1.0, 2.0)`) does not resolve to the scalar version (write `1.0f`; `1.0` is
+  also fine if there is a float argument or a vector)
+- `out` / `inout` parameters are taken by reference (`ip` in `modf(x, ip)` must be an lvalue)
 
-## 互換のために許しているもの
+## Tolerated for compatibility
 
-C++ では区別できないので、言語ではエラーになるのに通るもの:
+Constructs that are errors in the language but compile, because C++ cannot distinguish them:
 
-| 書き方 | 言語 | 理由 |
+| Syntax | Language | Reason |
 | --- | --- | --- |
-| `float3(s)`、`float3(v4)`、`float3x3(s)`、`float2x2(m3)` | HLSL | 同じ変換をキャスト（`(float3)v4`）や暗黙変換（`float3 v = s`）で書くのは正しい HLSL。C++ ではどれも同じコンストラクタを通る |
-| `(vec3)x` | GLSL | C 形式のキャストは C++ の文法 |
-| `if (s)`、`!s`、float の `&&`、float の条件の `?:`、`int i = 1.5` | GLSL | スカラーは C++ の `float` そのもので、C++ の bool への変換・縮小変換が効く |
-| `vec3{1, 2, 3}`、`float3{1, 2, 3}` | 両方 | C++ の波括弧初期化（どちらの言語にも無い） |
+| `float3(s)`, `float3(v4)`, `float3x3(s)`, `float2x2(m3)` | HLSL | Writing the same conversion as a cast (`(float3)v4`) or an implicit conversion (`float3 v = s`) is valid HLSL. In C++ they all go through the same constructor |
+| `(vec3)x` | GLSL | C-style casts are C++ syntax |
+| `if (s)`, `!s`, `&&` on floats, `?:` with a float condition, `int i = 1.5` | GLSL | Scalars are plain C++ `float`, so C++ conversions to bool and narrowing conversions apply |
+| `vec3{1, 2, 3}`, `float3{1, 2, 3}` | Both | C++ brace initialization (exists in neither language) |
 
-C++ の文法のために書けないもの: スカラーへの swizzle（`s.xxx`）、`float1`、`not()` / `and()` / `or()`、double のリテラル
-だけの呼び出し（`max(1.0, 2.0)`）、HLSL のスカラーの `s % t`（`fmod` と書く）、可変長引数への `v.x`、`out` / `inout`
-（参照で受ける）。
+Constructs that cannot be written because of C++ syntax: swizzles on scalars (`s.xxx`), `float1`, `not()` / `and()` /
+`or()`, calls with only double literals (`max(1.0, 2.0)`), HLSL scalar `s % t` (write `fmod`), `v.x` passed to
+variadic arguments, and `out` / `inout` (taken by reference).
 
-値だけに出る差: スカラーだけの式の `1.0` は C++ では double なので、`s * (1.0 / 3.0)` は double で計算されて
-から float に丸まる（シェーダは float で計算する）。ベクトルとの演算はスカラーを要素型に変換してから計算するので
-この差は出ない。
+Differences that appear only in values: in a scalar-only expression, `1.0` is a double in C++, so `s * (1.0 / 3.0)` is
+computed in double and then rounded to float (shaders compute in float). Operations with vectors convert the scalar to
+the element type before computing, so this difference does not occur there.
 
-## 言語に無い機能
+## Features not in the languages
 
-| 機能 | 有効になる条件 | 注記 |
+| Feature | Enabled when | Notes |
 | --- | --- | --- |
-| `shader_math::ext::inverse` | 修飾して呼んだとき | HLSL の行列の逆行列（HLSL に無い）。言語に無い機能は `shader_math::ext` に置き、シェーダの書き方のままでは通らないようにしている |
-| `hlsl::matrix::identity()` | 常に | `float4x4::identity()`。シェーダの書き方とは紛れない |
-| `v.store(p)`（ベクトルのメンバー） | 常に | 成分を `p[0..N)` に書く |
-| HLSL ⇔ GLSL の明示変換 | 常に | `glsl::vec3(f)`、`hlsl::float3x3(gm)` |
-| `using` なしの ADL | 常に | 書ける式は増えない（シェーダには名前空間が無い） |
-| 言語が決めていない挙動の固定 | 常に | `glsl::round` の偶数丸め、`min` / `max` の NaN、`rcp` / `rsqrt` の精度、`sign` の戻り値の型 |
-| 内部のメンバー | 常に（public） | `q_` `comp_` `row_` `col_` `flat_` `m_` とレジスタからのコンストラクタ。union の都合で public。利用者向けではない |
-| 出力・`std::format`・構造化束縛・`std::hash`・`load` / `store` | `#include <shader_math/std.hpp>` | |
-| swizzle の重ねがけ、行列の複数成分アクセス | `SHADER_MATH_NESTED_SWIZZLE` / `SHADER_MATH_MATRIX_SWIZZLE(3)` | 言語にある機能。コンパイル時間のためオプトイン |
-| scalar backend の強制、`hlsl` / `glsl` のグローバル別名の抑止 | `SHADER_MATH_FORCE_SCALAR` / `SHADER_MATH_NO_ALIAS` | |
+| `shader_math::ext::inverse` | When called qualified | Inverse of an HLSL matrix (not in HLSL). Features that are not in the languages are placed in `shader_math::ext` so that they do not compile when written the way a shader is written |
+| `hlsl::matrix::identity()` | Always | `float4x4::identity()`. Cannot be confused with shader syntax |
+| `v.store(p)` (vector member) | Always | Writes the components to `p[0..N)` |
+| Explicit HLSL ⇔ GLSL conversion | Always | `glsl::vec3(f)`, `hlsl::float3x3(gm)` |
+| ADL without `using` | Always | Does not increase the set of expressions that can be written (shaders have no namespaces) |
+| Fixing behavior the languages leave unspecified | Always | Round-to-even in `glsl::round`, NaN handling in `min` / `max`, precision of `rcp` / `rsqrt`, return type of `sign` |
+| Internal members | Always (public) | `q_` `comp_` `row_` `col_` `flat_` `m_` and the constructors from registers. Public because of union constraints. Not intended for users |
+| Output, `std::format`, structured bindings, `std::hash`, `load` / `store` | `#include <shader_math/std.hpp>` | |
+| Nested swizzles, multi-component matrix access | `SHADER_MATH_NESTED_SWIZZLE` / `SHADER_MATH_MATRIX_SWIZZLE(3)` | Features that exist in the languages. Opt-in because of compile time |
+| Forcing the scalar backend, suppressing the global aliases `hlsl` / `glsl` | `SHADER_MATH_FORCE_SCALAR` / `SHADER_MATH_NO_ALIAS` | |
 
-言語の名前空間の関数は、修飾して呼んでも自分の言語の引数だけを取る（`hlsl::dot(glsl のベクトル)`、
-`glsl::abs(hlsl のベクトル)` はエラー）。
+Functions in a language namespace accept only arguments of their own language, even when called qualified
+(`hlsl::dot(glsl vector)` and `glsl::abs(hlsl vector)` are errors).
 
-## 処理系による差
+## Toolchain differences
 
-コンパイルが通るかどうか:
+Whether code compiles:
 
-| 項目 | 差 |
+| Item | Difference |
 | --- | --- |
-| 修飾なしのスカラーの `round(s)` | libc++ と MSVC はグローバルの `::round(float)` があるので曖昧（エラー）。libstdc++ は通る |
-| `float16_t` | ARM では `arm_neon.h` の `::float16_t` と曖昧 |
-| `vector r = v4`（`<>` なし） | clang は通る、gcc は通らない |
-| half の型 | C++ で使える `_Float16` が要る（x86: gcc 12+ / clang 15+、AArch64: gcc 13+）。MSVC はソフトウェア実装。無ければ型が無い |
-| `std::format` | `<format>` がある環境だけ（gcc 13+ など） |
-| `<windows.h>` | `min` / `max` マクロと衝突するので `NOMINMAX` が要る |
+| Unqualified scalar `round(s)` | Ambiguous (an error) with libc++ and MSVC, because they have a global `::round(float)`. Compiles with libstdc++ |
+| `float16_t` | Ambiguous on ARM with `::float16_t` from `arm_neon.h` |
+| `vector r = v4` (without `<>`) | Compiles with clang, does not compile with gcc |
+| half types | Require `_Float16` usable in C++ (x86: gcc 12+ / clang 15+, AArch64: gcc 13+). MSVC uses a software implementation. Without it, the types do not exist |
+| `std::format` | Only in environments that have `<format>` (gcc 13+ and others) |
+| `<windows.h>` | Requires `NOMINMAX`, because it conflicts with the `min` / `max` macros |
 
-値:
+Values:
 
-- FMA の有無（SSE2 だけか、`x86-64-v3` / NEON か）で、`mad` / `fma`、`lerp`、`smoothstep`、行列積の丸めが変わる
-- 利用者のスカラーの式の融合（`-ffp-contract`）はコンパイラによる（clang は既定で融合、gcc は ISO モードでは
-  しない）
-- 超越関数は各処理系の libm（glibc / Apple / UCRT）なので ulp 単位で違う。GPU とも違う
-- half は ARMv8.2 の FEAT_FP16 では 1 演算ごとに fp16 で丸める。それ以外は f32 に広げて計算して戻す（丸めが 2 回）
-- `-ffast-math` では NaN の判定や `min` / `max` の NaN の規則が崩れうる（DXC の DXIL も fast-math）
-- 非正規化数: CPU は既定で扱う。GPU は 0 にすることが多い
-- `floatN`（N < 4）の使わないレーンは値が不定。浮動小数点例外をトラップする設定では例外が上がりうる
+- Whether FMA is available (SSE2 only, or `x86-64-v3` / NEON) changes the rounding of `mad` / `fma`, `lerp`,
+  `smoothstep`, and matrix products
+- Contraction of the user's own scalar expressions (`-ffp-contract`) depends on the compiler (clang contracts by
+  default; gcc does not in ISO mode)
+- Transcendental functions use each platform's libm (glibc / Apple / UCRT), so results differ by some ulps. They also
+  differ from GPUs
+- With ARMv8.2 FEAT_FP16, half is rounded to fp16 after every operation. Otherwise it is widened to f32, computed, and
+  converted back (rounded twice)
+- Under `-ffast-math`, NaN checks and the NaN rules of `min` / `max` may break (DXC's DXIL is also fast-math)
+- Denormals: CPUs handle them by default. GPUs often flush them to zero
+- The unused lanes of `floatN` (N < 4) have unspecified values. With floating-point exception trapping enabled,
+  exceptions may be raised
 
-表現: 成分アクセスは union の型パンニング（ISO C++ では未定義動作）で、gcc / clang / MSVC の扱いに依存する
-（`constexpr` にできない）。`sizeof(float3) == 16` は言語上の互換で GPU の ABI ではない。シェーダのコンパイラ同士
-にも差がある（Slang の CPU の `round`、DXC の SPIR-V の `lit`、DXIL の `frexp`。[slang_compat.md](slang_compat.md)）。
-shader-math は DXC と公式のドキュメントに合わせる。
+Representation: component access uses type punning through a union (undefined behavior in ISO C++) and depends on how
+gcc / clang / MSVC handle it (it cannot be `constexpr`). `sizeof(float3) == 16` is language-level compatibility, not the
+GPU ABI. Shader compilers also differ from each other (Slang's CPU `round`, DXC's SPIR-V `lit`, DXIL's `frexp`;
+[slang_compat.md](slang_compat.md)). shader-math follows DXC and the official documentation.
 
-## 対象外
+## Out of scope
 
-| 分類 | 例 |
+| Category | Examples |
 | --- | --- |
-| int / uint / double の型 | `int3` `uint` `ivec3` `dvec3`、`1.0L` / `1.0lf` |
-| ビット表現 | `asfloat` `asuint` `f32tof16` `floatBitsToInt` `packHalf2x16` `countbits` `bitCount` |
-| GPU 専用 | 微分（`ddx` / `dFdx`）、テクスチャ、wave / subgroup、atomic、`clip` / `discard` |
-| 修飾子・レイアウト | `precise`、semantics、`cbuffer` / `uniform` のパッキング（`sizeof(float3) == 16` は GPU の ABI ではない） |
+| int / uint / double types | `int3` `uint` `ivec3` `dvec3`, `1.0L` / `1.0lf` |
+| Bit representation | `asfloat` `asuint` `f32tof16` `floatBitsToInt` `packHalf2x16` `countbits` `bitCount` |
+| GPU-only | Derivatives (`ddx` / `dFdx`), textures, wave / subgroup, atomics, `clip` / `discard` |
+| Qualifiers and layout | `precise`, semantics, `cbuffer` / `uniform` packing (`sizeof(float3) == 16` is not the GPU ABI) |
 
-## 準拠率（2026-11-23）
+## Conformance rate (2026-11-23)
 
-`tests/conformance/` の 558 ケース（HLSL 295、GLSL 263）で、言語と同じものを受け付け・弾く割合。
-対象外の分類を除いた値。
+The fraction of the 558 cases in `tests/conformance/` (HLSL 295, GLSL 263) for which shader-math accepts and rejects
+the same code as the language. The values exclude the out-of-scope categories.
 
-| | v0.5.0 | main（2026-11-23） |
+| | v0.5.0 | main (2026-11-23) |
 | --- | --- | --- |
-| HLSL（286） | 74.8% | 91.6% |
-| GLSL（256） | 78.5% | 96.1% |
+| HLSL (286) | 74.8% | 91.6% |
+| GLSL (256) | 78.5% | 96.1% |
 
-Apple Clang で測った値。g++（libstdc++）では GLSL がもう 1 件一致する（libc++ の `::round(float)` でスカラーの
-`round(s)` が曖昧になる分）。残りの不一致は上の表の × と △ に対応する。測り直しは
-`python3 tests/conformance/run.py --cxx <コンパイラ>`。
+Measured with Apple Clang. With g++ (libstdc++), one more GLSL case matches (the case where the scalar `round(s)`
+becomes ambiguous because of libc++'s `::round(float)`). The remaining mismatches correspond to the × and △ entries in
+the tables above. To measure again, run `python3 tests/conformance/run.py --cxx <compiler>`.

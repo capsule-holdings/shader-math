@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-このリポジトリのエージェント向けルール・環境情報はすべて AGENTS.md にある。
-以下を必ず読み、「全体のルール」節に従うこと。
+All agent rules and environment notes for this repository are in AGENTS.md.
+Read it and follow its "Rules for every agent" section.
 
 @AGENTS.md
