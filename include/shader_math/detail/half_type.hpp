@@ -27,7 +27,7 @@ using half_t = _Float16;
 struct binary16 {
     unsigned short bits_;
 
-    static SHADER_MATH_INLINE float to_f32(unsigned short h) {
+    static float to_f32(unsigned short h) {
         const unsigned sign = static_cast<unsigned>(h & 0x8000u) << 16;
         const unsigned exp = (h >> 10) & 0x1Fu;
         unsigned man = h & 0x3FFu;
@@ -54,7 +54,7 @@ struct binary16 {
         return f;
     }
 
-    static SHADER_MATH_INLINE unsigned short from_f32(float f) {
+    static unsigned short from_f32(float f) {
         unsigned in;
         std::memcpy(&in, &f, sizeof(in));
         const unsigned short sign = static_cast<unsigned short>((in >> 16) & 0x8000u);
