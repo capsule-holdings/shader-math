@@ -290,6 +290,10 @@ h_vec3_from_mat22	err	cannot initialize a variable of type 'float3' with an lval
 h_ctor_half_scalar_mix	ok	
 h_ctor_half_target	ok	
 h_s_any_bool	ok	
+h_bool_index_write	ok	
+h_bool_index_copy	ok	
+h_mat_ctor_mat_scalars	ok	
+h_vec_ctor_scalar_mat	err	too many elements in vector initialization (expected 4 elements, have 5)
 g_ctor_scalars	ok	
 g_ctor_int_args	ok	
 g_ctor_vec_scalar	ok	
@@ -547,3 +551,9 @@ g_vec2_from_mat2	ok
 g_vec_from_mat_implicit	err	g_vec_from_mat_implicit.comp:4: '=' : cannot convert from ' temp 2X2 matrix of float' to ' temp highp 4-component vector
 g_mat_ctor_half_vec	ok	
 g_ctor_half_target	ok	
+g_bvec_index_write	ok	
+g_bvec_index_copy	ok	
+g_vec_ctor_scalar_mat	ok	
+g_vec_ctor_vec_mat	ok	
+g_vec_ctor_mat_scalar	err	g_vec_ctor_mat_scalar.comp:4: 'constructor' : too many arguments
+g_mat_ctor_mat_list	err	g_mat_ctor_mat_list.comp:4: 'constructor' : matrix constructed from matrix can only have one argument

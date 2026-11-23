@@ -245,3 +245,14 @@ vec4 case_exact_lane_writes(vec4 a, vec4 b)
     vec3 d = vec3(mat3(2.0));
     return c + vec4(v, 0.0) + vec4(vec3(k), 0.0) + vec4(d, 0.0);
 }
+
+// a bool lane written through b[i]; a matrix inside a vector constructor
+// (column by column, cut short at the end)
+vec4 case_exact_index_matrix_args(vec4 a, vec4 b)
+{
+    bvec3 k = bvec3(false);
+    k[2] = greaterThan(a.xyz, b.xyz)[1];
+    vec4 c = vec4(b.w, mat2(a));
+    vec4 d = vec4(b.xy, mat2(b));
+    return c + d + vec4(vec3(k), 0.0);
+}

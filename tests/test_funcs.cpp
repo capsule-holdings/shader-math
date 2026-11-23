@@ -908,6 +908,41 @@ static void test_funcs_lane_writes() {
     }
 }
 
+// bool vector lanes written through b[i]; matrices inside constructor lists
+static void test_funcs_index_and_matrix_args() {
+    {
+        using namespace shader_math::hlsl;
+        bool3 r(false, false, false);
+        const bool3 b(true, false, true);
+        r[1] = true;
+        r[2] = b[0];
+        r[0] = r[1];
+        CHECK(r[0] && r[1] && r[2]);
+        r.x = b[1];  // a component from b[i]
+        CHECK(!r[0]);
+        r[1] = b.y;  // and the other way
+        CHECK(!r[1]);
+
+        const float2x2 m2(1.0f, 2.0f, 3.0f, 4.0f);
+        const float3x3 m = float3x3(m2, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f);  // row by row
+        CHECK(all(m[0] == float3(1.0f, 2.0f, 3.0f)) && all(m[1] == float3(4.0f, 5.0f, 6.0f)) &&
+              all(m[2] == float3(7.0f, 8.0f, 9.0f)));
+        const float4x4 q = float4x4(m2, m2, m2, m2);
+        CHECK(all(q[3] == float4(1.0f, 2.0f, 3.0f, 4.0f)));
+    }
+    {
+        using namespace shader_math::glsl;
+        bvec3 r(false, false, false);
+        r[2] = true;
+        r[0] = r[2];
+        CHECK(r[0] && !r[1] && r[2]);
+
+        const mat2 m2(1.0f, 2.0f, 3.0f, 4.0f);  // columns (1, 2), (3, 4)
+        CHECK(vec4(0.5f, m2) == vec4(0.5f, 1.0f, 2.0f, 3.0f));  // the matrix cut short
+        CHECK(vec4(vec2(7.0f, 8.0f), m2) == vec4(7.0f, 8.0f, 1.0f, 2.0f));
+    }
+}
+
 void test_funcs() {
     test_funcs_exact();
     test_funcs_near();
@@ -921,5 +956,6 @@ void test_funcs() {
     test_funcs_review_gaps();
     test_funcs_conformance_gaps();
     test_funcs_lane_writes();
+    test_funcs_index_and_matrix_args();
     test_funcs_half();
 }

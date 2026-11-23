@@ -54,7 +54,7 @@ void glsl_side() {
   `bool3(true, false, true)` / `bool3(true)` で作れる（引数は bool のみ。int や float からは作れない。
   HLSL は `bool3 b = true;` も可）。
   成分は `b[i]` と単成分の `.x` 〜 `.w` / `.r` 〜 `.a` で読む。`.x` などへは bool か別の成分を代入できる
-  （`b.x = true`、`b.x = c.y`。int は不可）。複数成分の swizzle と `b[i]` への書き込みは無い
+  （`b.x = true`、`b.x = c.y`、`b[i] = true`。int は不可）。複数成分の swizzle への書き込みは無い
 - Slang / HLSL と共有できる型・演算のサブセットは [docs/slang_compat.md](docs/slang_compat.md) 参照
   （Slang との相互コンパイル検証ハーネスで CI 照合済み）
 
