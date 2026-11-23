@@ -40,6 +40,10 @@ void glsl_side() {
 - ベクトル: `hlsl::float2/3/4` と `glsl::vec2/3/4`（**別型**。中身と成分ごとの演算は同じ）。
   相互変換は explicit（`glsl::vec3(f)` / `hlsl::float3(v)`）で、混ぜた演算はコンパイルエラー
 - half ベクトル: `hlsl::half2/3/4` と `glsl::f16vec2/3/4`（同じく別型）。スカラーは `hlsl::half` / `glsl::float16_t`
+- 1 成分のベクトル（HLSL のみ）: `float1`、`half1`、`int1`、`uint1`、`bool1` と 16 / 64 ビットのもの（`vector<T, 1>`）。ベクトルの
+  綴りをしたスカラーで、要素型とは双方向に暗黙変換し、どの演算にもスカラーとして加わる（`float1 + float3` は `float3`）。
+  `.x` / `.r`、`.xx`〜`.xxxx`、`[0]` で読める。スカラーの結果はスカラーのまま（`float1 + float1` は `float` で、代入で戻る）。
+  未対応: 次元が 1 の行列（`float1x3`）
 - 整数ベクトル: `hlsl::int2/3/4` / `uint2/3/4` と `glsl::ivec2/3/4` / `uvec2/3/4`（別型。スカラーの別名は `uint`、HLSL は
   `dword` も）。算術は折り返し、言語が未定義とする場合も全バックエンドで同じ結果になる: `x / 0` と `x % 0` は全ビット 1
   （int では `-1`）、`INT_MIN / -1` は折り返し、シフト量は 32 で割った余り、float → int は 0 方向への切り捨てで NaN → 0、

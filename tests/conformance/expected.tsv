@@ -25,6 +25,22 @@ h_matrix_template_int	ok
 h_matrix_template_empty	ok	
 h_matrix_bare	ok	
 h_float1	ok	
+h_float1_to_scalar	ok	
+h_float1_plus_vec	ok	
+h_float1_plus_float1	ok	
+h_float1_swizzle	ok	
+h_float1_swizzle4	ok	
+h_float1_sqrt	ok	
+h_float1_ctor_arg	ok	
+h_float1_compound	ok	
+h_float1_compare	ok	
+h_float1_splat	ok	
+h_float1_truncate	ok	
+h_float1_plus_int3	ok	
+h_float1_mod	ok	
+h_int1_arith	ok	
+h_vector1_template	ok	
+h_half1	ok	
 h_half_explicit	ok	
 h_half_implicit_from_float	ok	
 h_half_times_float	ok	
@@ -362,6 +378,9 @@ h_asfloat16_float	err	no matching function for call to 'asfloat16'
 h_int_times_uint_literal	ok	
 h_int16_times_uint_literal	ok	
 h_int_less_than_uint	ok	
+h_int_vec_times_float_component	ok	
+h_uint_vec_plus_int_component	ok	
+h_mat_elem_times_vec	ok	
 h_int_min_uint_literal	ok	
 h_int_matrix_uint_scalar	ok	
 h_f32tof16	ok	
@@ -739,6 +758,10 @@ g_i64_times_uint_literal	ok
 g_i16_mul_assign_int	err	g_i16_mul_assign_int.comp:4: 'assign' : cannot convert from ' const int' to ' temp 3-component vector of int16_t'
 g_uvec_mul_assign_int	ok	
 g_i16_shift_int	ok	
+g_i16_plus_int_component	ok	
+g_uvec_plus_int_component	ok	
+g_vec_times_int_component	ok	
+g_ivec_times_float_component	ok	
 g_i16_min_int_literal	err	g_i16_min_int_literal.comp:4: '=' : cannot convert from ' global 3-component vector of int' to ' temp 3-component vector
 g_i16_min_to_int	ok	
 g_ivec_clamp_uint	err	g_ivec_clamp_uint.comp:4: '=' : cannot convert from ' global 3-component vector of uint' to ' temp highp 3-component vec
