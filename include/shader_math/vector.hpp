@@ -15,6 +15,9 @@
 #pragma once
 
 #include <cmath>
+#include <concepts>
+#include <cstdint>
+#include <cstring>
 #include <initializer_list>
 #include <limits>
 #include <type_traits>
@@ -61,10 +64,49 @@ struct vops_for<half_t> {
     using reg = hreg;
 };
 #endif
+template <>
+struct vops_for<std::int32_t> {
+    using ops_t = iops;
+    using reg = ireg;
+};
+template <>
+struct vops_for<std::uint32_t> {
+    using ops_t = uops;
+    using reg = ireg;
+};
 template <class T>
 using vops = typename vops_for<T>::ops_t;
 template <class T>
 using vreg = typename vops_for<T>::reg;
+
+// Element kinds: the floating-point functions take float and half vectors,
+// the integer operators int and uint vectors (docs/design/int_vectors.md)
+template <class T>
+inline constexpr bool is_int_elem_v =
+    std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>;
+
+// The value type of one constructor argument: itself, or the element type of
+// a one-component swizzle (specialized after the swizzle types)
+template <class U>
+struct scalar_value {
+    using type = U;
+};
+// One component converted for a constructor: float -> int / uint truncates,
+// with NaN and out-of-range values given by int_lane::f2i / f2u (a plain
+// static_cast is undefined there)
+template <class T, class U>
+SHADER_MATH_INLINE T elem_cast(const U& u) {
+    using V = typename scalar_value<U>::type;
+    if constexpr (is_int_elem_v<T> && !std::is_integral_v<V>) {
+        const float f = static_cast<float>(static_cast<V>(u));
+        if constexpr (std::is_same_v<T, std::int32_t>)
+            return int_lane::f2i(f);
+        else
+            return int_lane::f2u(f);
+    } else {
+        return static_cast<T>(u);
+    }
+}
 
 // Constructor/assignment scalar rule: anything explicitly convertible to the
 // element type is accepted and converted (HLSL/GLSL constructors convert).
@@ -74,6 +116,14 @@ using vreg = typename vops_for<T>::reg;
 // floating-point rank rules), so plain `T` parameters would reject floats.
 template <class S, class T>
 concept CvtScalar = requires(const S& s) { static_cast<T>(s); };
+// Assignment to one component (v.x = s): what the constructors accept, but
+// GLSL has no implicit float or bool -> int conversion (ivec.x = 2.5 fails)
+template <class S, class T, class Lg>
+concept CompAssign =
+    CvtScalar<S, T> &&
+    (!is_glsl_v<Lg> || !is_int_elem_v<T> ||
+     (std::is_integral_v<typename scalar_value<std::remove_cvref_t<S>>::type> &&
+      !std::is_same_v<typename scalar_value<std::remove_cvref_t<S>>::type, bool>));
 
 // Vector-like operands (vectors and swizzles of two or more components) are
 // described by vec_traits; its specializations follow the types below.
@@ -160,12 +210,12 @@ template <class T, class A>
 SHADER_MATH_INLINE void put_components(T* out, int& k, int n, const A& a) {
     if constexpr (vec_size_v<A> >= 2) {
         const auto v = to_vec(a);
-        for (int i = 0; i < vec_size_v<A> && k < n; ++i) out[k++] = static_cast<T>(v[i]);
+        for (int i = 0; i < vec_size_v<A> && k < n; ++i) out[k++] = elem_cast<T>(v[i]);
     } else if constexpr (mat_size_v<A> > 0) {
         using MT = mat_traits<std::remove_cvref_t<A>>;
-        for (int i = 0; i < MT::size && k < n; ++i) out[k++] = static_cast<T>(MT::at(a, i));
+        for (int i = 0; i < MT::size && k < n; ++i) out[k++] = elem_cast<T>(MT::at(a, i));
     } else if (k < n) {
-        out[k++] = static_cast<T>(a);
+        out[k++] = elem_cast<T>(a);
     }
 }
 template <class T, class... As>
@@ -365,9 +415,9 @@ struct SHADER_MATH_MAY_ALIAS swz
 
     // ---- writes (constraint-based: misuse is a compile error) ----------
     template <class S>
-        requires(M == 1 && writable && CvtScalar<S, T>)
+        requires(M == 1 && writable && CompAssign<S, T, Lg>)
     SHADER_MATH_INLINE swz& operator=(const S& s) {
-        d[idx[0]] = static_cast<T>(s);
+        d[idx[0]] = elem_cast<T>(s);
         return *this;
     }
     SHADER_MATH_INLINE swz& operator=(const fvec<(M >= 2 ? M : 2), T, Lg>& v)
@@ -399,9 +449,9 @@ struct SHADER_MATH_MAY_ALIAS swz
     // ---- compound assignment -------------------------------------------
 #define SM_SWZ_COMPOUND(sym)                                     \
     template <class S>                                           \
-        requires(M == 1 && writable && CvtScalar<S, T>)          \
+        requires(M == 1 && writable && CompAssign<S, T, Lg>)     \
     SHADER_MATH_INLINE swz& operator sym##=(const S& s) {        \
-        d[idx[0]] sym## = static_cast<T>(s);                     \
+        d[idx[0]] sym## = elem_cast<T>(s);                       \
         return *this;                                            \
     }                                                            \
     template <class V>                                           \
@@ -627,56 +677,56 @@ struct fvec : fvec_store<N, T, Lg> {
     template <class S>
         requires CvtScalar<S, T>
     SHADER_MATH_INLINE explicit(is_glsl_v<Lg>) fvec(const S& s)
-        : store_t(ops_t::splat(static_cast<T>(s))) {}
+        : store_t(ops_t::splat(elem_cast<T>(s))) {}
 
     template <class X, class Y>
         requires(N == 2 && CvtScalar<X, T> && CvtScalar<Y, T>)
     SHADER_MATH_INLINE fvec(X x, Y y)
-        : store_t(ops_t::set(static_cast<T>(x), static_cast<T>(y), T(0.0f), T(0.0f))) {}
+        : store_t(ops_t::set(elem_cast<T>(x), elem_cast<T>(y), T(0.0f), T(0.0f))) {}
     template <class X, class Y, class Z>
         requires(N == 3 && CvtScalar<X, T> && CvtScalar<Y, T> && CvtScalar<Z, T>)
     SHADER_MATH_INLINE fvec(X x, Y y, Z z)
         : store_t(
-              ops_t::set(static_cast<T>(x), static_cast<T>(y), static_cast<T>(z), T(0.0f))) {}
+              ops_t::set(elem_cast<T>(x), elem_cast<T>(y), elem_cast<T>(z), T(0.0f))) {}
     template <class X, class Y, class Z, class W>
         requires(N == 4 && CvtScalar<X, T> && CvtScalar<Y, T> && CvtScalar<Z, T> &&
                  CvtScalar<W, T>)
     SHADER_MATH_INLINE fvec(X x, Y y, Z z, W w)
-        : store_t(ops_t::set(static_cast<T>(x), static_cast<T>(y), static_cast<T>(z),
-                             static_cast<T>(w))) {}
+        : store_t(ops_t::set(elem_cast<T>(x), elem_cast<T>(y), elem_cast<T>(z),
+                             elem_cast<T>(w))) {}
 
     // composite constructors (HLSL/GLSL: concatenate vectors and scalars)
     template <class Z>
         requires(N == 3 && CvtScalar<Z, T>)
     SHADER_MATH_INLINE fvec(const fvec<2, T, Lg>& v, Z z)
-        : store_t(ops_t::set(v[0], v[1], static_cast<T>(z), T(0.0f))) {}
+        : store_t(ops_t::set(v[0], v[1], elem_cast<T>(z), T(0.0f))) {}
     template <class X>
         requires(N == 3 && CvtScalar<X, T>)
     SHADER_MATH_INLINE fvec(X x, const fvec<2, T, Lg>& v)
-        : store_t(ops_t::set(static_cast<T>(x), v[0], v[1], T(0.0f))) {}
+        : store_t(ops_t::set(elem_cast<T>(x), v[0], v[1], T(0.0f))) {}
     template <class Z, class W>
         requires(N == 4 && CvtScalar<Z, T> && CvtScalar<W, T>)
     SHADER_MATH_INLINE fvec(const fvec<2, T, Lg>& v, Z z, W w)
-        : store_t(ops_t::set(v[0], v[1], static_cast<T>(z), static_cast<T>(w))) {}
+        : store_t(ops_t::set(v[0], v[1], elem_cast<T>(z), elem_cast<T>(w))) {}
     template <class X, class W>
         requires(N == 4 && CvtScalar<X, T> && CvtScalar<W, T>)
     SHADER_MATH_INLINE fvec(X x, const fvec<2, T, Lg>& v, W w)
-        : store_t(ops_t::set(static_cast<T>(x), v[0], v[1], static_cast<T>(w))) {}
+        : store_t(ops_t::set(elem_cast<T>(x), v[0], v[1], elem_cast<T>(w))) {}
     template <class X, class Y>
         requires(N == 4 && CvtScalar<X, T> && CvtScalar<Y, T>)
     SHADER_MATH_INLINE fvec(X x, Y y, const fvec<2, T, Lg>& v)
-        : store_t(ops_t::set(static_cast<T>(x), static_cast<T>(y), v[0], v[1])) {}
+        : store_t(ops_t::set(elem_cast<T>(x), elem_cast<T>(y), v[0], v[1])) {}
     SHADER_MATH_INLINE fvec(const fvec<2, T, Lg>& v, const fvec<2, T, Lg>& u)
         requires(N == 4)
         : store_t(ops_t::set(v[0], v[1], u[0], u[1])) {}
     template <class W>
         requires(N == 4 && CvtScalar<W, T>)
     SHADER_MATH_INLINE fvec(const fvec<3, T, Lg>& v, W w)
-        : store_t(ops_t::set(v[0], v[1], v[2], static_cast<T>(w))) {}
+        : store_t(ops_t::set(v[0], v[1], v[2], elem_cast<T>(w))) {}
     template <class X>
         requires(N == 4 && CvtScalar<X, T>)
     SHADER_MATH_INLINE fvec(X x, const fvec<3, T, Lg>& v)
-        : store_t(ops_t::set(static_cast<T>(x), v[0], v[1], v[2])) {}
+        : store_t(ops_t::set(elem_cast<T>(x), v[0], v[1], v[2])) {}
 
     // Exact component lists with a vector of another element type
     // (float4(v2, h2)); the same-type lists have the constructors above
@@ -742,12 +792,17 @@ private:
     }
     template <class U, class Lg2>
     static SHADER_MATH_INLINE reg_t convert(const fvec<N, U, Lg2>& o) {
-        if constexpr (std::is_same_v<U, T>) {
-            return o.q_;
+        if constexpr (std::is_same_v<U, T> ||
+                      (is_int_elem_v<U> && is_int_elem_v<T>)) {
+            return o.q_;  // same type, or int <-> uint: the same bits
+        } else if constexpr (std::is_same_v<U, float> && is_int_elem_v<T>) {
+            return ops_t::from_f32(o.q_);
+        } else if constexpr (is_int_elem_v<U> && std::is_same_v<T, float>) {
+            return vops<U>::to_f32(o.q_);
         } else {
-            return ops_t::set(static_cast<T>(o[0]), static_cast<T>(o[1]),
-                              N > 2 ? static_cast<T>(o[2]) : T(0.0f),
-                              N > 3 ? static_cast<T>(o[3]) : T(0.0f));
+            return ops_t::set(elem_cast<T>(o[0]), elem_cast<T>(o[1]),
+                              N > 2 ? elem_cast<T>(o[2]) : T(0.0f),
+                              N > 3 ? elem_cast<T>(o[3]) : T(0.0f));
         }
     }
 };
@@ -837,11 +892,20 @@ template <class A, class B>
 concept SameVec = VecLike<A> && VecLike<B> && (vec_size_v<A> == vec_size_v<B>) &&
                   std::is_same_v<vec_elem_t<A>, vec_elem_t<B>> &&
                   std::is_same_v<vec_lang_t<A>, vec_lang_t<B>>;
+// float / half vectors (the floating-point functions) and int / uint
+// vectors (the integer operators)
+template <class V>
+concept FloatVec = VecLike<V> && !is_int_elem_v<vec_elem_t<V>>;
+template <class V>
+concept IntVec = VecLike<V> && is_int_elem_v<vec_elem_t<V>>;
+template <class A, class B>
+concept SameFloatVec = SameVec<A, B> && FloatVec<A>;
 
 // Scalar operand rules for vector-scalar operators:
 //   float vectors: any arithmetic scalar (int / double literals keep working)
 //   half vectors:  exactly half (no implicit float mixing: half3 * 2.0f fails)
-//   both:          a single-component swizzle of the same element type
+//   int / uint vectors: any integer scalar but bool (int3 * 2.5f fails)
+//   all:           a single-component swizzle of the same element type
 template <class S>
 struct swz_elem {
     using type = void;
@@ -856,11 +920,25 @@ struct swz_elem<nswz<T, N, Lg, J>> {
     using type = T;
 };
 #endif
+template <class S>
+inline constexpr bool is_int_scalar_v =
+    std::is_integral_v<std::remove_cvref_t<S>> && !std::is_same_v<std::remove_cvref_t<S>, bool>;
 template <class S, class T>
 concept ScalarFor =
     std::is_same_v<std::remove_cvref_t<S>, T> ||
     (std::is_same_v<T, float> && std::is_arithmetic_v<std::remove_cvref_t<S>>) ||
+    (is_int_elem_v<T> && is_int_scalar_v<S>) ||
     std::is_same_v<typename swz_elem<std::remove_cvref_t<S>>::type, T>;
+template <class T, int N, class Lg, int I>
+struct scalar_value<swz<T, N, Lg, I>> {
+    using type = T;
+};
+#if defined(SHADER_MATH_NESTED_SWIZZLE)
+template <class T, int N, class Lg, int J>
+struct scalar_value<nswz<T, N, Lg, J>> {
+    using type = T;
+};
+#endif
 
 template <class V>
 SHADER_MATH_INLINE decltype(auto) to_vec(const V& t) {
@@ -950,9 +1028,84 @@ SM_VEC_COMPOUND(*)
 SM_VEC_COMPOUND(/)
 #undef SM_VEC_COMPOUND
 
+// ---- integer operators (int / uint vectors, both languages) ----------------
+// % truncates like / (the sign follows the dividend); x / 0, x % 0 and
+// INT_MIN / -1 have the results of detail/int_lane.hpp
+#define SM_INT_BINOP(sym, fn)                                                          \
+    template <class A, class B>                                                        \
+        requires(SameVec<A, B> && IntVec<A>)                                           \
+    SHADER_MATH_INLINE auto operator sym(const A& a, const B& b) {                     \
+        using T = vec_elem_t<A>;                                                       \
+        return vec_t<A>(vops<T>::fn(to_vec(a).q_, to_vec(b).q_));                      \
+    }                                                                                  \
+    template <class A, class S>                                                        \
+        requires(IntVec<A> && ScalarFor<S, vec_elem_t<A>>)                             \
+    SHADER_MATH_INLINE auto operator sym(const A& a, const S& s) {                     \
+        using T = vec_elem_t<A>;                                                       \
+        return vec_t<A>(vops<T>::fn(to_vec(a).q_, vops<T>::splat(static_cast<T>(s)))); \
+    }                                                                                  \
+    template <class B, class S>                                                        \
+        requires(IntVec<B> && ScalarFor<S, vec_elem_t<B>>)                             \
+    SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                     \
+        using T = vec_elem_t<B>;                                                       \
+        return vec_t<B>(vops<T>::fn(vops<T>::splat(static_cast<T>(s)), to_vec(b).q_)); \
+    }
+SM_INT_BINOP(%, rem)
+SM_INT_BINOP(&, band)
+SM_INT_BINOP(|, bor)
+SM_INT_BINOP(^, bxor)
+#undef SM_INT_BINOP
+
+template <class A>
+    requires IntVec<A>
+SHADER_MATH_INLINE auto operator~(const A& a) {
+    using T = vec_elem_t<A>;
+    return vec_t<A>(vops<T>::bnot(to_vec(a).q_));
+}
+
+// << / >>: the result has the left operand's type; the count is a vector of
+// the same width and language (int or uint) or an integer scalar, taken
+// modulo 32. >> is arithmetic on int, logical on uint.
+template <class A, class B>
+concept ShiftCount = IntVec<A> && IntVec<B> && vec_size_v<A> == vec_size_v<B> &&
+                     std::is_same_v<vec_lang_t<A>, vec_lang_t<B>>;
+#define SM_INT_SHIFT(sym, fn)                                                          \
+    template <class A, class B>                                                        \
+        requires ShiftCount<A, B>                                                      \
+    SHADER_MATH_INLINE auto operator sym(const A& a, const B& n) {                     \
+        using T = vec_elem_t<A>;                                                       \
+        return vec_t<A>(vops<T>::fn(to_vec(a).q_, to_vec(n).q_));                      \
+    }                                                                                  \
+    template <class A, class S>                                                        \
+        requires(IntVec<A> && is_int_scalar_v<S>)                                      \
+    SHADER_MATH_INLINE auto operator sym(const A& a, const S& n) {                     \
+        using T = vec_elem_t<A>;                                                       \
+        return vec_t<A>(vops<T>::fn(to_vec(a).q_, vops<T>::splat(static_cast<T>(n)))); \
+    }
+SM_INT_SHIFT(<<, shl)
+SM_INT_SHIFT(>>, shr)
+#undef SM_INT_SHIFT
+
+#define SM_INT_COMPOUND(sym)                                                            \
+    template <int N, class T, class Lg, class B>                                        \
+        requires(is_int_elem_v<T> && requires(const fvec<N, T, Lg>& a, const B& b) {    \
+            { a sym b } -> std::same_as<fvec<N, T, Lg>>;                                \
+        })                                                                              \
+    SHADER_MATH_INLINE fvec<N, T, Lg>& operator sym##=(fvec<N, T, Lg>& a, const B& b) { \
+        a = a sym b;                                                                    \
+        return a;                                                                       \
+    }
+SM_INT_COMPOUND(%)
+SM_INT_COMPOUND(&)
+SM_INT_COMPOUND(|)
+SM_INT_COMPOUND(^)
+SM_INT_COMPOUND(<<)
+SM_INT_COMPOUND(>>)
+#undef SM_INT_COMPOUND
+
 // ---- shared vector functions (same meaning in both languages) --------------
 template <class A, class B>
-    requires SameVec<A, B>
+    requires SameFloatVec<A, B>
 SHADER_MATH_INLINE vec_elem_t<A> dot(const A& a0, const B& b0) {
     constexpr int n = vec_size_v<A>;
     using T = vec_elem_t<A>;
@@ -967,7 +1120,7 @@ SHADER_MATH_INLINE vec_elem_t<A> dot(const A& a0, const B& b0) {
 }
 
 template <class A, class B>
-    requires(SameVec<A, B> && vec_size_v<A> == 3)
+    requires(SameFloatVec<A, B> && vec_size_v<A> == 3)
 SHADER_MATH_INLINE auto cross(const A& a0, const B& b0) {
     const vec_t<A> a = to_vec(a0);
     const vec_t<A> b = to_vec(b0);
@@ -976,33 +1129,40 @@ SHADER_MATH_INLINE auto cross(const A& a0, const B& b0) {
 }
 
 template <class A>
-    requires VecLike<A>
+    requires FloatVec<A>
 SHADER_MATH_INLINE vec_elem_t<A> length(const A& a) {
     using T = vec_elem_t<A>;
     return static_cast<T>(std::sqrt(static_cast<float>(dot(a, a))));
 }
 
 template <class A>
-    requires VecLike<A>
+    requires FloatVec<A>
 SHADER_MATH_INLINE auto normalize(const A& a) {
     const vec_t<A> v = to_vec(a);
     return v / length(v);
 }
 
 // ---- component-wise functions (same meaning in both languages) --------------
+// abs / min / max / clamp take every vector kind; sign takes float, half and
+// int vectors (as in both languages, not uint)
+template <class A>
+    requires VecLike<A>
+SHADER_MATH_INLINE auto abs(const A& a) {
+    using T = vec_elem_t<A>;
+    return vec_t<A>(vops<T>::abs(to_vec(a).q_));
+}
 // Language-specific spellings (hlsl lerp/frac/rcp/rsqrt/saturate, glsl
 // mix/fract/inversesqrt/roundEven) forward to the *_impl cores below from
 // their own namespaces so they never leak across languages via ADL.
 
 #define SM_VEC_UNARY_FN(name, fn)                                    \
     template <class A>                                               \
-        requires VecLike<A>                                          \
+        requires FloatVec<A>                                          \
     SHADER_MATH_INLINE auto name(const A& a) {                       \
         using T = vec_elem_t<A>;                                     \
         return vec_t<A>(vops<T>::fn(to_vec(a).q_));                  \
     }
 
-SM_VEC_UNARY_FN(abs, abs)
 SM_VEC_UNARY_FN(sqrt, sqrt)
 SM_VEC_UNARY_FN(floor, rnd_floor)
 SM_VEC_UNARY_FN(ceil, rnd_ceil)
@@ -1036,7 +1196,7 @@ SM_VEC_MINMAX_FN(max)
 // sign: -1 / 0 / +1 as the same vector type in both languages (HLSL's int
 // return type is intentionally not replicated). sign(NaN) == 0.
 template <class A>
-    requires VecLike<A>
+    requires(VecLike<A> && !std::is_same_v<vec_elem_t<A>, std::uint32_t>)
 SHADER_MATH_INLINE auto sign(const A& a) {
     using T = vec_elem_t<A>;
     const auto v = to_vec(a).q_;
@@ -1064,7 +1224,7 @@ SHADER_MATH_INLINE auto clamp(const A& x, const SL& lo, const SH& hi) {
 
 // hlsl::saturate (GLSL has no saturate; use clamp(x, 0.0, 1.0))
 template <class A>
-    requires VecLike<A>
+    requires FloatVec<A>
 SHADER_MATH_INLINE auto saturate_impl(const A& a) {
     using T = vec_elem_t<A>;
     return vec_t<A>(vops<T>::min(vops<T>::max(to_vec(a).q_, vops<T>::zero()),
@@ -1074,14 +1234,14 @@ SHADER_MATH_INLINE auto saturate_impl(const A& a) {
 // hlsl::lerp: a + t*(b - a), the form DXC emits for DXIL; fmadd path (rounding
 // differs with FMA)
 template <class A, class B, class C>
-    requires(SameVec<A, B> && SameVec<A, C>)
+    requires(SameFloatVec<A, B> && SameVec<A, C>)
 SHADER_MATH_INLINE auto lerp_impl(const A& a, const B& b, const C& t) {
     using T = vec_elem_t<A>;
     const auto av = to_vec(a).q_;
     return vec_t<A>(vops<T>::fmadd(to_vec(t).q_, vops<T>::sub(to_vec(b).q_, av), av));
 }
 template <class A, class B, class S>
-    requires(SameVec<A, B> && ScalarFor<S, vec_elem_t<A>>)
+    requires(SameFloatVec<A, B> && ScalarFor<S, vec_elem_t<A>>)
 SHADER_MATH_INLINE auto lerp_impl(const A& a, const B& b, const S& t) {
     using T = vec_elem_t<A>;
     const auto av = to_vec(a).q_;
@@ -1097,13 +1257,13 @@ SHADER_MATH_INLINE vreg<T> mix_core(vreg<T> x, vreg<T> y, vreg<T> a) {
                         vops<T>::mul(y, a));
 }
 template <class A, class B, class C>
-    requires(SameVec<A, B> && SameVec<A, C>)
+    requires(SameFloatVec<A, B> && SameVec<A, C>)
 SHADER_MATH_INLINE auto mix_impl(const A& x, const B& y, const C& a) {
     using T = vec_elem_t<A>;
     return vec_t<A>(mix_core<T>(to_vec(x).q_, to_vec(y).q_, to_vec(a).q_));
 }
 template <class A, class B, class S>
-    requires(SameVec<A, B> && ScalarFor<S, vec_elem_t<A>>)
+    requires(SameFloatVec<A, B> && ScalarFor<S, vec_elem_t<A>>)
 SHADER_MATH_INLINE auto mix_impl(const A& x, const B& y, const S& a) {
     using T = vec_elem_t<A>;
     return vec_t<A>(
@@ -1112,14 +1272,14 @@ SHADER_MATH_INLINE auto mix_impl(const A& x, const B& y, const S& a) {
 
 // step(edge, x): x >= edge ? 1 : 0 (note the edge-first argument order)
 template <class A, class B>
-    requires SameVec<A, B>
+    requires SameFloatVec<A, B>
 SHADER_MATH_INLINE auto step(const A& edge, const B& x) {
     using T = vec_elem_t<A>;
     return vec_t<A>(vops<T>::sel(vops<T>::cmp_ge(to_vec(x).q_, to_vec(edge).q_),
                                    vops<T>::splat(T(1.0f)), vops<T>::zero()));
 }
 template <class S, class B>
-    requires(VecLike<B> && ScalarFor<S, vec_elem_t<B>>)
+    requires(FloatVec<B> && ScalarFor<S, vec_elem_t<B>>)
 SHADER_MATH_INLINE auto step(const S& edge, const B& x) {
     using T = vec_elem_t<B>;
     return vec_t<B>(
@@ -1138,13 +1298,13 @@ SHADER_MATH_INLINE vreg<T> smoothstep_core(vreg<T> lo, vreg<T> hi, vreg<T> x) {
                         vops<T>::fmadd(vops<T>::splat(T(-2.0f)), t, vops<T>::splat(T(3.0f))));
 }
 template <class A, class B, class C>
-    requires(SameVec<A, B> && SameVec<A, C>)
+    requires(SameFloatVec<A, B> && SameVec<A, C>)
 SHADER_MATH_INLINE auto smoothstep(const A& lo, const B& hi, const C& x) {
     using T = vec_elem_t<A>;
     return vec_t<A>(smoothstep_core<T>(to_vec(lo).q_, to_vec(hi).q_, to_vec(x).q_));
 }
 template <class SL, class SH, class C>
-    requires(VecLike<C> && ScalarFor<SL, vec_elem_t<C>> && ScalarFor<SH, vec_elem_t<C>>)
+    requires(FloatVec<C> && ScalarFor<SL, vec_elem_t<C>> && ScalarFor<SH, vec_elem_t<C>>)
 SHADER_MATH_INLINE auto smoothstep(const SL& lo, const SH& hi, const C& x) {
     using T = vec_elem_t<C>;
     return vec_t<C>(smoothstep_core<T>(vops<T>::splat(static_cast<T>(lo)),
@@ -1153,7 +1313,7 @@ SHADER_MATH_INLINE auto smoothstep(const SL& lo, const SH& hi, const C& x) {
 
 // hlsl::frac / glsl::fract: x - floor(x)
 template <class A>
-    requires VecLike<A>
+    requires FloatVec<A>
 SHADER_MATH_INLINE auto fract_impl(const A& a) {
     using T = vec_elem_t<A>;
     const auto v = to_vec(a).q_;
@@ -1164,7 +1324,7 @@ SHADER_MATH_INLINE auto fract_impl(const A& a) {
 // implementation-defined even across GPUs, which would make results
 // impossible to cross-check)
 template <class A>
-    requires VecLike<A>
+    requires FloatVec<A>
 SHADER_MATH_INLINE auto rcp_impl(const A& a) {
     using T = vec_elem_t<A>;
     return vec_t<A>(vops<T>::div(vops<T>::splat(T(1.0f)), to_vec(a).q_));
@@ -1172,7 +1332,7 @@ SHADER_MATH_INLINE auto rcp_impl(const A& a) {
 
 // hlsl::rsqrt / glsl::inversesqrt: exact 1/sqrt(x) (rsqrtps not used, as above)
 template <class A>
-    requires VecLike<A>
+    requires FloatVec<A>
 SHADER_MATH_INLINE auto rsqrt_impl(const A& a) {
     using T = vec_elem_t<A>;
     return vec_t<A>(vops<T>::div(vops<T>::splat(T(1.0f)), vops<T>::sqrt(to_vec(a).q_)));
@@ -1204,7 +1364,7 @@ SHADER_MATH_INLINE fvec<N, T, Lg> map_lanes2(const fvec<N, T, Lg>& a, const fvec
 
 #define SM_VEC_LIBM_FN(name, call)                                   \
     template <class A>                                               \
-        requires VecLike<A>                                          \
+        requires FloatVec<A>                                          \
     SHADER_MATH_INLINE auto name(const A& a) {                       \
         const vec_t<A> v = to_vec(a);                                \
         return map_lanes(v, [](float x) { return call; });           \
@@ -1227,14 +1387,14 @@ SM_VEC_LIBM_FN(tanh, std::tanh(x))
 
 // pow(x < 0, non-integer) is NaN per libm (undefined in the shader languages)
 template <class A, class B>
-    requires SameVec<A, B>
+    requires SameFloatVec<A, B>
 SHADER_MATH_INLINE auto pow(const A& a, const B& b) {
     const vec_t<A> av = to_vec(a);
     const vec_t<A> bv = to_vec(b);
     return map_lanes2(av, bv, [](float x, float y) { return std::pow(x, y); });
 }
 template <class A, class S>
-    requires(VecLike<A> && ScalarFor<S, vec_elem_t<A>>)
+    requires(FloatVec<A> && ScalarFor<S, vec_elem_t<A>>)
 SHADER_MATH_INLINE auto pow(const A& a, const S& s) {
     using T = vec_elem_t<A>;
     const vec_t<A> av = to_vec(a);
@@ -1246,7 +1406,7 @@ SHADER_MATH_INLINE auto pow(const A& a, const S& s) {
 // glsl.hpp only)
 #define SM_VEC_LIBM_IMPL(name, call)                                 \
     template <class A>                                               \
-        requires VecLike<A>                                          \
+        requires FloatVec<A>                                          \
     SHADER_MATH_INLINE auto name(const A& a) {                       \
         const vec_t<A> v = to_vec(a);                                \
         return map_lanes(v, [](float x) { return call; });           \
@@ -1260,7 +1420,7 @@ SM_VEC_LIBM_IMPL(atanh_impl, std::atanh(x))  // glsl::atanh
 // hlsl::ldexp(x, e) = x * 2^e with a float exponent (HLSL takes floats; GLSL's
 // int-exponent ldexp is out of scope with the int types)
 template <class A, class B>
-    requires SameVec<A, B>
+    requires SameFloatVec<A, B>
 SHADER_MATH_INLINE auto ldexp_impl(const A& a, const B& b) {
     const vec_t<A> av = to_vec(a);
     const vec_t<A> bv = to_vec(b);
@@ -1269,7 +1429,7 @@ SHADER_MATH_INLINE auto ldexp_impl(const A& a, const B& b) {
 
 // hlsl::frexp(x, out e): mantissa in [0.5, 1) with the sign of x, e as float
 template <class A, int N, class T, class Lg>
-    requires(VecLike<A> && std::is_same_v<vec_t<A>, fvec<N, T, Lg>>)
+    requires(FloatVec<A> && std::is_same_v<vec_t<A>, fvec<N, T, Lg>>)
 SHADER_MATH_INLINE fvec<N, T, Lg> frexp_impl(const A& a, fvec<N, T, Lg>& e) {
     T in[4];
     vops<T>::store4(to_vec(a).q_, in);
@@ -1286,7 +1446,7 @@ SHADER_MATH_INLINE fvec<N, T, Lg> frexp_impl(const A& a, fvec<N, T, Lg>& e) {
 
 // hlsl::atan2(y, x) / glsl::atan(y, x): note the y-first argument order
 template <class A, class B>
-    requires SameVec<A, B>
+    requires SameFloatVec<A, B>
 SHADER_MATH_INLINE auto atan2_impl(const A& y, const B& x) {
     const vec_t<A> yv = to_vec(y);
     const vec_t<A> xv = to_vec(x);
@@ -1295,14 +1455,14 @@ SHADER_MATH_INLINE auto atan2_impl(const A& y, const B& x) {
 
 // hlsl::fmod: x - y * trunc(x / y), sign of x (std::fmod, exact)
 template <class A, class B>
-    requires SameVec<A, B>
+    requires SameFloatVec<A, B>
 SHADER_MATH_INLINE auto fmod_impl(const A& a, const B& b) {
     const vec_t<A> av = to_vec(a);
     const vec_t<A> bv = to_vec(b);
     return map_lanes2(av, bv, [](float x, float y) { return std::fmod(x, y); });
 }
 template <class A, class S>
-    requires(VecLike<A> && ScalarFor<S, vec_elem_t<A>>)
+    requires(FloatVec<A> && ScalarFor<S, vec_elem_t<A>>)
 SHADER_MATH_INLINE auto fmod_impl(const A& a, const S& s) {
     using T = vec_elem_t<A>;
     return fmod_impl(a, vec_t<A>(static_cast<T>(s)));
@@ -1315,13 +1475,13 @@ SHADER_MATH_INLINE vreg<T> mod_core(vreg<T> x, vreg<T> y) {
     return vops<T>::sub(x, vops<T>::mul(y, vops<T>::rnd_floor(vops<T>::div(x, y))));
 }
 template <class A, class B>
-    requires SameVec<A, B>
+    requires SameFloatVec<A, B>
 SHADER_MATH_INLINE auto mod_impl(const A& a, const B& b) {
     using T = vec_elem_t<A>;
     return vec_t<A>(mod_core<T>(to_vec(a).q_, to_vec(b).q_));
 }
 template <class A, class S>
-    requires(VecLike<A> && ScalarFor<S, vec_elem_t<A>>)
+    requires(FloatVec<A> && ScalarFor<S, vec_elem_t<A>>)
 SHADER_MATH_INLINE auto mod_impl(const A& a, const S& s) {
     using T = vec_elem_t<A>;
     return vec_t<A>(mod_core<T>(to_vec(a).q_, vops<T>::splat(static_cast<T>(s))));
@@ -1331,20 +1491,20 @@ SHADER_MATH_INLINE auto mod_impl(const A& a, const S& s) {
 // backend has FMA; neither language guarantees a single rounding unless the
 // result is `precise`)
 template <class A, class B, class C>
-    requires(SameVec<A, B> && SameVec<A, C>)
+    requires(SameFloatVec<A, B> && SameVec<A, C>)
 SHADER_MATH_INLINE auto mad_impl(const A& a, const B& b, const C& c) {
     using T = vec_elem_t<A>;
     return vec_t<A>(vops<T>::fmadd(to_vec(a).q_, to_vec(b).q_, to_vec(c).q_));
 }
 
 template <class A>
-    requires VecLike<A>
+    requires FloatVec<A>
 SHADER_MATH_INLINE auto radians(const A& a) {
     using T = vec_elem_t<A>;
     return to_vec(a) * T(0.017453292519943295f);
 }
 template <class A>
-    requires VecLike<A>
+    requires FloatVec<A>
 SHADER_MATH_INLINE auto degrees(const A& a) {
     using T = vec_elem_t<A>;
     return to_vec(a) * T(57.29577951308232f);
@@ -1353,7 +1513,7 @@ SHADER_MATH_INLINE auto degrees(const A& a) {
 // modf(x, out ip): fractional part with the sign of x; ip = integer part.
 // std::modf per lane, so +-inf gives a +-0 fraction rather than NaN.
 template <class A, int N, class T, class Lg>
-    requires(VecLike<A> && std::is_same_v<vec_t<A>, fvec<N, T, Lg>>)
+    requires(FloatVec<A> && std::is_same_v<vec_t<A>, fvec<N, T, Lg>>)
 SHADER_MATH_INLINE fvec<N, T, Lg> modf(const A& a, fvec<N, T, Lg>& ip) {
     T in[4];
     vops<T>::store4(to_vec(a).q_, in);
@@ -1370,7 +1530,7 @@ SHADER_MATH_INLINE fvec<N, T, Lg> modf(const A& a, fvec<N, T, Lg>& ip) {
 
 // hlsl::sincos(x, out s, out c)
 template <class A, int N, class T, class Lg>
-    requires(VecLike<A> && std::is_same_v<vec_t<A>, fvec<N, T, Lg>>)
+    requires(FloatVec<A> && std::is_same_v<vec_t<A>, fvec<N, T, Lg>>)
 SHADER_MATH_INLINE void sincos_impl(const A& a, fvec<N, T, Lg>& s, fvec<N, T, Lg>& c) {
     s = sin(a);
     c = cos(a);
@@ -1378,14 +1538,14 @@ SHADER_MATH_INLINE void sincos_impl(const A& a, fvec<N, T, Lg>& s, fvec<N, T, Lg
 
 // ---- geometric functions (same meaning in both languages) ------------------
 template <class A, class B>
-    requires SameVec<A, B>
+    requires SameFloatVec<A, B>
 SHADER_MATH_INLINE vec_elem_t<A> distance(const A& a, const B& b) {
     return length(to_vec(a) - to_vec(b));
 }
 
 // reflect(i, n) = i - 2 * dot(n, i) * n   (n is expected to be normalized)
 template <class A, class B>
-    requires SameVec<A, B>
+    requires SameFloatVec<A, B>
 SHADER_MATH_INLINE auto reflect(const A& i0, const B& n0) {
     using T = vec_elem_t<A>;
     const auto i = to_vec(i0);
@@ -1395,7 +1555,7 @@ SHADER_MATH_INLINE auto reflect(const A& i0, const B& n0) {
 
 // refract(i, n, eta): zero vector on total internal reflection (k < 0)
 template <class A, class B, class S>
-    requires(SameVec<A, B> && ScalarFor<S, vec_elem_t<A>>)
+    requires(SameFloatVec<A, B> && ScalarFor<S, vec_elem_t<A>>)
 SHADER_MATH_INLINE auto refract(const A& i0, const B& n0, const S& eta0) {
     using T = vec_elem_t<A>;
     const vec_t<A> i = to_vec(i0);
@@ -1409,11 +1569,55 @@ SHADER_MATH_INLINE auto refract(const A& i0, const B& n0, const S& eta0) {
 
 // faceforward(n, i, nref) = dot(nref, i) < 0 ? n : -n
 template <class A, class B, class C>
-    requires(SameVec<A, B> && SameVec<A, C>)
+    requires(SameFloatVec<A, B> && SameVec<A, C>)
 SHADER_MATH_INLINE auto faceforward(const A& n0, const B& i, const C& nref) {
     using T = vec_elem_t<A>;
     const auto nv = to_vec(n0);
     return dot(nref, i) < T(0.0f) ? nv : -nv;
+}
+
+// int / uint dot product (HLSL only; GLSL's dot takes floats): the sum wraps
+// like the vector arithmetic
+template <class A, class B>
+    requires(SameVec<A, B> && IntVec<A>)
+SHADER_MATH_INLINE vec_elem_t<A> idot(const A& a0, const B& b0) {
+    constexpr int n = vec_size_v<A>;
+    using T = vec_elem_t<A>;
+    T t[4];
+    vops<T>::store4(vops<T>::mul(to_vec(a0).q_, to_vec(b0).q_), t);
+    std::uint32_t s = 0u;
+    for (int i = 0; i < n; ++i) s += static_cast<std::uint32_t>(t[i]);
+    return static_cast<T>(s);
+}
+
+// ---- bit reinterpretation (hlsl asint / asuint / asfloat, glsl
+// floatBitsToInt / floatBitsToUint / intBitsToFloat / uintBitsToFloat) -------
+template <class T>
+inline constexpr bool is_bits32_v = std::is_same_v<T, float> || is_int_elem_v<T>;
+template <class U, class A>
+    requires(VecLike<A> && is_bits32_v<vec_elem_t<A>> && is_bits32_v<U>)
+SHADER_MATH_INLINE auto bitcast_vec(const A& a) {
+    using T = vec_elem_t<A>;
+    using R = fvec<vec_size_v<A>, U, vec_lang_t<A>>;
+    const auto q = to_vec(a).q_;
+    if constexpr (std::is_same_v<T, U> || (is_int_elem_v<T> && is_int_elem_v<U>))
+        return R(q);
+    else if constexpr (std::is_same_v<U, float>)
+        return R(vops<T>::bits_to_f32(q));
+    else
+        return R(vops<U>::bits_from_f32(q));
+}
+// a float, int or uint scalar, or one component of such a vector
+template <class S>
+inline constexpr bool is_bits32_scalar_v =
+    is_bits32_v<typename scalar_value<std::remove_cvref_t<S>>::type>;
+template <class U, class S>
+    requires(is_bits32_scalar_v<S> && is_bits32_v<U>)
+SHADER_MATH_INLINE U bitcast_scalar(const S& s) {
+    const auto v = static_cast<typename scalar_value<std::remove_cvref_t<S>>::type>(s);
+    U u;
+    std::memcpy(&u, &v, sizeof(u));
+    return u;
 }
 
 // ---- bvec: comparison result type ------------------------------------------
@@ -1614,26 +1818,29 @@ struct bmat {
 // isfinite(_Ty), and only a more specialized parameter wins overload
 // resolution against them (a constrained generic `const A&` is ambiguous).
 template <int N, class T, class Lg>
+    requires(!is_int_elem_v<T>)
 SHADER_MATH_INLINE bvec<N, Lg> isnan(const fvec<N, T, Lg>& v) {
     return bvec<N, Lg>(vops<T>::cmp_ne(v.q_, v.q_));
 }
 template <int N, class T, class Lg>
+    requires(!is_int_elem_v<T>)
 SHADER_MATH_INLINE bvec<N, Lg> isinf(const fvec<N, T, Lg>& v) {
     const auto inf = vops<T>::splat(static_cast<T>(std::numeric_limits<float>::infinity()));
     return bvec<N, Lg>(vops<T>::cmp_eq(vops<T>::abs(v.q_), inf));
 }
 template <int N, class T, class Lg>
+    requires(!is_int_elem_v<T>)
 SHADER_MATH_INLINE bvec<N, Lg> isfinite_impl(const fvec<N, T, Lg>& v) {
     const auto inf = vops<T>::splat(static_cast<T>(std::numeric_limits<float>::infinity()));
     return bvec<N, Lg>(vops<T>::cmp_lt(vops<T>::abs(v.q_), inf));
 }
 template <class T, int N, class Lg, int... Is>
-    requires(sizeof...(Is) >= 2)
+    requires(sizeof...(Is) >= 2 && !is_int_elem_v<T>)
 SHADER_MATH_INLINE auto isnan(const swz<T, N, Lg, Is...>& s) {
     return isnan(to_vec(s));
 }
 template <class T, int N, class Lg, int... Is>
-    requires(sizeof...(Is) >= 2)
+    requires(sizeof...(Is) >= 2 && !is_int_elem_v<T>)
 SHADER_MATH_INLINE auto isinf(const swz<T, N, Lg, Is...>& s) {
     return isinf(to_vec(s));
 }
@@ -1709,10 +1916,14 @@ using scalar_call_t = typename scalar_call_elem<S...>::type;
 template <class S, class T>
 concept ScalarArgFor =
     std::is_same_v<typename scalar_elem<std::remove_cvref_t<S>>::type, T> ||
-    (std::is_same_v<T, float> && std::is_arithmetic_v<std::remove_cvref_t<S>>);
+    (std::is_same_v<T, float> && std::is_arithmetic_v<std::remove_cvref_t<S>>) ||
+    (is_int_elem_v<T> && is_int_scalar_v<S>);
 template <class... S>
 concept ScalarCall = !std::is_void_v<scalar_call_t<S...>> &&
                      (ScalarArgFor<S, scalar_call_t<S...>> && ...);
+// ... with a float / half element (the floating-point functions)
+template <class... S>
+concept FloatScalarCall = ScalarCall<S...> && !is_int_elem_v<scalar_call_t<S...>>;
 
 // Lg is the language whose functions run on the lane: each language
 // namespace uses its own tag (lang_tag, found unqualified by the macros
@@ -1720,6 +1931,11 @@ concept ScalarCall = !std::is_void_v<scalar_call_t<S...>> &&
 template <class T, class Lg, class S>
 SHADER_MATH_INLINE fvec<2, T, Lg> lane1(const S& s) {
     return fvec<2, T, Lg>(static_cast<T>(s));
+}
+// lane1 for the element type of a scalar call on arguments S...
+template <class Lg, class... S, class X>
+SHADER_MATH_INLINE fvec<2, scalar_call_t<S...>, Lg> lane_of(const X& x) {
+    return lane1<scalar_call_t<S...>, Lg>(x);
 }
 using lang_tag = hlsl::lang_tag;
 
@@ -1743,23 +1959,35 @@ using lang_tag = hlsl::lang_tag;
 // Scalar overloads of a component-wise function `name` that has vector
 // overloads in the enclosing namespace, which declares lang_tag.
 #define SHADER_MATH_SCALAR_LANE(T_, x) ::shader_math::detail::lane1<T_, lang_tag>(x)
+// The overloads exist only where the vector function takes the element type
+// (sqrt(v.x) on an int vector does not compile, like sqrt on an int vector).
 #define SHADER_MATH_SCALAR_FN1(name)                                                  \
     template <class A>                                                                \
-        requires ::shader_math::detail::ScalarCall<A>                                 \
+        requires(::shader_math::detail::ScalarCall<A> && requires(const A& a) {       \
+            name(::shader_math::detail::lane_of<lang_tag, A>(a)); \
+        })                                                                            \
     SHADER_MATH_INLINE auto name(const A& a) {                                        \
         using T_ = ::shader_math::detail::scalar_call_t<A>;                           \
         return name(SHADER_MATH_SCALAR_LANE(T_, a))[0];                               \
     }
 #define SHADER_MATH_SCALAR_FN2(name)                                                    \
     template <class A, class B>                                                         \
-        requires ::shader_math::detail::ScalarCall<A, B>                                \
+        requires(::shader_math::detail::ScalarCall<A, B> && requires(const A& a, const B& b) { \
+            name(::shader_math::detail::lane_of<lang_tag, A, B>(a),  \
+                 ::shader_math::detail::lane_of<lang_tag, A, B>(b)); \
+        })                                                                              \
     SHADER_MATH_INLINE auto name(const A& a, const B& b) {                              \
         using T_ = ::shader_math::detail::scalar_call_t<A, B>;                          \
         return name(SHADER_MATH_SCALAR_LANE(T_, a), SHADER_MATH_SCALAR_LANE(T_, b))[0]; \
     }
 #define SHADER_MATH_SCALAR_FN3(name)                                                  \
     template <class A, class B, class C>                                              \
-        requires ::shader_math::detail::ScalarCall<A, B, C>                           \
+        requires(::shader_math::detail::ScalarCall<A, B, C> &&                        \
+                 requires(const A& a, const B& b, const C& c) {                       \
+                     name(::shader_math::detail::lane_of<lang_tag, A, B, C>(a), \
+                          ::shader_math::detail::lane_of<lang_tag, A, B, C>(b), \
+                          ::shader_math::detail::lane_of<lang_tag, A, B, C>(c)); \
+                 })                                                                   \
     SHADER_MATH_INLINE auto name(const A& a, const B& b, const C& c) {                \
         using T_ = ::shader_math::detail::scalar_call_t<A, B, C>;                     \
         return name(SHADER_MATH_SCALAR_LANE(T_, a), SHADER_MATH_SCALAR_LANE(T_, b),   \
@@ -1811,18 +2039,18 @@ SHADER_MATH_INLINE T round_lane(T a) {
 
 // geometric functions on scalars (one-component vectors)
 template <class A, class B>
-    requires ScalarCall<A, B>
+    requires FloatScalarCall<A, B>
 SHADER_MATH_INLINE auto dot(const A& a, const B& b) {
     using T = scalar_call_t<A, B>;
     return static_cast<T>(static_cast<T>(a) * static_cast<T>(b));
 }
 template <class A>
-    requires ScalarCall<A>
+    requires FloatScalarCall<A>
 SHADER_MATH_INLINE auto length(const A& a) {
     return abs(a);
 }
 template <class A, class B>
-    requires ScalarCall<A, B>
+    requires FloatScalarCall<A, B>
 SHADER_MATH_INLINE auto distance(const A& a, const B& b) {
     using T = scalar_call_t<A, B>;
     return abs(static_cast<T>(static_cast<T>(a) - static_cast<T>(b)));
@@ -1830,14 +2058,14 @@ SHADER_MATH_INLINE auto distance(const A& a, const B& b) {
 // normalize / reflect / refract / faceforward compute in scalars: on a splat
 // lane the vector forms would count the value once per lane
 template <class A>
-    requires ScalarCall<A>
+    requires FloatScalarCall<A>
 SHADER_MATH_INLINE auto normalize(const A& a) {
     using T = scalar_call_t<A>;
     const T v = static_cast<T>(a);
     return static_cast<T>(v / abs(v));
 }
 template <class A, class B>
-    requires ScalarCall<A, B>
+    requires FloatScalarCall<A, B>
 SHADER_MATH_INLINE auto reflect(const A& i0, const B& n0) {
     using T = scalar_call_t<A, B>;
     const T i = static_cast<T>(i0);
@@ -1845,7 +2073,7 @@ SHADER_MATH_INLINE auto reflect(const A& i0, const B& n0) {
     return static_cast<T>(i - n * (T(2.0f) * (n * i)));
 }
 template <class A, class B, class S>
-    requires ScalarCall<A, B, S>
+    requires FloatScalarCall<A, B, S>
 SHADER_MATH_INLINE auto refract(const A& i0, const B& n0, const S& eta0) {
     using T = scalar_call_t<A, B, S>;
     const T i = static_cast<T>(i0);
@@ -1858,7 +2086,7 @@ SHADER_MATH_INLINE auto refract(const A& i0, const B& n0, const S& eta0) {
     return static_cast<T>(i * eta - n * (eta * d + root));
 }
 template <class A, class B, class C>
-    requires ScalarCall<A, B, C>
+    requires FloatScalarCall<A, B, C>
 SHADER_MATH_INLINE auto faceforward(const A& n0, const B& i, const C& nref) {
     using T = scalar_call_t<A, B, C>;
     const T n = static_cast<T>(n0);
@@ -1866,7 +2094,7 @@ SHADER_MATH_INLINE auto faceforward(const A& n0, const B& i, const C& nref) {
 }
 // modf(x, out ip)
 template <class A, class T>
-    requires(ScalarCall<A> && std::is_same_v<T, scalar_call_t<A>>)
+    requires(FloatScalarCall<A> && std::is_same_v<T, scalar_call_t<A>>)
 SHADER_MATH_INLINE T modf(const A& a, T& ip) {
     hvec<2, T> whole;
     const T fr = modf(lane1<T, lang_tag>(a), whole)[0];

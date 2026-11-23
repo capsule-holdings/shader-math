@@ -2,13 +2,14 @@
 # a real shader function and into a C++ function with the same parameters.
 # Truth (accept / reject) comes from the real compiler (expected.tsv), not
 # from this file. Category "out_of_scope" holds what shader-math does not
-# cover (int / double types, bit casts, derivatives).
+# cover (double, bit-manipulation and packing functions, derivatives).
 
 H_PARAMS = ("float s, float t, float2 a2, float2 b2, float3 a, float3 b, float3 c, "
             "float4 a4, float4 b4, float3x3 m, float3x3 n, float4x4 m4, float2x3 m23, "
-            "float3x2 m32, bool3 bb, half3 h, half hs")
+            "float3x2 m32, bool3 bb, half3 h, half hs, int3 ia, int3 ib, uint3 ua, int ka")
 G_PARAMS = ("float s, float t, vec2 a2, vec2 b2, vec3 a, vec3 b, vec3 c, vec4 a4, vec4 b4, "
-            "mat3 m, mat3 n, mat4 m4, mat2x3 m23, mat3x2 m32, bvec3 bb, f16vec3 h, float16_t hs")
+            "mat3 m, mat3 n, mat4 m4, mat2x3 m23, mat3x2 m32, bvec3 bb, f16vec3 h, float16_t hs, "
+            "ivec3 ia, ivec3 ib, uvec3 ua, int ka")
 # On ARM, arm_neon.h declares a global float16_t that makes the unqualified
 # name ambiguous in C++ (a platform matter, not a language one), so the C++
 # side names glsl::float16_t explicitly
@@ -283,16 +284,66 @@ for cid, body in [
 ]:
     H("matrix_fn", cid, body)
 
-# out of scope (int / bit casts / derivatives / textures)
+# int / uint vectors
 for cid, body in [
-    ("oos_int3", "int3 r = int3(1, 2, 3);"),
-    ("oos_uint", "uint r = 1u;"),
-    ("oos_asuint", "uint3 r = asuint(a);"),
-    ("oos_asfloat", "float3 r = asfloat(uint3(1, 2, 3));"),
+    ("int3", "int3 r = int3(1, 2, 3);"),
+    ("uint", "uint r = 1u;"),
+    ("dword", "dword r = 1u;"),
+    ("int_vector_template", "vector<int, 3> r = ia;"),
+    ("int_splat", "int3 r = 5;"),
+    ("int_ctor_mixed", "int4 r = int4(ia.xy, 2, ka);"),
+    ("int_from_float", "int3 r = int3(a);"),
+    ("int_from_float_implicit", "int3 r = a;"),
+    ("float_from_int", "float3 r = float3(ia);"),
+    ("float_from_int_implicit", "float3 r = ia;"),
+    ("uint_from_int", "uint3 r = uint3(ia);"),
+    ("uint_from_int_implicit", "uint3 r = ia;"),
+    ("int_from_bool", "int3 r = int3(bb);"),
+    ("int_from_bool_implicit", "int3 r = bb;"),
+    ("bool_from_int", "bool3 r = bool3(ia);"),
+    ("int_arith", "int3 r = ia + ib * 2 - ka;"),
+    ("int_div_mod", "int3 r = ia / ib + ia % ib;"),
+    ("int_bitwise", "int3 r = (ia & ib) | (ia ^ ~ib);"),
+    ("int_shift_scalar", "int3 r = ia << 2;"),
+    ("int_shift_vec_uint", "int3 r = ia >> ua;"),
+    ("int_shift_scalar_lhs", "int3 r = ka << ia;"),
+    ("int_compound", "int3 r = ia; r += ib; r %= 3; r <<= 1; r &= ib;"),
+    ("int_negate", "uint3 r = -ua;"),
+    ("int_increment", "int3 r = ia; r++; r.x--;"),
+    ("int_not", "bool3 r = !ia;"),
+    ("int_logical_and", "bool3 r = ia && ib;"),
+    ("int_compare", "bool3 r = ia < ib;"),
+    ("uint_compare_scalar", "bool3 r = ua > 1u;"),
+    ("int_swizzle", "int2 r = ia.zx;"),
+    ("int_swizzle_write", "int3 r = ia; r.yz = ib.xx;"),
+    ("int_times_float", "float3 r = ia * 2.5;"),
+    ("int_plus_uint", "uint3 r = ia + ua;"),
+    ("int_plus_float_vec", "float3 r = ia + a;"),
+    ("int_component_float", "int3 r = ia; r.x = 2.5;"),
+    ("int_abs", "int3 r = abs(ia);"),
+    ("int_min_max", "int3 r = max(min(ia, ib), 0);"),
+    ("int_clamp", "int3 r = clamp(ia, 0, 5);"),
+    ("int_sign", "int3 r = sign(ia);"),
+    ("sign_float_to_int", "int3 r = sign(a);"),
+    ("int_dot", "int r = dot(ia, ib);"),
+    ("int_mul", "int r = mul(ia, ib);"),
+    ("int_all_any", "bool r = all(ia) || any(ua);"),
+    ("int_select", "int3 r = select(bb, ia, ib);"),
+    ("int_sqrt", "float3 r = sqrt(ia);"),
+    ("int_scalar_max", "int r = max(ia.x, ka);"),
+    ("asint", "int3 r = asint(a);"),
+    ("asuint", "uint3 r = asuint(a);"),
+    ("asfloat", "float3 r = asfloat(uint3(1, 2, 3));"),
+    ("asfloat_int", "float3 r = asfloat(ia);"),
+    ("asuint_scalar", "uint r = asuint(s);"),
+]:
+    H("int", cid, body)
+
+# out of scope (bit-manipulation and packing functions / double / derivatives)
+for cid, body in [
     ("oos_f32tof16", "uint r = f32tof16(s);"),
     ("oos_double", "double r = 1.0L;"),
     ("oos_countbits", "uint r = countbits(1u);"),
-    ("oos_sign_int", "int3 r = sign(a);"),
     ("oos_ddx", "float3 r = ddx(a);"),
 ]:
     H("out_of_scope", cid, body)
@@ -591,10 +642,57 @@ for cid, body in [
 ]:
     G("matrix_fn", cid, body)
 
+# int / uint vectors
 for cid, body in [
-    ("oos_ivec3", "ivec3 r = ivec3(1, 2, 3);"),
-    ("oos_uint", "uint r = 1u;"),
-    ("oos_floatBitsToInt", "ivec3 r = floatBitsToInt(a);"),
+    ("ivec3", "ivec3 r = ivec3(1, 2, 3);"),
+    ("uint", "uint r = 1u;"),
+    ("ivec_splat_ctor", "ivec3 r = ivec3(5);"),
+    ("ivec_splat_implicit", "ivec3 r = 5;"),
+    ("ivec_ctor_mixed", "ivec4 r = ivec4(ia.xy, 2, ka);"),
+    ("ivec_from_vec", "ivec3 r = ivec3(a);"),
+    ("ivec_from_vec_implicit", "ivec3 r = a;"),
+    ("vec_from_ivec", "vec3 r = vec3(ia);"),
+    ("vec_from_ivec_implicit", "vec3 r = ia;"),
+    ("uvec_from_ivec", "uvec3 r = uvec3(ia);"),
+    ("uvec_from_ivec_implicit", "uvec3 r = ia;"),
+    ("ivec_from_uvec_implicit", "ivec3 r = ua;"),
+    ("ivec_from_bvec", "ivec3 r = ivec3(bb);"),
+    ("bvec_from_ivec", "bvec3 r = bvec3(ia);"),
+    ("ivec_arith", "ivec3 r = ia + ib * 2 - ka;"),
+    ("ivec_div_mod", "ivec3 r = ia / ib + ia % ib;"),
+    ("ivec_bitwise", "ivec3 r = (ia & ib) | (ia ^ ~ib);"),
+    ("ivec_shift_scalar", "ivec3 r = ia << 2;"),
+    ("ivec_shift_uvec", "ivec3 r = ia >> ua;"),
+    ("ivec_shift_scalar_lhs", "ivec3 r = ka << ia;"),
+    ("ivec_compound", "ivec3 r = ia; r += ib; r %= 3; r <<= 1; r &= ib;"),
+    ("uvec_negate", "uvec3 r = -ua;"),
+    ("ivec_increment", "ivec3 r = ia; r++; r.x--;"),
+    ("ivec_not", "bvec3 r = !ia;"),
+    ("ivec_relational", "bool r = ia < ib;"),
+    ("ivec_less_than", "bvec3 r = lessThan(ia, ib);"),
+    ("ivec_equal", "bool r = ia == ib;"),
+    ("ivec_swizzle", "ivec2 r = ia.zx;"),
+    ("ivec_swizzle_write", "ivec3 r = ia; r.yz = ib.xx;"),
+    ("ivec_times_float", "vec3 r = ia * 2.5;"),
+    ("ivec_plus_uvec", "uvec3 r = ia + ua;"),
+    ("ivec_plus_vec", "vec3 r = ia + a;"),
+    ("ivec_component_float", "ivec3 r = ia; r.x = 2.5;"),
+    ("ivec_abs_sign", "ivec3 r = abs(ia) + sign(ia);"),
+    ("ivec_min_max", "ivec3 r = max(min(ia, ib), 0);"),
+    ("ivec_clamp", "ivec3 r = clamp(ia, 0, 5);"),
+    ("ivec_mix_bvec", "ivec3 r = mix(ia, ib, bb);"),
+    ("ivec_dot", "int r = dot(ia, ib);"),
+    ("ivec_sqrt", "vec3 r = sqrt(ia);"),
+    ("ivec_scalar_max", "int r = max(ia.x, ka);"),
+    ("floatBitsToInt", "ivec3 r = floatBitsToInt(a);"),
+    ("floatBitsToUint", "uvec3 r = floatBitsToUint(a);"),
+    ("intBitsToFloat", "vec3 r = intBitsToFloat(ia);"),
+    ("uintBitsToFloat", "vec3 r = uintBitsToFloat(ua);"),
+    ("intBitsToFloat_uvec", "vec3 r = intBitsToFloat(ua);"),
+]:
+    G("int", cid, body)
+
+for cid, body in [
     ("oos_packHalf2x16", "uint r = packHalf2x16(a2);"),
     ("oos_double", "double r = 1.0lf;"),
     ("oos_dvec3", "dvec3 r = dvec3(a);"),

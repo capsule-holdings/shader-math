@@ -247,14 +247,59 @@ h_m_all	ok
 h_m_any_cmp	ok	
 h_m_dot_err	err	no matching function for call to 'dot'
 h_m_length_err	err	no matching function for call to 'length'
-h_oos_int3	ok	
-h_oos_uint	ok	
-h_oos_asuint	ok	
-h_oos_asfloat	ok	
+h_int3	ok	
+h_uint	ok	
+h_dword	ok	
+h_int_vector_template	ok	
+h_int_splat	ok	
+h_int_ctor_mixed	ok	
+h_int_from_float	ok	
+h_int_from_float_implicit	ok	
+h_float_from_int	ok	
+h_float_from_int_implicit	ok	
+h_uint_from_int	ok	
+h_uint_from_int_implicit	ok	
+h_int_from_bool	ok	
+h_int_from_bool_implicit	ok	
+h_bool_from_int	ok	
+h_int_arith	ok	
+h_int_div_mod	ok	
+h_int_bitwise	ok	
+h_int_shift_scalar	ok	
+h_int_shift_vec_uint	ok	
+h_int_shift_scalar_lhs	ok	
+h_int_compound	ok	
+h_int_negate	ok	
+h_int_increment	ok	
+h_int_not	ok	
+h_int_logical_and	err	operands for short-circuiting logical binary operator must be scalar, for non-scalar types use 'and'
+h_int_compare	ok	
+h_uint_compare_scalar	ok	
+h_int_swizzle	ok	
+h_int_swizzle_write	ok	
+h_int_times_float	ok	
+h_int_plus_uint	ok	
+h_int_plus_float_vec	ok	
+h_int_component_float	ok	
+h_int_abs	ok	
+h_int_min_max	ok	
+h_int_clamp	ok	
+h_int_sign	ok	
+h_sign_float_to_int	ok	
+h_int_dot	ok	
+h_int_mul	ok	
+h_int_all_any	ok	
+h_int_select	ok	
+h_int_sqrt	ok	
+h_int_scalar_max	ok	
+h_asint	ok	
+h_asuint	ok	
+h_asfloat	ok	
+h_asfloat_int	ok	
+h_asuint_scalar	ok	
 h_oos_f32tof16	ok	
 h_oos_double	ok	
 h_oos_countbits	ok	
-h_oos_sign_int	ok	
 h_oos_ddx	ok	
 h_mat_ctor_from_vec4	ok	
 h_mat_implicit_from_vec4	ok	
@@ -509,9 +554,51 @@ g_m_outer_nonsquare	ok
 g_m_abs_err	err	g_m_abs_err.comp:4: 'abs' : no matching overloaded function found
 g_m_sin_err	err	g_m_sin_err.comp:4: 'sin' : no matching overloaded function found
 g_m_max_err	err	g_m_max_err.comp:4: 'max' : no matching overloaded function found
-g_oos_ivec3	ok	
-g_oos_uint	ok	
-g_oos_floatBitsToInt	ok	
+g_ivec3	ok	
+g_uint	ok	
+g_ivec_splat_ctor	ok	
+g_ivec_splat_implicit	err	g_ivec_splat_implicit.comp:4: '=' : cannot convert from ' const int' to ' temp highp 3-component vector of int'
+g_ivec_ctor_mixed	ok	
+g_ivec_from_vec	ok	
+g_ivec_from_vec_implicit	err	g_ivec_from_vec_implicit.comp:4: '=' : cannot convert from ' in highp 3-component vector of float' to ' temp highp 3-com
+g_vec_from_ivec	ok	
+g_vec_from_ivec_implicit	ok	
+g_uvec_from_ivec	ok	
+g_uvec_from_ivec_implicit	ok	
+g_ivec_from_uvec_implicit	err	g_ivec_from_uvec_implicit.comp:4: '=' : cannot convert from ' in highp 3-component vector of uint' to ' temp highp 3-com
+g_ivec_from_bvec	ok	
+g_bvec_from_ivec	ok	
+g_ivec_arith	ok	
+g_ivec_div_mod	ok	
+g_ivec_bitwise	ok	
+g_ivec_shift_scalar	ok	
+g_ivec_shift_uvec	ok	
+g_ivec_shift_scalar_lhs	err	g_ivec_shift_scalar_lhs.comp:4: '<<' : wrong operand types: no operation '<<' exists that takes a left-hand operand of t
+g_ivec_compound	ok	
+g_uvec_negate	ok	
+g_ivec_increment	ok	
+g_ivec_not	err	g_ivec_not.comp:4: '!' : wrong operand type no operation '!' exists that takes an operand of type in highp 3-component v
+g_ivec_relational	err	g_ivec_relational.comp:4: '<' : wrong operand types: no operation '<' exists that takes a left-hand operand of type ' in
+g_ivec_less_than	ok	
+g_ivec_equal	ok	
+g_ivec_swizzle	ok	
+g_ivec_swizzle_write	ok	
+g_ivec_times_float	ok	
+g_ivec_plus_uvec	ok	
+g_ivec_plus_vec	ok	
+g_ivec_component_float	err	g_ivec_component_float.comp:4: 'assign' : cannot convert from ' const float' to ' temp highp int'
+g_ivec_abs_sign	ok	
+g_ivec_min_max	ok	
+g_ivec_clamp	ok	
+g_ivec_mix_bvec	ok	
+g_ivec_dot	err	g_ivec_dot.comp:4: 'dot' : ambiguous best function under implicit type conversion
+g_ivec_sqrt	err	g_ivec_sqrt.comp:4: 'sqrt' : ambiguous best function under implicit type conversion
+g_ivec_scalar_max	ok	
+g_floatBitsToInt	ok	
+g_floatBitsToUint	ok	
+g_intBitsToFloat	ok	
+g_uintBitsToFloat	ok	
+g_intBitsToFloat_uvec	err	g_intBitsToFloat_uvec.comp:4: 'intBitsToFloat' : no matching overloaded function found
 g_oos_packHalf2x16	ok	
 g_oos_double	ok	
 g_oos_dvec3	ok	
