@@ -8,10 +8,14 @@ agrees when shader-math accepts what the language accepts and rejects what
 it rejects. Values are not compared here (the interop harnesses do that).
 
   run.py [--cxx g++] [--include DIR] [--compare DIR] [--jobs N] [--verbose]
+         [--check FILE [--strict] | --update-known FILE]
          [-- extra C++ flags, e.g. -I<boost>]
       compile the C++ side against include/ (or DIR) and report agreement;
       --compare DIR also measures another header tree (e.g. an older
-      checkout's include/) and lists the cases that changed
+      checkout's include/) and lists the cases that changed;
+      --check FILE exits non-zero on any mismatch not listed in FILE (and
+      with --strict, also on resolved or unknown entries in FILE);
+      --update-known FILE writes the current mismatches to FILE
   run.py --refresh --dxc <dxc> --glslang <glslangValidator>
       recompile the corpus with the real compilers and rewrite expected.tsv
 """
@@ -50,11 +54,12 @@ def shader_source(lang, body):
             f"void f({cases.G_PARAMS}) {{ {body} }}\nvoid main() {{}}\n")
 
 
-def cpp_source(lang, body):
+def cpp_source(lang, body, include_header=True):
+    inc = "#include <shader_math/shader_math.hpp>\n" if include_header else ""
     if lang == "hlsl":
-        return ("#include <shader_math/shader_math.hpp>\nusing namespace hlsl;\n"
+        return (f"{inc}using namespace hlsl;\n"
                 f"void f({cases.H_PARAMS}) {{ {body} }}\n")
-    return ("#include <shader_math/shader_math.hpp>\nusing namespace glsl;\n"
+    return (f"{inc}using namespace glsl;\n"
             f"void f({cases.G_CPP_PARAMS}) {{ {cases.G_CPP_PRELUDE} {body} }}\n")
 
 
@@ -120,15 +125,109 @@ def load_expected():
     return truth
 
 
+def prepare_pch(args, tmp, include, tag):
+    """Precompile shader_math.hpp once per header tree so cases skip reparsing it."""
+    hdr = os.path.join(tmp, f"sm_{tag}.hpp")
+    with open(hdr, "w") as f:
+        f.write("#include <shader_math/shader_math.hpp>\n")
+    ver = subprocess.run([args.cxx, "--version"], capture_output=True, text=True)
+    is_clang = "clang" in (ver.stdout + ver.stderr).lower()
+    pch = hdr + (".pch" if is_clang else ".gch")
+    cmd = [args.cxx, "-std=c++20", "-x", "c++-header", "-I" + include,
+           *args.extra, hdr, "-o", pch]
+    p = subprocess.run(cmd, capture_output=True, text=True)
+    if p.returncode != 0:
+        return None
+    return ["-include-pch", pch] if is_clang else ["-include", hdr]
+
+
 def measure(args, tmp, include, tag):
+    pch_flags = prepare_pch(args, tmp, include, tag)
     items = []
     for cid, lang, _, body in corpus():
         path = os.path.join(tmp, f"{cid}.{tag}.cpp")
         with open(path, "w") as f:
-            f.write(cpp_source(lang, body))
+            f.write(cpp_source(lang, body, include_header=pch_flags is None))
         items.append((cid, [args.cxx, "-std=c++20", "-fsyntax-only", "-I" + include,
-                            *args.extra, path]))
+                            *(pch_flags or []), *args.extra, path]))
     return run_all(args.jobs, items)
+
+
+def load_known(path):
+    ids = []
+    seen = set()
+    with open(path) as f:
+        for line in f:
+            cid = line.split("#", 1)[0].strip()
+            if cid and cid not in seen:
+                ids.append(cid)
+                seen.add(cid)
+    return ids
+
+
+def write_known(path, truth, cur):
+    groups = [
+        ("hlsl", True, "HLSL: language accepts, shader-math rejects"),
+        ("hlsl", False, "HLSL: language rejects, shader-math accepts"),
+        ("glsl", True, "GLSL: language accepts, shader-math rejects"),
+        ("glsl", False, "GLSL: language rejects, shader-math accepts"),
+    ]
+    rows = [(cid, lang, truth[cid][0], cur[cid][0]) for cid, lang, _, _ in corpus()]
+    count = 0
+    with open(path, "w") as f:
+        f.write("# Known conformance mismatches on Linux GCC (g++, libstdc++).\n"
+                "# Checked in CI with:\n"
+                "#   python3 tests/conformance/run.py --cxx g++ --check tests/conformance/known_mismatches.txt\n"
+                "# Update after intentional changes or conformance improvements with:\n"
+                "#   python3 tests/conformance/run.py --cxx g++ --update-known tests/conformance/known_mismatches.txt\n"
+                "#\n"
+                "# Blank lines and comments (# ...) are ignored.\n")
+        for lang, want_real, heading in groups:
+            cids = [cid for cid, l, real, sm in rows
+                    if l == lang and real != sm and real == want_real]
+            if not cids:
+                continue
+            f.write(f"\n# {heading}\n")
+            for cid in cids:
+                f.write(f"{cid}\n")
+                count += 1
+    print(f"\nwrote {path}: {count} known mismatch(es)")
+
+
+def check_known(args, truth, cur):
+    meta = {cid: (lang, cat, body) for cid, lang, cat, body in corpus()}
+    known = load_known(args.check)
+    known_set = set(known)
+    actual = [cid for cid in meta if truth[cid][0] != cur[cid][0]]
+    actual_set = set(actual)
+
+    unexpected = [cid for cid in actual if cid not in known_set]
+    resolved = [cid for cid in known if cid in meta and cid not in actual_set]
+    unknown = [cid for cid in known if cid not in meta]
+
+    if unexpected:
+        print(f"\n## conformance check: {len(unexpected)} unexpected mismatch(es)")
+        for cid in unexpected:
+            _, cat, body = meta[cid]
+            real = truth[cid][0]
+            kind = "under" if real else "over"
+            why = cur[cid][1] if real else truth[cid][1]
+            print(f"- ({kind}) [{cat}] `{cid}`: `{body}` -- {why}")
+    if resolved:
+        print(f"\n## conformance check: {len(resolved)} known mismatch(es) now agree")
+        for cid in resolved:
+            print(f"- `{cid}`")
+        print(f"(remove from {args.check} or run --update-known {args.check} to tighten the baseline)")
+    if unknown:
+        print(f"\n## conformance check: {len(unknown)} entry/entries not in cases.py")
+        for cid in unknown:
+            print(f"- `{cid}`")
+
+    failed = bool(unexpected) or (args.strict and bool(resolved or unknown))
+    status = "FAIL" if failed else "PASS"
+    print(f"\nconformance check: {status} ({len(actual)} mismatches, "
+          f"{len(unexpected)} unexpected, {len(resolved)} resolved, {len(unknown)} unknown)")
+    return 1 if failed else 0
 
 
 def pct(a, t):
@@ -209,11 +308,24 @@ def main():
     ap.add_argument("--compare", metavar="DIR", help="another include/ to measure alongside")
     ap.add_argument("--jobs", type=int, default=os.cpu_count() or 4)
     ap.add_argument("--verbose", action="store_true", help="show the first error of mismatches")
+    ap.add_argument("--check", metavar="FILE",
+                    help="fail on mismatches not listed in FILE")
+    ap.add_argument("--strict", action="store_true",
+                    help="with --check, also fail on resolved or unknown entries in FILE")
+    ap.add_argument("--update-known", metavar="FILE",
+                    help="write current mismatches to FILE")
     ap.add_argument("--refresh", action="store_true")
     ap.add_argument("--dxc")
     ap.add_argument("--glslang")
     args = ap.parse_args(argv)
     args.extra = extra
+
+    if args.strict and not args.check:
+        ap.error("--strict requires --check")
+    if args.check and args.update_known:
+        ap.error("--check and --update-known are mutually exclusive")
+    if args.refresh and (args.check or args.update_known):
+        ap.error("--refresh cannot be combined with --check or --update-known")
 
     with tempfile.TemporaryDirectory() as tmp:
         if args.refresh:
@@ -227,6 +339,10 @@ def main():
         if args.compare:
             results["compare"] = measure(args, tmp, args.compare, "cmp")
         report(args, truth, results)
+        if args.update_known:
+            write_known(args.update_known, truth, results["current"])
+        elif args.check:
+            sys.exit(check_known(args, truth, results["current"]))
 
 
 if __name__ == "__main__":

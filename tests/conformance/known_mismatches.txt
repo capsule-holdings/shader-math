@@ -1,0 +1,51 @@
+# Known conformance mismatches on Linux GCC (g++, libstdc++).
+# Checked in CI with:
+#   python3 tests/conformance/run.py --cxx g++ --check tests/conformance/known_mismatches.txt
+# Update after intentional changes or conformance improvements with:
+#   python3 tests/conformance/run.py --cxx g++ --update-known tests/conformance/known_mismatches.txt
+#
+# Blank lines and comments (# ...) are ignored.
+
+# HLSL: language accepts, shader-math rejects
+h_implicit_trunc_init
+h_vector_bare
+h_float1_truncate
+h_half_implicit_from_float
+h_half_times_float
+h_half_times_lit
+h_float_from_half_implicit
+h_bool_from_float_implicit
+h_float_from_bool_implicit
+h_mat_implicit_trunc
+h_swz_on_scalar
+h_swz_nested
+h_mat_multi_elem
+h_size_mismatch_trunc
+h_size_mismatch_2_3
+h_mul_shape_mismatch
+h_mul_vec_size_mismatch
+h_s_double_lit_max
+h_int_from_bool_implicit
+h_int16_plus_half
+h_oos_ddx
+h_bool_component_int
+
+# HLSL: language rejects, shader-math accepts
+h_ctor_single_scalar
+h_ctor_from_wider
+h_mat_ctor_single_scalar
+h_mat_ctor_trunc
+
+# GLSL: language accepts, shader-math rejects
+g_float_from_half_implicit
+g_half_times_float
+g_swz_on_scalar
+g_swz_nested
+g_v_not
+g_s_double_lit_max
+g_i16_plus_f16
+g_oos_double
+g_oos_dvec3
+
+# GLSL: language rejects, shader-math accepts
+g_cast_c_style
