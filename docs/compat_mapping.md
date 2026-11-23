@@ -44,7 +44,8 @@
 | 行列: 1 つのスカラー | エラー（キャストと暗黙変換は全成分） | ○（対角、`mat3(1.0)` = 単位行列） | △ / ○ | HLSL の `float3x3(s)` は C++ では通る |
 | 行列: ベクトル 1 つから暗黙に `float2x2 m = v4` | ○ | エラー | ○ / ○ | |
 | 行列 → 行列 | 縮小キャスト `(float2x2)m3` | 拡大（単位行列で補完）・縮小 `mat2(m3)` | ○ / ○ | HLSL の `float2x2(m3)`（エラー）は C++ では △ で通る |
-| 行列 → ベクトル `float4 v = m22` / `vec4(m2)` | ○（同じ成分数、行の順） | ○（列の順で先頭 N 成分） | ○ / ○ | HLSL は 2x2 と `float4` の間だけ（暗黙も可）。GLSL は明示のみ（`vec3(m2)`、`vec4(m3)`）。GLSL の成分リストに行列を混ぜる `vec4(s, m2)` は × |
+| 行列 → ベクトル `float4 v = m22` / `vec4(m2)` | ○（同じ成分数、行の順） | ○（列の順で先頭 N 成分） | ○ / ○ | HLSL は 2x2 と `float4` の間だけ（暗黙も可）。GLSL は明示のみ（`vec3(m2)`、`vec4(m3)`） |
+| コンストラクタの引数に行列を混ぜる | 行列の ctor で成分数ちょうど（`float3x3(m22, s, s, s, s, s)`、行の順） | ベクトルの ctor で最後の引数だけ余ってよい（`vec4(s, m2)`、列の順）。行列の ctor には不可 | ○ / ○ | HLSL のベクトルの ctor（`float4(s, m2)`）は成分数が合わずエラー |
 | half と float の明示変換 `half3(f)` / `f16vec3(v)` | ○ | ○ | ○ / ○ | |
 | half と float の暗黙変換・混ぜた演算 `h * a`、`float3 v = h` | ○ | 一部○（f16 → f32 方向） | × / × | 意図して弾いている（丸めが混ざるため） |
 | half と float のベクトルを 1 つの ctor に混ぜる `float4(v2, h2)` | ○ | ○ | ○ / ○ | 引数 1 つの暗黙変換（`float2x2 m = h4`）は × のまま |
@@ -71,7 +72,7 @@
 | 行列の複数成分 `m._m00_m11` | ○ | − | △ / − | `SHADER_MATH_MATRIX_SWIZZLE`（2 成分）/ `SHADER_MATH_MATRIX_SWIZZLE3`（3 成分）でオプトイン |
 | `.length()` | − | ○（成分数、行列は列数） | − / ○ | |
 | bool ベクトルの成分の読み出し `b.x` / `b[i]` | ○ | ○ | ○ / ○ | |
-| bool ベクトルの成分への書き込み `b.x = true`、`b.x = c.y` | ○ | ○ | ○ / ○ | bool か別の成分を代入する（HLSL の `b.x = 1` は ×、`bool3(1)` と同じく int からは作らない）。`b[i] = true` は × |
+| bool ベクトルの成分への書き込み `b.x = true`、`b.x = c.y`、`b[i] = true` | ○ | ○ | ○ / ○ | bool か別の成分を代入する（HLSL の `b.x = 1` / `b[i] = 1` は ×、`bool3(1)` と同じく int からは作らない） |
 | 可変長引数に `v.x` を渡す | − | − | △ | `v.x` はプロキシ型なので `printf` などには `float(v.x)` |
 
 ## 演算子
@@ -217,16 +218,16 @@ shader-math は DXC と公式のドキュメントに合わせる。
 | GPU 専用 | 微分（`ddx` / `dFdx`）、テクスチャ、wave / subgroup、atomic、`clip` / `discard` |
 | 修飾子・レイアウト | `precise`、semantics、`cbuffer` / `uniform` のパッキング（`sizeof(float3) == 16` は GPU の ABI ではない） |
 
-## 準拠率（2026-10-25）
+## 準拠率（2026-11-23）
 
-`tests/conformance/` の 548 ケース（HLSL 291、GLSL 257）で、言語と同じものを受け付け・弾く割合。
+`tests/conformance/` の 558 ケース（HLSL 295、GLSL 263）で、言語と同じものを受け付け・弾く割合。
 対象外の分類を除いた値。
 
-| | v0.5.0 | main（2026-10-25） |
+| | v0.5.0 | main（2026-11-23） |
 | --- | --- | --- |
-| HLSL（282） | 75.5% | 91.5% |
-| GLSL（250） | 79.6% | 96.0% |
+| HLSL（286） | 74.8% | 91.6% |
+| GLSL（256） | 78.5% | 96.1% |
 
-Apple Clang で測った値。g++ 13（Linux）では main の GLSL が 96.4%（libc++ の `::round(float)` でスカラーの
-`round(s)` が曖昧になる 1 件の差）。残りの不一致は上の表の × と △ に対応する。測り直しは
+Apple Clang で測った値。g++（libstdc++）では GLSL がもう 1 件一致する（libc++ の `::round(float)` でスカラーの
+`round(s)` が曖昧になる分）。残りの不一致は上の表の × と △ に対応する。測り直しは
 `python3 tests/conformance/run.py --cxx <コンパイラ>`。

@@ -636,12 +636,14 @@ struct matrix
         for (int r = 0; r < R; ++r) row_[r] = rr[r];
     }
 
-    // Component lists with a vector in them (float2x2(v2, 3.0, 4.0),
-    // float2x2(v4)): exactly R*C components, filled row by row. Implicit like
-    // HLSL's own conversion (float2x2 m = v4)
+    // Component lists with a vector or matrix in them (float2x2(v2, 3.0, 4.0),
+    // float2x2(v4), float3x3(m2, 5 scalars)): exactly R*C components, filled
+    // row by row (a matrix argument row by row too). Implicit like HLSL's own
+    // conversion (float2x2 m = v4); a lone matrix is not a list
     template <class... V>
-        requires(detail::any_vector_arg<V...> &&
-                 detail::ctor_fill<R * C, T, hlsl::lang_tag, V...>() == 1 &&
+        requires((detail::any_vector_arg<V...> ||
+                  (detail::any_matrix_arg<V...> && sizeof...(V) >= 2)) &&
+                 detail::ctor_fill<R * C, T, hlsl::lang_tag, true, V...>() == 1 &&
                  (sizeof...(V) >= 2 || !detail::any_foreign_elem<T, V...>) &&
                  !(sizeof...(V) == R && (detail::vec_is<V, detail::hvec<C, T>>() && ...)))
     SHADER_MATH_INLINE matrix(const V&... v) SM_HMAT_INIT {
@@ -741,7 +743,7 @@ struct matrix {
     // last one may be cut short
     template <class... V>
         requires(detail::any_vector_arg<V...> &&
-                 detail::ctor_fill<Cn * Rn, T, glsl::lang_tag, V...>() != 0 &&
+                 detail::ctor_fill<Cn * Rn, T, glsl::lang_tag, false, V...>() != 0 &&
                  !(sizeof...(V) == Cn && (detail::vec_is<V, detail::gvec<Rn, T>>() && ...)))
     SHADER_MATH_INLINE explicit matrix(const V&... v) {
         T a[Cn * Rn];
@@ -792,6 +794,28 @@ struct matrix {
 };
 
 }  // namespace glsl
+
+// ---- matrices as component-list arguments (detail::mat_traits) --------------
+namespace detail {
+template <int R, int C, class T>
+struct mat_traits<hlsl::matrix<R, C, T>> {
+    static constexpr int size = R * C;
+    using elem = T;
+    using lang = hlsl::lang_tag;
+    static SHADER_MATH_INLINE T at(const hlsl::matrix<R, C, T>& m, int i) {
+        return m.row_[i / C][i % C];
+    }
+};
+template <int Cn, int Rn, class T>
+struct mat_traits<glsl::matrix<Cn, Rn, T>> {
+    static constexpr int size = Cn * Rn;
+    using elem = T;
+    using lang = glsl::lang_tag;
+    static SHADER_MATH_INLINE T at(const glsl::matrix<Cn, Rn, T>& m, int i) {
+        return m.col_[i / Rn][i % Rn];
+    }
+};
+}  // namespace detail
 
 // ---- cross-namespace conversions (definitions) -----------------------------
 // Crossing the storage direction (rows <-> columns of the same mathematical

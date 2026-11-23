@@ -363,6 +363,18 @@ for cid, body in [
 ]:
     H("scalar", cid, body)
 
+# b[i] writes; matrices inside constructor lists
+for cid, body in [
+    ("bool_index_write", "bool3 r = bb; r[1] = true;"),
+    ("bool_index_copy", "bool3 r = bb; r[1] = bb[0];"),
+]:
+    H("swizzle", cid, body)
+for cid, body in [
+    ("mat_ctor_mat_scalars", "float2x2 k = a4; float3x3 r = float3x3(k, s, s, s, s, s);"),
+    ("vec_ctor_scalar_mat", "float2x2 k = a4; float4 r = float4(s, k);"),
+]:
+    H("ctor", cid, body)
+
 # ============================ GLSL ===========================================
 for cid, body in [
     ("ctor_scalars", "vec3 r = vec3(1.0, 2.0, 3.0);"),
@@ -648,5 +660,19 @@ for cid, body in [
     ("vec_from_mat_implicit", "vec4 r = mat2(a4);"),
     ("mat_ctor_half_vec", "mat2 r = mat2(a2, h.xy);"),
     ("ctor_half_target", "f16vec4 r = f16vec4(a2, h.xy);"),
+]:
+    G("ctor", cid, body)
+
+# b[i] writes; matrices inside constructor lists
+for cid, body in [
+    ("bvec_index_write", "bvec3 r = bb; r[1] = true;"),
+    ("bvec_index_copy", "bvec3 r = bb; r[1] = bb[0];"),
+]:
+    G("swizzle", cid, body)
+for cid, body in [
+    ("vec_ctor_scalar_mat", "vec4 r = vec4(s, mat2(a4));"),
+    ("vec_ctor_vec_mat", "vec4 r = vec4(a2, mat2(a4));"),
+    ("vec_ctor_mat_scalar", "vec4 r = vec4(mat2(a4), s);"),
+    ("mat_ctor_mat_list", "mat3 r = mat3(mat2(a4), a4, s);"),
 ]:
     G("ctor", cid, body)

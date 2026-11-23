@@ -61,3 +61,14 @@ float4 case_exact_step_writes(float4 a)
     n._m22--;
     return float4(v, n._12 + n._m22);
 }
+
+// a bool lane written through b[i]; a matrix inside a matrix constructor
+// (row by row)
+float4 case_exact_index_matrix_args(float4 a, float4 b)
+{
+    bool3 k = false;
+    k[2] = (a.xyz > b.xyz)[1];
+    float2x2 m2 = float2x2(a);
+    float3x3 m = float3x3(m2, b.x, b.y, b.z, b.w, 1.0f);
+    return float4(m[0].x + m[1].y, m[1].x, m[2].z, 0.0f) + float4(float3(k), m[0].z);
+}

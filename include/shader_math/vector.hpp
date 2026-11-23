@@ -89,15 +89,32 @@ using vec_elem_t = typename vec_traits<std::remove_cvref_t<V>>::elem;
 template <class V>
 using vec_lang_t = typename vec_traits<std::remove_cvref_t<V>>::lang;
 
+// Matrices as component-list arguments (GLSL vec4(s, m2), HLSL
+// float3x3(m2, ...)): mat_traits gives their components in the language's
+// constructor order (hlsl row by row, glsl column by column). Specialized for
+// both matrix types in matrix.hpp.
+template <class M>
+struct mat_traits {
+    static constexpr int size = 0;
+};
+template <class M>
+inline constexpr int mat_size_v = mat_traits<std::remove_cvref_t<M>>::size;
+
 // Component-list constructors (GLSL vec3(v2, w2) / mat2(v4), HLSL
 // float2x2(v2, 3.0, 4.0)): the components an argument contributes, -1 when it
-// is neither a scalar nor a vector of language Lg whose elements convert to T
-// (constructors convert: float4(v2, h2) mixes float and half)
-template <class T, class Lg, class A>
+// is not a scalar, a vector of language Lg whose elements convert to T
+// (constructors convert: float4(v2, h2) mixes float and half), or, where Mat
+// allows it, such a matrix
+template <class T, class Lg, bool Mat, class A>
 constexpr int ctor_arg_size() {
     if constexpr (vec_size_v<A> >= 2) {
         return CvtScalar<vec_elem_t<A>, T> && std::is_same_v<vec_lang_t<A>, Lg>
                    ? vec_size_v<A>
+                   : -1;
+    } else if constexpr (mat_size_v<A> > 0) {
+        using MT = mat_traits<std::remove_cvref_t<A>>;
+        return Mat && CvtScalar<typename MT::elem, T> && std::is_same_v<typename MT::lang, Lg>
+                   ? MT::size
                    : -1;
     } else {
         return CvtScalar<A, T> ? 1 : -1;
@@ -105,12 +122,12 @@ constexpr int ctor_arg_size() {
 }
 // 1: the arguments supply exactly Need components; 2: more, every argument
 // contributing and only the last one cut short (the GLSL rule); 0: neither
-template <int Need, class T, class Lg, class... As>
+template <int Need, class T, class Lg, bool Mat, class... As>
 constexpr int ctor_fill() {
     if constexpr (sizeof...(As) == 0) {
         return 0;
     } else {
-        constexpr int sizes[] = {ctor_arg_size<T, Lg, As>()...};
+        constexpr int sizes[] = {ctor_arg_size<T, Lg, Mat, As>()...};
         int total = 0;
         for (int n : sizes) {
             if (n < 0) return 0;
@@ -123,11 +140,15 @@ constexpr int ctor_fill() {
 // At least one vector argument (all-scalar lists have their own constructors)
 template <class... As>
 inline constexpr bool any_vector_arg = ((vec_size_v<As> >= 2) || ...);
-// A vector argument whose element type is not T
+template <class... As>
+inline constexpr bool any_matrix_arg = ((mat_size_v<As> > 0) || ...);
+// A vector or matrix argument whose element type is not T
 template <class T, class A>
 constexpr bool foreign_elem() {
     if constexpr (vec_size_v<A> >= 2) {
         return !std::is_same_v<vec_elem_t<A>, T>;
+    } else if constexpr (mat_size_v<A> > 0) {
+        return !std::is_same_v<typename mat_traits<std::remove_cvref_t<A>>::elem, T>;
     } else {
         return false;
     }
@@ -140,6 +161,9 @@ SHADER_MATH_INLINE void put_components(T* out, int& k, int n, const A& a) {
     if constexpr (vec_size_v<A> >= 2) {
         const auto v = to_vec(a);
         for (int i = 0; i < vec_size_v<A> && k < n; ++i) out[k++] = static_cast<T>(v[i]);
+    } else if constexpr (mat_size_v<A> > 0) {
+        using MT = mat_traits<std::remove_cvref_t<A>>;
+        for (int i = 0; i < MT::size && k < n; ++i) out[k++] = static_cast<T>(MT::at(a, i));
     } else if (k < n) {
         out[k++] = static_cast<T>(a);
     }
@@ -624,14 +648,15 @@ struct fvec : fvec_store<N, T, Lg> {
     // Exact component lists with a vector of another element type
     // (float4(v2, h2)); the same-type lists have the constructors above
     template <class... As>
-        requires(sizeof...(As) >= 2 && ctor_fill<N, T, Lg, As...>() == 1 &&
+        requires(sizeof...(As) >= 2 && ctor_fill<N, T, Lg, false, As...>() == 1 &&
                  any_foreign_elem<T, As...>)
     SHADER_MATH_INLINE fvec(const As&... as) : store_t(gathered(as...)) {}
 
-    // GLSL component lists longer than N (vec3(v2, w2), vec4(s, v4)): every
-    // argument contributes, the last one may be cut short
+    // GLSL component lists longer than N (vec3(v2, w2), vec4(s, v4),
+    // vec4(s, m2)): every argument contributes, the last one may be cut short
     template <class... As>
-        requires(is_glsl_v<Lg> && sizeof...(As) >= 2 && ctor_fill<N, T, Lg, As...>() == 2)
+        requires(is_glsl_v<Lg> && sizeof...(As) >= 2 &&
+                 ctor_fill<N, T, Lg, true, As...>() == 2)
     SHADER_MATH_INLINE explicit fvec(const As&... as) : store_t(gathered(as...)) {}
 
     // explicit truncation (HLSL cast / GLSL constructor shortening)
@@ -1362,11 +1387,49 @@ SHADER_MATH_INLINE auto faceforward(const A& n0, const B& i, const C& nref) {
 // No arithmetic and no implicit bool conversion; reduce with all()/any().
 // Shared by float and half comparisons (half comparisons widen to f32, which
 // is exact for every pair of half values).
+// m with lane i set to v
+SHADER_MATH_INLINE mreg mask_with_lane(mreg m, int i, bool v) {
+    float t[4];
+    for (int k = 0; k < 4; ++k) t[k] = ops::lane_b(m, k) ? 1.0f : 0.0f;
+    t[i] = v ? 1.0f : 0.0f;
+    return ops::cmp_ne(ops::load4(t), ops::zero());
+}
+
+template <int N, int I>
+struct bswz;
+
+// b[i] on a non-const bool vector: reads as a bool, assignment writes lane i
+// (from a bool or another component; not an int, as bool3(1) does not
+// compile either)
+class bref {
+public:
+    SHADER_MATH_INLINE bref(mreg& m, int i) : m_(m), i_(i) {}
+    bref(const bref&) = default;
+    SHADER_MATH_INLINE operator bool() const { return ops::lane_b(m_, i_); }
+    template <class B>
+        requires std::is_same_v<B, bool>
+    SHADER_MATH_INLINE bref& operator=(B v) {
+        m_ = mask_with_lane(m_, i_, v);
+        return *this;
+    }
+    SHADER_MATH_INLINE bref& operator=(const bref& o) {
+        return *this = static_cast<bool>(o);
+    }
+    template <int N, int I>
+    SHADER_MATH_INLINE bref& operator=(const bswz<N, I>& o) {
+        return *this = static_cast<bool>(o);
+    }
+
+private:
+    mreg& m_;
+    int i_;
+};
+
 // Single-component accessor (b.x, b.a) overlaying the mask register, like
 // the float swizzle proxies; out-of-range lanes fail at use. Assignment
-// writes the one lane, from a bool or another component (not an int, as
-// bool3(1) does not compile either); the copy assignment is user-provided
-// because a trivial one would copy the whole register.
+// writes the one lane, from a bool or another component (not an int); the
+// copy assignment is user-provided because a trivial one would copy the
+// whole register.
 template <int N, int I>
 struct SHADER_MATH_MAY_ALIAS bswz {
     mreg d;
@@ -1382,10 +1445,7 @@ struct SHADER_MATH_MAY_ALIAS bswz {
         requires std::is_same_v<B, bool>
     SHADER_MATH_INLINE bswz& operator=(B v) {
         static_assert(I < N, "shader-math: bool vector component out of range");
-        float t[4];
-        for (int i = 0; i < 4; ++i) t[i] = ops::lane_b(d, i) ? 1.0f : 0.0f;
-        t[I] = v ? 1.0f : 0.0f;
-        d = ops::cmp_ne(ops::load4(t), ops::zero());
+        d = mask_with_lane(d, I, v);
         return *this;
     }
     SHADER_MATH_INLINE bswz& operator=(const bswz& o) {
@@ -1393,6 +1453,9 @@ struct SHADER_MATH_MAY_ALIAS bswz {
     }
     template <int J>
     SHADER_MATH_INLINE bswz& operator=(const bswz<N, J>& o) {
+        return *this = static_cast<bool>(o);
+    }
+    SHADER_MATH_INLINE bswz& operator=(const bref& o) {
         return *this = static_cast<bool>(o);
     }
 };
@@ -1469,6 +1532,7 @@ struct bvec : bvec_store<N, Lg> {
     }
 
     SHADER_MATH_INLINE bool operator[](int i) const { return ops::lane_b(m_, i); }
+    SHADER_MATH_INLINE bref operator[](int i) { return bref(m_, i); }
 
     // GLSL b.length(): the number of components
     static constexpr int length()

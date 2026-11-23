@@ -146,6 +146,21 @@ static_assert(adl_dot<h::float3> && adl_dot<g::vec3>);
 static_assert(requires(h::float3 v) { h::round(v.x); h::isnan(v.y); h::abs(v.z); });
 static_assert(requires(g::vec3 v) { g::round(v.x); g::isnan(v.y); g::abs(v.z); });
 
+// ---- b[i] writes one lane from a bool or another component, not from an int --------
+template <class B, class V>
+concept can_index_write = requires(B b, V v) { b[1] = v; };
+static_assert(can_index_write<h::bool3, bool> && can_index_write<g::bvec3, bool>);
+static_assert(!can_index_write<h::bool3, int> && !can_index_write<g::bvec3, float>);
+
+// ---- matrices in constructor lists: GLSL vectors (the last argument cut short) and
+// HLSL matrices (exact count); never a GLSL matrix, never an HLSL vector -------------
+static_assert(std::is_constructible_v<g::vec4, float, g::mat2>);
+static_assert(!std::is_constructible_v<g::vec4, g::mat2, float>);  // float unused
+static_assert(!std::is_constructible_v<g::mat3, g::mat2, g::vec4, float>);
+static_assert(std::is_constructible_v<h::float3x3, h::float2x2, float, float, float, float, float>);
+static_assert(!std::is_constructible_v<h::float4, float, h::float2x2>);
+static_assert(!std::is_constructible_v<h::float3x2, h::float2x3>);  // a lone matrix is not a list
+
 // ---- matrix -> vector: HLSL implicitly for the same component count, GLSL explicitly --
 static_assert(std::is_convertible_v<h::float2x2, h::float4>);
 static_assert(!std::is_convertible_v<h::float3x3, h::float3> &&
