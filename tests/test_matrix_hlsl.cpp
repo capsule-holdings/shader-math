@@ -228,4 +228,164 @@ void test_matrix_hlsl() {
         CHECK(any(meq));
         CHECK(all(ma == ma));
     }
+
+    // ---- 1-dimension matrices (1xN, Nx1, 1x1) ------------------------------
+    {
+        // Construction, indexing, element accessors, conversions
+        const float1x3 m13(1.0f, 2.0f, 3.0f);
+        const float3x1 m31(4.0f, 5.0f, 6.0f);
+        const float1x1 m11(7.0f);
+        CHECK_EQF(m13[0][0], 1.0f);
+        CHECK_EQF(m13[0][2], 3.0f);
+        CHECK_EQF(float(m13._m02), 3.0f);
+        CHECK_EQF(float(m13._12), 2.0f);
+        CHECK_EQF(m31[0][0], 4.0f);
+        CHECK_EQF(m31[2][0], 6.0f);
+        CHECK_EQF(float(m31._m20), 6.0f);
+        CHECK_EQF(float(m31._21), 5.0f);
+        CHECK_EQF(m11[0][0], 7.0f);
+        CHECK_EQF(float(m11._m00), 7.0f);
+
+        // Splat, vector <-> matrix, 1x1 <-> scalar / float1, component list, shrink cast
+        const float1x3 sp = 2.0f;
+        CHECK(all(sp == float1x3(2.0f, 2.0f, 2.0f)));
+        const float3 v13 = m13;
+        const float3 v31 = m31;
+        CHECK(all(v13 == float3(1.0f, 2.0f, 3.0f)));
+        CHECK(all(v31 == float3(4.0f, 5.0f, 6.0f)));
+        const float1x3 from_v3 = v13;
+        const float3x1 col_from_v3 = v31;
+        CHECK(all(from_v3 == m13));
+        CHECK(all(col_from_v3 == m31));
+        const float s11 = m11;
+        const float1 f1_from_m11 = m11;
+        const float1x1 m11_from_f1 = f1_from_m11;
+        CHECK_EQF(s11, 7.0f);
+        CHECK_EQF(float(f1_from_m11), 7.0f);
+        CHECK_EQF(m11_from_f1[0][0], 7.0f);
+
+        const float3x1 from_f1s(float1(1.0f), float1(2.0f), float1(3.0f));
+        const float3x1 from_mixed(float2(1.0f, 2.0f), 3.0f);
+        CHECK(all(from_f1s == from_mixed));
+
+        const float3x3 big(1, 2, 3, 4, 5, 6, 7, 8, 9);
+        const float1x3 cut13 = static_cast<float1x3>(big);
+        const float3x1 cut31 = static_cast<float3x1>(big);
+        const float1x1 cut11 = static_cast<float1x1>(big);
+        CHECK(all(cut13 == float1x3(1, 2, 3)));
+        CHECK(all(cut31 == float3x1(1, 4, 7)));
+        CHECK_EQF(float(cut11), 1.0f);
+
+        // Arithmetic, scalar, unary, same-size vector mixing
+        CHECK(all((m13 + m13) == float1x3(2, 4, 6)));
+        CHECK(all((m31 * 2.0f) == float3x1(8, 10, 12)));
+        CHECK(all((2.0f + m31) == float3x1(6, 7, 8)));
+        CHECK(all((-m31) == float3x1(-4, -5, -6)));
+        CHECK(all((m11 + 3.0f) == float1x1(10.0f)));
+        static_assert(std::is_same_v<decltype(m11 + 3.0f), float1x1>);
+        static_assert(std::is_same_v<decltype(m13 + v13), float1x3>);
+        static_assert(std::is_same_v<decltype(v13 + m13), float3>);
+        static_assert(std::is_same_v<decltype(m31 + v31), float3x1>);
+        static_assert(std::is_same_v<decltype(v31 + m31), float3>);
+        CHECK(all((m13 + v31) == float1x3(5, 7, 9)));
+        CHECK(all((v13 + m31) == float3(5, 7, 9)));
+        float1x3 acc13 = m13;
+        acc13 += v31;
+        CHECK(all(acc13 == float1x3(5, 7, 9)));
+        float3 acc3 = v13;
+        acc3 += m31;
+        CHECK(all(acc3 == float3(5, 7, 9)));
+        CHECK(all(m13 == v13));
+        CHECK(all(v31 == m31));
+
+        // mul: all 1-dim combinations
+        const float1 p_mv = mul(m13, v31);  // 1*4 + 2*5 + 3*6 = 32
+        const float1 p_vm = mul(v13, m31);  // 32
+        const float1x1 p_mm11 = mul(m13, m31);
+        static_assert(std::is_same_v<decltype(mul(m13, v31)), float1>);
+        static_assert(std::is_same_v<decltype(mul(v13, m31)), float1>);
+        static_assert(std::is_same_v<decltype(mul(m13, m31)), float1x1>);
+        CHECK_EQF(float(p_mv), 32.0f);
+        CHECK_EQF(float(p_vm), 32.0f);
+        CHECK_EQF(float(p_mm11), 32.0f);
+
+        const float3x3 outer = mul(m31, m13);
+        CHECK(all(outer[0] == float3(4, 8, 12)));
+        CHECK(all(outer[1] == float3(5, 10, 15)));
+        CHECK(all(outer[2] == float3(6, 12, 18)));
+
+        const float3 p_v1m = mul(float1(2.0f), m13);
+        const float3 p_mv1 = mul(m31, float1(2.0f));
+        static_assert(std::is_same_v<decltype(mul(float1(2.0f), m13)), float3>);
+        static_assert(std::is_same_v<decltype(mul(m31, float1(2.0f))), float3>);
+        static_assert(std::is_same_v<decltype(mul(2.0f, m13)), float1x3>);
+        static_assert(std::is_same_v<decltype(mul(v13.x, m13)), float1x3>);
+        static_assert(std::is_same_v<decltype(mul(m31, 2.0f)), float3x1>);
+        CHECK(all(p_v1m == float3(2, 4, 6)));
+        CHECK(all(p_mv1 == float3(8, 10, 12)));
+        CHECK(all(mul(2.0f, m13) == float1x3(2, 4, 6)));
+        CHECK(all(mul(m31, 2.0f) == float3x1(8, 10, 12)));
+
+        const float3x1 mv_col = mul(big, m31);
+        const float1x3 vm_row = mul(m13, big);
+        CHECK(all(mv_col == float3x1(32, 77, 122)));
+        CHECK(all(vm_row == float1x3(30, 36, 42)));
+        CHECK_EQF(float(mul(m11, m11)), 49.0f);
+        CHECK_EQF(float(mul(m11, float1(3.0f))), 21.0f);
+        CHECK_EQF(float(mul(float1(3.0f), m11)), 21.0f);
+
+        // transpose, determinant, ext::inverse, component-wise intrinsics
+        CHECK(all(transpose(m13) == float3x1(1, 2, 3)));
+        CHECK(all(transpose(m31) == float1x3(4, 5, 6)));
+        CHECK(all(transpose(m11) == m11));
+        CHECK_EQF(determinant(m11), 7.0f);
+        CHECK_NEAR(float(shader_math::ext::inverse(float1x1(4.0f))), 0.25f);
+
+        CHECK(all(sqrt(float3x1(4.0f, 9.0f, 16.0f)) == float3x1(2.0f, 3.0f, 4.0f)));
+        CHECK(all(abs(float3x1(-1.0f, 2.0f, -3.0f)) == float3x1(1.0f, 2.0f, 3.0f)));
+        CHECK(all(clamp(m31, 4.5f, 5.5f) == float3x1(4.5f, 5.0f, 5.5f)));
+        CHECK(all(min(m31, 5.0f) == float3x1(4.0f, 5.0f, 5.0f)));
+        CHECK(all(fmod(float3x1(5.5f, -5.5f, 4.0f), 2.0f) == float3x1(1.5f, -1.5f, 0.0f)));
+        CHECK(all(mad(m31, float3x1(2.0f), float3x1(1.0f)) == float3x1(9.0f, 11.0f, 13.0f)));
+        CHECK(!any(isnan(m31)));
+        CHECK(all(isfinite(m31)));
+
+        // Integer 1-dim matrices and scalar promotions
+        const int3x1 im31(-2, 3, -5);
+        const int1x3 im13(1, 2, 3);
+        static_assert(std::is_same_v<decltype(im31 * 2u), uint3x1>);
+        static_assert(std::is_same_v<decltype(im31 & 1u), uint3x1>);
+        static_assert(std::is_same_v<decltype(im31 % 2u), uint3x1>);
+        static_assert(std::is_same_v<decltype(im31 << 1), int3x1>);
+        static_assert(std::is_same_v<decltype(min(im31, 2u)), uint3x1>);
+        static_assert(std::is_same_v<decltype(sqrt(im31)), float3x1>);
+        CHECK(all(abs(im31) == int3x1(2, 3, 5)));
+        CHECK(all((im31 << 1) == int3x1(-4, 6, -10)));
+        CHECK(all(mul(im13, im31) == int1x1(-11)));
+        CHECK(all(mul(im31, im13)[0] == int3(-2, -4, -6)));
+        CHECK(all(int3x1(float3x1(1.9f, -2.9f, 3.1f)) == int3x1(1, -2, 3)));
+
+        // Boolean matrices (matrix<bool, R, C>)
+        const bool1x3 b13(true, false, true);
+        const bool3x1 b31 = transpose(b13);
+        const bool3 bv = b13;
+        const bool1x3 b13_from_v = bv;
+        CHECK(all(b13 == b13_from_v));
+        CHECK(b31[0][0] && !b31[1][0] && b31[2][0]);
+        CHECK(all((!b31) == bool3x1(false, true, false)));
+        CHECK(any(b31) && !all(b31));
+        const bool1x1 b11 = (m11 < 10.0f);
+        CHECK(bool(b11));
+        if (!(m11 < 10.0f)) CHECK(false);
+
+#if defined(SHADER_MATH_HAS_HALF)
+        const half3x1 h31(half(1.0f), half(2.0f), half(3.0f));
+        const half1x3 h13 = transpose(h31);
+        const float3x1 f31 = static_cast<float3x1>(h31);
+        const half3x1 h31_back = static_cast<half3x1>(f31);
+        CHECK(all(f31 == float3x1(1.0f, 2.0f, 3.0f)));
+        CHECK(all(h31_back == h31));
+        CHECK_EQF(float(half(mul(h13, h31)[0][0])), 14.0f);
+#endif
+    }
 }

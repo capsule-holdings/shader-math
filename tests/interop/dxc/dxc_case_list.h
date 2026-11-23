@@ -12,7 +12,8 @@
     X(exact_index_matrix_args, case_exact_index_matrix_args(IN_A, IN_B)) \
     X(bits_int_sign, case_bits_int_sign(IN_A, IN_B))           \
     X(bits_int_compound_float, case_bits_int_compound_float(IN_A, IN_B)) \
-    X(bits_bitfn_float_args, case_bits_bitfn_float_args(IN_A, IN_B))
+    X(bits_bitfn_float_args, case_bits_bitfn_float_args(IN_A, IN_B)) \
+    X(exact_matrix_dim1, case_exact_matrix_dim1(IN_A, IN_B))
 
 // SPIR-V leaves lit out: DXC's SPIR-V backend computes its specular term as
 // (n.h) * m instead of the documented (n.h)^m.
@@ -28,7 +29,8 @@
 #define SM_DXIL_CASES(X)                                       \
     SM_DXC_CASES_COMMON(X)                                     \
     X(near_lit, case_near_lit())                               \
-    X(exact_step_writes, case_exact_step_writes(IN_A))
+    X(exact_step_writes, case_exact_step_writes(IN_A))         \
+    X(exact_matrix_dim1_dxil, case_exact_matrix_dim1_dxil(IN_A, IN_B))
 
 // DXIL's half list adds the 16- and 64-bit bit functions that DXC's SPIR-V
 // backend does not compile

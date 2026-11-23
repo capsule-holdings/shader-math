@@ -529,6 +529,61 @@ for cid, body in [
 ]:
     H("ctor", cid, body)
 
+# 1-dimension matrices (1xN, Nx1, 1x1) and matrix<bool, R, C>
+for cid, body in [
+    ("mat13_ctor_scalars", "float1x3 r = float1x3(1.0, 2.0, 3.0);"),
+    ("mat31_ctor_scalars", "float3x1 r = float3x1(1.0, 2.0, 3.0);"),
+    ("mat11_ctor_scalar", "float1x1 r = 2.0;"),
+    ("mat13_from_vec3", "float1x3 r = a;"),
+    ("mat31_from_vec3", "float3x1 r = a;"),
+    ("vec3_from_mat13", "float1x3 k = a; float3 r = k;"),
+    ("vec3_from_mat31", "float3x1 k = a; float3 r = k;"),
+    ("scalar_from_mat11", "float1x1 k = s; float r = k;"),
+    ("mat13_cast_trunc", "float1x3 r = (float1x3)m;"),
+    ("mat31_cast_trunc", "float3x1 r = (float3x1)m;"),
+    ("mat11_cast_trunc", "float1x1 r = (float1x1)m;"),
+    ("mat13_to_mat31_err", "float1x3 k = a; float3x1 r = k;"),
+    ("mat_bool_template", "matrix<bool, 1, 3> r = bool1x3(true, false, true);"),
+    ("bool3_from_bool1x3", "bool1x3 k = bool1x3(true, false, true); bool3 r = k;"),
+    ("bool1x1_to_bool", "bool1x1 k = true; bool r = k;"),
+]:
+    H("ctor", cid, body)
+for cid, body in [
+    ("mat13_elem", "float1x3 k = a; float r = k._m02 + k._13;"),
+    ("mat31_elem", "float3x1 k = a; float r = k._m20 + k._31;"),
+    ("mat13_index", "float1x3 k = a; float3 r = k[0];"),
+    ("mat31_index", "float3x1 k = a; float1 r = k[0];"),
+]:
+    H("swizzle", cid, body)
+for cid, body in [
+    ("mat13_add_vec3", "float1x3 k = a; float1x3 r = k + b;"),
+    ("vec3_add_mat31", "float3x1 k = a; float3 r = b + k;"),
+    ("mat11_add_scalar", "float1x1 k = s; float1x1 r = k + 2.0;"),
+    ("mat31_cmp_scalar", "float3x1 k = a; bool3x1 r = k < 1.0;"),
+    ("mul_m13_v3", "float1x3 k = a; float1 r = mul(k, b);"),
+    ("mul_v3_m31", "float3x1 k = a; float1 r = mul(b, k);"),
+    ("mul_v1_m13", "float1x3 k = a; float1 v = s; float3 r = mul(v, k);"),
+    ("mul_m31_v1", "float3x1 k = a; float1 v = s; float3 r = mul(k, v);"),
+    ("mul_m31_m13", "float3x1 k = a; float1x3 p = b; float3x3 r = mul(k, p);"),
+    ("mul_m13_m31", "float1x3 k = a; float3x1 p = b; float1x1 r = mul(k, p);"),
+    ("mul_m33_m31", "float3x1 k = a; float3x1 r = mul(m, k);"),
+    ("mul_s_m13", "float1x3 k = a; float1x3 r = mul(s, k);"),
+]:
+    H("operator", cid, body)
+for cid, body in [
+    ("m_transpose_13", "float1x3 k = a; float3x1 r = transpose(k);"),
+    ("m_det_11", "float1x1 k = s; float r = determinant(k);"),
+    ("m_sqrt_31", "float3x1 k = a; float3x1 r = sqrt(k);"),
+    ("m_isnan_31", "float3x1 k = a; bool3x1 r = isnan(k);"),
+]:
+    H("matrix_fn", cid, body)
+for cid, body in [
+    ("int_mat31_uint_scalar", "int3x1 k = ia; uint3x1 r = k * 2u;"),
+    ("int_mat31_bit_and", "int3x1 k = ia; uint3x1 r = k & 1u;"),
+    ("int_mat31_abs", "int3x1 k = ia; int3x1 r = abs(k);"),
+]:
+    H("int", cid, body)
+
 # ============================ GLSL ===========================================
 for cid, body in [
     ("ctor_scalars", "vec3 r = vec3(1.0, 2.0, 3.0);"),

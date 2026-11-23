@@ -26,7 +26,7 @@ textures, and so on are listed under "Out of scope" at the end).
 | bool matrix | `boolRxC` | − | ○ / − | Result of HLSL matrix comparisons |
 | Matrix template syntax | `matrix<float, R, C>`, `matrix<>` (float4x4) | − | ○ / − | |
 | Single component | `float1`, `int1`, `vector<float, 1>`, etc. | − | ○ / − | A scalar spelled as a vector; scalar results stay scalars (`float1 + float1` is a `float`) |
-| 1xN, Nx1 matrices | `float1x3`, `float3x1`, etc. | − | × / − | |
+| 1xN, Nx1, 1x1 matrices | `float1x3`, `float3x1`, `float1x1`, etc. | − | ○ / − | `float`, `half`, `int`, `uint`, `bool` (`matrix<T, R, C>` with R, C ∈ {1..4}) |
 | Language of a type | − | − | `hlsl::lang_tag` / `glsl::lang_tag` | Internal to shader-math. Used so that operators and language-specific functions are found by ADL |
 
 ## Constructors and conversions
@@ -47,7 +47,7 @@ textures, and so on are listed under "Out of scope" at the end).
 | Matrix: single scalar | Error (casts and implicit conversions fill all components) | ○ (diagonal; `mat3(1.0)` = identity matrix) | △ / ○ | HLSL `float3x3(s)` compiles in C++ |
 | Matrix: implicitly from a single vector `float2x2 m = v4` | ○ | Error | ○ / ○ | |
 | Matrix → matrix | Narrowing cast `(float2x2)m3` | Widening (filled in from the identity matrix) and narrowing `mat2(m3)` | ○ / ○ | HLSL `float2x2(m3)` (an error) compiles in C++ as △ |
-| Matrix → vector `float4 v = m22` / `vec4(m2)` | ○ (same component count, row order) | ○ (first N components in column order) | ○ / ○ | HLSL allows this only between 2x2 and `float4` (implicitly as well). GLSL allows it only explicitly (`vec3(m2)`, `vec4(m3)`) |
+| Matrix → vector `float4 v = m22` / `vec4(m2)` | ○ (same component count, row order) | ○ (first N components in column order) | ○ / ○ | HLSL allows this whenever R×C ∈ {1..4} (implicitly as well: `2x2` ↔ `float4`, `1x3`/`3x1` ↔ `float3`, `1x1` ↔ `float1`/`float`). GLSL allows it only explicitly (`vec3(m2)`, `vec4(m3)`) |
 | Matrices mixed into constructor arguments | In a matrix ctor, with an exact component count (`float3x3(m22, s, s, s, s, s)`, row order) | In a vector ctor, only the last argument may have components left over (`vec4(s, m2)`, column order). Not allowed in a matrix ctor | ○ / ○ | An HLSL vector ctor (`float4(s, m2)`) is an error because the component count does not match |
 | Explicit conversion between half and float `half3(f)` / `f16vec3(v)` | ○ | ○ | ○ / ○ | |
 | Implicit conversion between half and float, and mixed operations `h * a`, `float3 v = h` | ○ | Partly ○ (f16 → f32 direction) | × / × | Rejected on purpose (because rounding would be mixed in) |

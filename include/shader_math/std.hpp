@@ -128,22 +128,32 @@ namespace hlsl {
 template <class Ch, class Tr, int R, int C, class T>
 std::basic_ostream<Ch, Tr>& operator<<(std::basic_ostream<Ch, Tr>& os, const matrix<T, R, C>& m) {
     os << '(';
-    for (int r = 0; r < R; ++r) os << (r ? ", " : "") << m[r];
+    for (int r = 0; r < R; ++r) {
+        if (r) os << ", ";
+        if constexpr (C == 1) {
+            if constexpr (std::is_same_v<T, bool>)
+                os << '(' << (static_cast<bool>(m[r]) ? "true" : "false") << ')';
+            else
+                os << '(' << detail::as_written(m[r][0]) << ')';
+        } else {
+            os << m[r];
+        }
+    }
     return os << ')';
 }
 
 template <std::size_t I, int R, int C, class T>
-SHADER_MATH_INLINE vector<T, C>& get(matrix<T, R, C>& m) {
+SHADER_MATH_INLINE typename matrix<T, R, C>::row_t& get(matrix<T, R, C>& m) {
     static_assert(I < static_cast<std::size_t>(R), "shader-math: row out of range");
     return m[static_cast<int>(I)];
 }
 template <std::size_t I, int R, int C, class T>
-SHADER_MATH_INLINE vector<T, C> get(const matrix<T, R, C>& m) {
+SHADER_MATH_INLINE typename matrix<T, R, C>::row_t get(const matrix<T, R, C>& m) {
     static_assert(I < static_cast<std::size_t>(R), "shader-math: row out of range");
     return m[static_cast<int>(I)];
 }
 template <std::size_t I, int R, int C, class T>
-SHADER_MATH_INLINE vector<T, C> get(matrix<T, R, C>&& m) {
+SHADER_MATH_INLINE typename matrix<T, R, C>::row_t get(matrix<T, R, C>&& m) {
     static_assert(I < static_cast<std::size_t>(R), "shader-math: row out of range");
     return m[static_cast<int>(I)];
 }
@@ -191,7 +201,7 @@ struct std::tuple_size<shader_math::hlsl::matrix<T, R, C>>
     : std::integral_constant<std::size_t, R> {};
 template <std::size_t I, int R, int C, class T>
 struct std::tuple_element<I, shader_math::hlsl::matrix<T, R, C>> {
-    using type = shader_math::detail::hvec<C, T>;
+    using type = typename shader_math::hlsl::matrix<T, R, C>::row_t;
 };
 template <int Cn, int Rn, class T>
 struct std::tuple_size<shader_math::glsl::matrix<Cn, Rn, T>>
