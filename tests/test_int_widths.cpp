@@ -190,8 +190,8 @@ static void test_width_bit_functions() {
         CHECK(hb.x == 0x3C00 && hb.y == static_cast<std::int16_t>(0xC000) && hb.z == 0x3800);
         CHECK(asuint16(half(1.0f)) == 0x3C00u);
         const half2 hf = asfloat16(uint16_t2(uint16_t(0x3C00), uint16_t(0xC000)));
-        CHECK_EQF(static_cast<float>(hf.x), 1.0f);
-        CHECK_EQF(static_cast<float>(hf.y), -2.0f);
+        CHECK_EQF(static_cast<float>(hf[0]), 1.0f);
+        CHECK_EQF(static_cast<float>(hf[1]), -2.0f);
 #endif
     }
     {
@@ -225,11 +225,11 @@ static void test_width_bit_functions() {
         const f16vec2 h(glsl::float16_t(1.0f), glsl::float16_t(-2.0f));
         CHECK(packFloat2x16(h) == 0xC0003C00u);
         const f16vec2 uh = unpackFloat2x16(0xC0003C00u);
-        CHECK_EQF(static_cast<float>(uh.y), -2.0f);
+        CHECK_EQF(static_cast<float>(uh[1]), -2.0f);
         const i16vec2 hb = float16BitsToInt16(h);
         CHECK(hb.x == 0x3C00 && hb.y == static_cast<std::int16_t>(0xC000));
         const f16vec2 bh = uint16BitsToFloat16(i16vec2(int16_t(0x3C00), int16_t(0x3800)));
-        CHECK_EQF(static_cast<float>(bh.y), 0.5f);
+        CHECK_EQF(static_cast<float>(bh[1]), 0.5f);
 #endif
     }
 }
