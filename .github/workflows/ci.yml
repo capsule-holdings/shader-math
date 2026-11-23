@@ -89,7 +89,6 @@ jobs:
             runner: blacksmith-2vcpu-windows-2025
             cxx: cl
             package: true
-            cmake_extra: -DCMAKE_CXX_FLAGS_INIT='/d2cgsummary /Bt+'
           # MSVC detects FMA / SSE4.1 / AVX from /arch (__AVX2__ / __AVX__),
           # not from the GCC-style macros; _INIT keeps MSVC's default flags.
           - name: windows-x64-msvc-avx2
@@ -101,7 +100,6 @@ jobs:
           - name: windows-arm64-msvc
             runner: windows-11-arm
             cxx: cl
-            cmake_extra: -DCMAKE_CXX_FLAGS_INIT='/d2cgsummary /Bt+'
           # source-based coverage of include/ over the SIMD and scalar test
           # binaries; the report goes to the job summary (nothing is gated)
           - name: linux-x64-clang-coverage
