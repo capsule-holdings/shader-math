@@ -107,6 +107,8 @@ float4 case_bits_bitfn_float_args(float4 a, float4 b)
 // 1-dimension matrices (1xN, Nx1, 1x1): vector conversions, mul, transpose.
 // Slang's CPU target (v2026.20) rejects matrix.init for 1-dim matrices and
 // implicit vector <-> 1-dim matrix conversions, so DXC checks it.
+// DXC's DXIL lowering (v1.9.2609) crashes when float(float1x1) is used in a
+// scalar binary op, so pass float(d) directly to a vector constructor.
 float4 case_exact_matrix_dim1(float4 a, float4 b)
 {
     float1x3 r13 = a.xyz;
@@ -118,7 +120,7 @@ float4 case_exact_matrix_dim1(float4 a, float4 b)
     float3x1 t = transpose(r13) + scaled_c * 2.0f;
     float1 s = mul(r13, b.xyz) + mul(a.xyz, c31);
     float3 sum = float3(scaled_r) + float3(t) + outer[0] + outer[1] + outer[2];
-    return float4(sum, float(d) + s + r13._m02 + c31._31);
+    return float4(sum, d._m00 + s.x + r13._m02 + c31._31) + float4(0.0f, 0.0f, 0.0f, float(d));
 }
 
 // determinant(float1x1) and mul with float1 against 1-dim matrices. DXIL only:
