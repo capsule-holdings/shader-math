@@ -235,6 +235,14 @@ Semantic notes:
 - `isnan` / `isinf` / `isfinite` return `bool2/3/4` (under `-ffast-math`, NaN checks may be optimized away)
 - When using `<windows.h>` on Windows, `NOMINMAX` is required (it collides with the `min` / `max` macros)
 
+## Migrating from 0.6
+
+0.7 adds the int / uint vectors. Code written for 0.6 compiles unchanged, except where the new names collide with your own
+declarations under `using namespace hlsl` / `using namespace glsl`: `uint`, `dword` (HLSL), `int2`–`int4`, `uint2`–`uint4`,
+`ivec2`–`ivec4`, `uvec2`–`uvec4`, and the integer functions (`asint`, `countbits`, `bitCount`, `findMSB`, `bitfieldExtract`, …).
+A `uint` of your own that names a different type than `unsigned int` makes `uint` ambiguous; qualify one of them. Update
+`find_package(shader_math 0.6)` to `0.7` (during 0.x, only the same minor version is compatible).
+
 ## Migrating from 0.5
 
 0.6 contains incompatible changes (during 0.x, only the same minor version is compatible).
@@ -268,12 +276,12 @@ The target is `shader_math::shader_math` with every method.
 include(FetchContent)
 FetchContent_Declare(shader_math
     GIT_REPOSITORY https://github.com/capsule-holdings/shader-math.git
-    GIT_TAG v0.6.0)
+    GIT_TAG v0.7.0)
 FetchContent_MakeAvailable(shader_math)
 
 # B) Installed package
 #    point CMAKE_PREFIX_PATH at what cmake --install build --prefix <prefix> installed
-find_package(shader_math 0.6 REQUIRED CONFIG)
+find_package(shader_math 0.7 REQUIRED CONFIG)
 
 target_link_libraries(app PRIVATE shader_math::shader_math)
 ```
