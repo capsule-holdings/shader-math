@@ -339,6 +339,17 @@ float4 case_bits_int_mixed(float4 a, float4 b)
     return asfloat(asuint(r) + s + uint4(t) + uint4(i < a));
 }
 
+// an integer scalar's type: int with 2u computes in uint (the comparison, >>
+// logical, %), an unsuffixed literal takes the vector's type
+float4 case_bits_int_scalar_types(float4 a, float4 b)
+{
+    int4 i = int4(a * 4.0f) - 6 + int4(b);  // -1, -12, 9, -5
+    uint4 u = (i * 2u) >> 1u;
+    uint4 m = i % 3u;
+    bool4 c = i < 2u;
+    return asfloat(u ^ m ^ (uint4(c) << 5u) ^ ((2u - i) << 9u) ^ (i & 0xF0u));
+}
+
 // bit functions; firstbithigh on int counts from the sign (negative lanes)
 float4 case_bits_int_bitfns(float4 a, float4 b)
 {

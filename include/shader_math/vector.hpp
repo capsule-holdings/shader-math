@@ -1055,6 +1055,40 @@ struct scalar_value<nswz<T, N, Lg, J>> {
 };
 #endif
 
+// The type an integer scalar has next to an integer vector of T, in language
+// Lg. GLSL types every integer (2 is an int, 2u a uint, one component its
+// vector's element). HLSL types 2u as a uint and a component as its element,
+// but an unsuffixed literal takes the vector's type, so a plain signed scalar
+// counts as a T (an int variable cannot be told apart from the literal).
+template <class S, class T, class Lg>
+constexpr auto int_scalar_elem() {
+    using V = typename scalar_value<std::remove_cvref_t<S>>::type;
+    if constexpr (!std::is_integral_v<V> || std::is_same_v<V, bool>) {
+        return std::type_identity<void>{};
+    } else if constexpr (!is_glsl_v<Lg> && std::is_arithmetic_v<std::remove_cvref_t<S>> && std::is_signed_v<V>) {
+        return std::type_identity<T>{};
+    } else {
+        using W = std::conditional_t<sizeof(V) == 2, std::int16_t,
+                                     std::conditional_t<sizeof(V) == 8, std::int64_t, std::int32_t>>;
+        return std::type_identity<std::conditional_t<std::is_signed_v<V>, W, std::make_unsigned_t<W>>>{};
+    }
+}
+// The element type an integer vector A and an integer scalar S compute in:
+// their common type (GLSL i16vec3 * 2 is an ivec3, HLSL and GLSL int3 * 2u a
+// uint3); void where there is none
+template <class A, class S>
+using int_scalar_op_t =
+    common_elem_t<vec_elem_t<A>, typename decltype(int_scalar_elem<S, vec_elem_t<A>, vec_lang_t<A>>())::type,
+                  vec_lang_t<A>>;
+// A scalar operand that keeps vector A's type, and an integer scalar that
+// takes it to another element type
+template <class S, class A>
+concept VecScalar = VecLike<A> && ScalarFor<S, vec_elem_t<A>> &&
+                    (!IntVec<A> || std::is_same_v<int_scalar_op_t<A, S>, vec_elem_t<A>>);
+template <class S, class A>
+concept PromotingScalar = IntVec<A> && !std::is_void_v<int_scalar_op_t<A, S>> &&
+                          !std::is_same_v<int_scalar_op_t<A, S>, vec_elem_t<A>>;
+
 template <class V>
 SHADER_MATH_INLINE decltype(auto) to_vec(const V& t) {
     return vec_traits<std::remove_cvref_t<V>>::get(t);
@@ -1069,13 +1103,13 @@ SHADER_MATH_INLINE decltype(auto) to_vec(const V& t) {
         return vec_t<A>(vops<T>::fn(to_vec(a).q_, to_vec(b).q_));                      \
     }                                                                                  \
     template <class A, class S>                                                        \
-        requires(VecLike<A> && ScalarFor<S, vec_elem_t<A>>)                            \
+        requires VecScalar<S, A>                                                       \
     SHADER_MATH_INLINE auto operator sym(const A& a, const S& s) {                     \
         using T = vec_elem_t<A>;                                                       \
         return vec_t<A>(vops<T>::fn(to_vec(a).q_, vops<T>::splat(static_cast<T>(s)))); \
     }                                                                                  \
     template <class B, class S>                                                        \
-        requires(VecLike<B> && ScalarFor<S, vec_elem_t<B>>)                            \
+        requires VecScalar<S, B>                                                       \
     SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                     \
         using T = vec_elem_t<B>;                                                       \
         return vec_t<B>(vops<T>::fn(vops<T>::splat(static_cast<T>(s)), to_vec(b).q_)); \
@@ -1131,7 +1165,7 @@ SHADER_MATH_INLINE fvec<N, T, Lg> operator--(fvec<N, T, Lg>& a, int) {
         return a;                                                                       \
     }                                                                                   \
     template <int N, class T, class Lg, class S>                                        \
-        requires ScalarFor<S, T>                                                        \
+        requires VecScalar<S, fvec<N, T, Lg>>                                           \
     SHADER_MATH_INLINE fvec<N, T, Lg>& operator sym##=(fvec<N, T, Lg>& a, const S& s) { \
         a = a sym s;                                                                    \
         return a;                                                                       \
@@ -1178,8 +1212,21 @@ concept IntVecFloatScalar = IntVec<A> && std::is_floating_point_v<std::remove_cv
     SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                  \
         return static_cast<float>(s) sym float_vec_t<B>(to_vec(b));                 \
     }                                                                               \
+    template <class A, class S>                                                     \
+        requires PromotingScalar<S, A>                                              \
+    SHADER_MATH_INLINE auto operator sym(const A& a, const S& s) {                  \
+        using R = int_scalar_op_t<A, S>;                                            \
+        return fvec<vec_size_v<A>, R, vec_lang_t<A>>(to_vec(a)) sym static_cast<R>(s); \
+    }                                                                               \
+    template <class B, class S>                                                     \
+        requires PromotingScalar<S, B>                                              \
+    SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                  \
+        using R = int_scalar_op_t<B, S>;                                            \
+        return static_cast<R>(s) sym fvec<vec_size_v<B>, R, vec_lang_t<B>>(to_vec(b)); \
+    }                                                                               \
     template <int N, class T, class Lg, class B>                                    \
-        requires((MixedVec<fvec<N, T, Lg>, B> || IntVecFloatScalar<fvec<N, T, Lg>, B>) && \
+        requires((MixedVec<fvec<N, T, Lg>, B> || IntVecFloatScalar<fvec<N, T, Lg>, B> || \
+                  PromotingScalar<B, fvec<N, T, Lg>>) &&                            \
                  requires(const fvec<N, T, Lg>& a, const B& b) {                    \
                      { a sym b } -> std::convertible_to<fvec<N, T, Lg>>;            \
                  })                                                                 \
@@ -1204,13 +1251,13 @@ SM_MIXED_BINOP(/)
         return vec_t<A>(vops<T>::fn(to_vec(a).q_, to_vec(b).q_));                      \
     }                                                                                  \
     template <class A, class S>                                                        \
-        requires(IntVec<A> && ScalarFor<S, vec_elem_t<A>>)                             \
+        requires(IntVec<A> && VecScalar<S, A>)                                         \
     SHADER_MATH_INLINE auto operator sym(const A& a, const S& s) {                     \
         using T = vec_elem_t<A>;                                                       \
         return vec_t<A>(vops<T>::fn(to_vec(a).q_, vops<T>::splat(static_cast<T>(s)))); \
     }                                                                                  \
     template <class B, class S>                                                        \
-        requires(IntVec<B> && ScalarFor<S, vec_elem_t<B>>)                             \
+        requires(IntVec<B> && VecScalar<S, B>)                                         \
     SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                     \
         using T = vec_elem_t<B>;                                                       \
         return vec_t<B>(vops<T>::fn(vops<T>::splat(static_cast<T>(s)), to_vec(b).q_)); \
@@ -1227,6 +1274,18 @@ SM_INT_BINOP(^, bxor)
     SHADER_MATH_INLINE auto operator sym(const A& a, const B& b) {                  \
         using R = mixed_t<A, B>;                                                    \
         return R(to_vec(a)) sym R(to_vec(b));                                       \
+    }                                                                               \
+    template <class A, class S>                                                     \
+        requires PromotingScalar<S, A>                                              \
+    SHADER_MATH_INLINE auto operator sym(const A& a, const S& s) {                  \
+        using R = int_scalar_op_t<A, S>;                                            \
+        return fvec<vec_size_v<A>, R, vec_lang_t<A>>(to_vec(a)) sym static_cast<R>(s); \
+    }                                                                               \
+    template <class B, class S>                                                     \
+        requires PromotingScalar<S, B>                                              \
+    SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                  \
+        using R = int_scalar_op_t<B, S>;                                            \
+        return static_cast<R>(s) sym fvec<vec_size_v<B>, R, vec_lang_t<B>>(to_vec(b)); \
     }
 SM_MIXED_INT_BINOP(%)
 SM_MIXED_INT_BINOP(&)

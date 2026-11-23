@@ -160,6 +160,7 @@ Differences caused by C++ syntax:
 | `& \| ^ ~` | ○ | ○ | ○ / ○ | |
 | `<< >>` | count masked to 5 bits | undefined for counts ≥ 32 | ○ / ○ | Count modulo 32 in both. The count may have the other signedness (`i >> u`). `k << v` is HLSL only |
 | Mixed operands | `i * 2.5` → float3, `i + u` → uint3 | `i * 2.5` → vec3, `i + u` → uvec3 | ○ / ○ | Compound assignment keeps the left type: HLSL `i += a` truncates, GLSL `i += a` is an error |
+| Integer scalar operands | `i * 2u` → uint3, `s16 * 2` → int16_t3 | `i * 2u` → uvec3, `s16 * 2` → ivec3 | ○ / ○ | GLSL types every integer; HLSL types `2u` and components, an unsuffixed literal takes the vector's type. An HLSL `int` variable (`s16 * k` is an `int3`) counts as such a literal here |
 | `!` | `!i` → bool3 | − | ○ / ○ | |
 | Comparisons | `i < j` → bool3 | `lessThan(i, j)`, `i == j` → bool | ○ / ○ | As for float vectors |
 | `abs` `min` `max` `clamp` `sign` | ○ | ○ | ○ / ○ | `abs(INT_MIN)` wraps; `sign` takes int, not uint |
@@ -175,7 +176,7 @@ Differences caused by C++ syntax:
 | unorm / snorm packing | − | `packUnorm2x16` `packSnorm2x16` `packUnorm4x8` `packSnorm4x8`, `unpack*` | ○ / ○ | Ties to even (implementation-defined in GLSL); NaN packs as 0 |
 | Integer and float16 packing | − | `packInt2x16` `packUint2x16` `packInt4x16` `packUint4x16` `packInt2x32` `packUint2x32` `packFloat2x16`, `unpack*` | − / ○ | The first component in the low bits |
 | 16- / 64-bit integers | `int16_t3` `uint64_t3` (`-enable-16bit-types` for 16 bits) | `i16vec3` `u64vec3` | ○ / ○ | Operators, int functions and bit functions at their width |
-| Mixed widths | the wider, unsigned when either is | one side converts implicitly | ○ / △ | GLSL's `int` literal promotes `i16vec3 * 2` to `ivec3`; here it stays `i16vec3` |
+| Mixed widths | the wider, unsigned when either is | one side converts implicitly | ○ / ○ | |
 | 16-bit integer with half | `int16_t3 + half3` → half3 | `i16vec3 + f16vec3` → f16vec3 | × / × | half converts explicitly, as with float |
 | Integer matrices | `int3x3` `uint3x3` | − | ○ / − | `mul` wraps; `%`, bitwise operators, comparisons and the int functions row by row; float functions and `determinant` compute in float |
 | Matrix compared with a scalar | `m > 1.0` → bool3x3 | − (`==` only, whole matrix) | ○ / − | Every element type |
@@ -262,7 +263,7 @@ GPU ABI. Shader compilers also differ from each other (Slang's CPU `round`, DXC'
 
 ## Conformance rate (2026-11-23)
 
-The fraction of the 781 cases in `tests/conformance/` (HLSL 405, GLSL 376) for which shader-math accepts and rejects
+The fraction of the 793 cases in `tests/conformance/` (HLSL 408, GLSL 385) for which shader-math accepts and rejects
 the same code as the language. The values exclude the out-of-scope categories. The int / uint cases were added with
 the integer vectors; the earlier columns cover the float / half cases only.
 
@@ -272,16 +273,15 @@ the integer vectors; the earlier columns cover the float / half cases only.
 | GLSL float / half (256) | 78.5% | 96.1% | 96.9% |
 | HLSL int / uint (77) | − | − | 98.7% |
 | GLSL int / uint (63) | − | − | 100.0% |
-| HLSL 16- / 64-bit (32) | − | − | 96.9% |
-| GLSL 16- / 64-bit (40) | − | − | 95.0% |
+| HLSL 16- / 64-bit (35) | − | − | 97.1% |
+| GLSL 16- / 64-bit (49) | − | − | 98.0% |
 | HLSL packing (8) | − | − | 100.0% |
 | GLSL packing (15) | − | − | 100.0% |
-| HLSL total (403) | − | − | 93.5% |
-| GLSL total (374) | − | − | 97.3% |
+| HLSL total (406) | − | − | 93.6% |
+| GLSL total (383) | − | − | 97.7% |
 
 The one int / uint mismatch is HLSL's implicit bool → int (`int3 r = bb;`), kept explicit like bool → float. The
-16- / 64-bit mismatches are 16-bit integers mixed with half (both languages) and GLSL's `int` literal promotion
-(`i16vec3 * 2`). GLSL's float / half cases went up with `frexp` / `ldexp` taking int exponents.
+16- / 64-bit mismatches are 16-bit integers mixed with half (both languages). GLSL's float / half cases went up with `frexp` / `ldexp` taking int exponents.
 
 Measured with Apple Clang. With g++ (libstdc++), one more GLSL case matches (the case where the scalar `round(s)`
 becomes ambiguous because of libc++'s `::round(float)`). The remaining mismatches correspond to the × and △ entries in
