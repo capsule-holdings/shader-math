@@ -320,3 +320,17 @@ vec4 case_bits_int_convert(vec4 a, vec4 b)
                            floatBitsToUint(vec4(ivec4(-7, 0, 9, -100))) + uvec4(e) +
                            floatBitsToUint(l));
 }
+
+// mixed operands and implicit conversions (GLSL widens only: int -> uint,
+// int / uint -> float)
+vec4 case_bits_int_mixed(vec4 a, vec4 b)
+{
+    ivec4 i = ivec4(a * 4.0f);
+    uvec4 u = uvec4(abs(b) * 4.0f);
+    vec4 f = i + a;
+    f += i * 0.5f;
+    uvec4 s = i + u;
+    vec4 g = u;
+    vec4 r = f + g * 0.25f;
+    return uintBitsToFloat(floatBitsToUint(r) + s);
+}

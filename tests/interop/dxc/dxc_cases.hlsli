@@ -81,3 +81,15 @@ float4 case_bits_int_sign(float4 a, float4 b)
     int4 j = int4(b * 4.0f);
     return asfloat(sign(i) * 3 + sign(j) + sign(i - i) * 5);
 }
+
+// int4 += float4 computes in float and truncates the sum (DXC, shader-math);
+// Slang (v2026.20) converts the right operand to int first
+float4 case_bits_int_compound_float(float4 a, float4 b)
+{
+    int4 t = int4(a * 3.0f);
+    t += b;
+    t *= 0.5f;
+    uint4 u = uint4(abs(a) * 4.0f);
+    u -= b * 2.0f;
+    return asfloat(uint4(t) + u);
+}

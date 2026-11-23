@@ -64,4 +64,5 @@
     X(bits_uint_wrap, case_bits_uint_wrap(IN_A, IN_B))         \
     X(bits_int_bitwise, case_bits_int_bitwise(IN_A, IN_B))     \
     X(bits_int_compare, case_bits_int_compare(IN_A, IN_B))     \
-    X(bits_int_convert, case_bits_int_convert(IN_A, IN_B))
+    X(bits_int_convert, case_bits_int_convert(IN_A, IN_B))     \
+    X(bits_int_mixed, case_bits_int_mixed(IN_A, IN_B))

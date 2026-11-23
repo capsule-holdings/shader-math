@@ -10,7 +10,8 @@
     X(exact_ctor_ops, case_exact_ctor_ops(IN_A, IN_B))         \
     X(exact_lane_writes, case_exact_lane_writes(IN_A, IN_B))   \
     X(exact_index_matrix_args, case_exact_index_matrix_args(IN_A, IN_B)) \
-    X(bits_int_sign, case_bits_int_sign(IN_A, IN_B))
+    X(bits_int_sign, case_bits_int_sign(IN_A, IN_B))           \
+    X(bits_int_compound_float, case_bits_int_compound_float(IN_A, IN_B))
 
 // SPIR-V leaves lit out: DXC's SPIR-V backend computes its specular term as
 // (n.h) * m instead of the documented (n.h)^m.

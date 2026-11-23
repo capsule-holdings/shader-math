@@ -85,6 +85,31 @@ template <class T>
 inline constexpr bool is_int_elem_v =
     std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::uint32_t>;
 
+// Implicit conversions between 32-bit element types, per language: HLSL
+// converts between int, uint and float either way; GLSL only widens (int ->
+// uint, int / uint -> float). half and bool always convert explicitly.
+template <class T>
+inline constexpr bool is_num32_v = std::is_same_v<T, float> || is_int_elem_v<T>;
+template <class U, class T, class Lg>
+constexpr bool implicit_elem() {
+    if constexpr (std::is_same_v<U, T> || !is_num32_v<U> || !is_num32_v<T>) {
+        return false;
+    } else if constexpr (is_glsl_v<Lg>) {
+        return is_int_elem_v<U> &&
+               (std::is_same_v<T, float> ||
+                (std::is_same_v<U, std::int32_t> && std::is_same_v<T, std::uint32_t>));
+    } else {
+        return true;
+    }
+}
+template <class U, class T, class Lg>
+inline constexpr bool implicit_elem_v = implicit_elem<U, T, Lg>();
+// The type mixed int / uint / float operands compute in (both languages):
+// float when either is float, else uint
+template <class A, class B>
+using common_elem_t =
+    std::conditional_t<std::is_same_v<A, float> || std::is_same_v<B, float>, float, std::uint32_t>;
+
 // The value type of one constructor argument: itself, or the element type of
 // a one-component swizzle (specialized after the swizzle types)
 template <class U>
@@ -748,12 +773,19 @@ struct fvec : fvec_store<N, T, Lg> {
         requires(N2 > N)
         : store_t(o.q_) {}
 
-    // explicit conversion to another element type (half <-> float) or to the
-    // other language's vector of the same width; no implicit mixing
+    // conversion to another element type or to the other language's vector of
+    // the same width: implicit where the language converts implicitly
+    // (implicit_elem_v: HLSL int <-> float, GLSL int -> float ...), explicit
+    // otherwise (half <-> float, bool, the other language). Two constrained
+    // constructors rather than explicit(cond): Apple Clang 21 crashes deducing
+    // `vector r = v;` through the alias template with a conditional explicit.
     template <class U, class Lg2>
-    SHADER_MATH_INLINE explicit fvec(const fvec<N, U, Lg2>& o)
-        requires(!std::is_same_v<U, T> || !std::is_same_v<Lg2, Lg>)
-        : store_t(convert(o)) {}
+        requires(std::is_same_v<Lg2, Lg> && implicit_elem_v<U, T, Lg>)
+    SHADER_MATH_INLINE fvec(const fvec<N, U, Lg2>& o) : store_t(convert(o)) {}
+    template <class U, class Lg2>
+        requires((!std::is_same_v<U, T> || !std::is_same_v<Lg2, Lg>) &&
+                 !(std::is_same_v<Lg2, Lg> && implicit_elem_v<U, T, Lg>))
+    SHADER_MATH_INLINE explicit fvec(const fvec<N, U, Lg2>& o) : store_t(convert(o)) {}
     // explicit conversion from a bool vector: 1 where true, 0 where false
     // (HLSL float3(b), GLSL vec3(b))
     template <int M>
@@ -763,7 +795,11 @@ struct fvec : fvec_store<N, T, Lg> {
     // ... and from a swizzle of the other element type or language
     // (half4(f.wzyx)): the proxy cannot deduce U through the overload above
     template <class U, int M, class Lg2, int... Is>
-        requires((!std::is_same_v<U, T> || !std::is_same_v<Lg2, Lg>) && sizeof...(Is) == N)
+        requires(sizeof...(Is) == N && std::is_same_v<Lg2, Lg> && implicit_elem_v<U, T, Lg>)
+    SHADER_MATH_INLINE fvec(const swz<U, M, Lg2, Is...>& s) : fvec(fvec<N, U, Lg2>(s)) {}
+    template <class U, int M, class Lg2, int... Is>
+        requires((!std::is_same_v<U, T> || !std::is_same_v<Lg2, Lg>) && sizeof...(Is) == N &&
+                 !(std::is_same_v<Lg2, Lg> && implicit_elem_v<U, T, Lg>))
     SHADER_MATH_INLINE explicit fvec(const swz<U, M, Lg2, Is...>& s)
         : fvec(fvec<N, U, Lg2>(s)) {}
 
@@ -1028,6 +1064,57 @@ SM_VEC_COMPOUND(*)
 SM_VEC_COMPOUND(/)
 #undef SM_VEC_COMPOUND
 
+// ---- mixed int / uint / float operands (both languages) ---------------------
+// Both operands convert to common_elem_t (int3 + float3 is a float3, int3 +
+// uint3 a uint3); an int / uint vector with a floating-point scalar computes
+// in float (int3 * 2.5). Compound assignment keeps the left operand's type,
+// so it needs the language's implicit conversion back (HLSL int3 += float3
+// truncates; GLSL ivec3 += vec3 does not compile).
+template <class A, class B>
+concept MixedVec = VecLike<A> && VecLike<B> && (vec_size_v<A> == vec_size_v<B>) &&
+                   std::is_same_v<vec_lang_t<A>, vec_lang_t<B>> &&
+                   !std::is_same_v<vec_elem_t<A>, vec_elem_t<B>> && is_num32_v<vec_elem_t<A>> &&
+                   is_num32_v<vec_elem_t<B>>;
+template <class A, class B>
+using mixed_t =
+    fvec<vec_size_v<A>, common_elem_t<vec_elem_t<A>, vec_elem_t<B>>, vec_lang_t<A>>;
+template <class A>
+using float_vec_t = fvec<vec_size_v<A>, float, vec_lang_t<A>>;
+template <class A, class S>
+concept IntVecFloatScalar =
+    IntVec<A> && std::is_floating_point_v<std::remove_cvref_t<S>>;
+#define SM_MIXED_BINOP(sym)                                                         \
+    template <class A, class B>                                                     \
+        requires MixedVec<A, B>                                                     \
+    SHADER_MATH_INLINE auto operator sym(const A& a, const B& b) {                  \
+        using R = mixed_t<A, B>;                                                    \
+        return R(to_vec(a)) sym R(to_vec(b));                                       \
+    }                                                                               \
+    template <class A, class S>                                                     \
+        requires IntVecFloatScalar<A, S>                                            \
+    SHADER_MATH_INLINE auto operator sym(const A& a, const S& s) {                  \
+        return float_vec_t<A>(to_vec(a)) sym static_cast<float>(s);                 \
+    }                                                                               \
+    template <class B, class S>                                                     \
+        requires IntVecFloatScalar<B, S>                                            \
+    SHADER_MATH_INLINE auto operator sym(const S& s, const B& b) {                  \
+        return static_cast<float>(s) sym float_vec_t<B>(to_vec(b));                 \
+    }                                                                               \
+    template <int N, class T, class Lg, class B>                                    \
+        requires((MixedVec<fvec<N, T, Lg>, B> || IntVecFloatScalar<fvec<N, T, Lg>, B>) && \
+                 requires(const fvec<N, T, Lg>& a, const B& b) {                    \
+                     { a sym b } -> std::convertible_to<fvec<N, T, Lg>>;            \
+                 })                                                                 \
+    SHADER_MATH_INLINE fvec<N, T, Lg>& operator sym##=(fvec<N, T, Lg>& a, const B& b) { \
+        a = a sym b;                                                                \
+        return a;                                                                   \
+    }
+SM_MIXED_BINOP(+)
+SM_MIXED_BINOP(-)
+SM_MIXED_BINOP(*)
+SM_MIXED_BINOP(/)
+#undef SM_MIXED_BINOP
+
 // ---- integer operators (int / uint vectors, both languages) ----------------
 // % truncates like / (the sign follows the dividend); x / 0, x % 0 and
 // INT_MIN / -1 have the results of detail/int_lane.hpp
@@ -1055,6 +1142,19 @@ SM_INT_BINOP(&, band)
 SM_INT_BINOP(|, bor)
 SM_INT_BINOP(^, bxor)
 #undef SM_INT_BINOP
+// int with uint: both convert to uint
+#define SM_MIXED_INT_BINOP(sym)                                                     \
+    template <class A, class B>                                                     \
+        requires(MixedVec<A, B> && IntVec<A> && IntVec<B>)                          \
+    SHADER_MATH_INLINE auto operator sym(const A& a, const B& b) {                  \
+        using R = mixed_t<A, B>;                                                    \
+        return R(to_vec(a)) sym R(to_vec(b));                                       \
+    }
+SM_MIXED_INT_BINOP(%)
+SM_MIXED_INT_BINOP(&)
+SM_MIXED_INT_BINOP(|)
+SM_MIXED_INT_BINOP(^)
+#undef SM_MIXED_INT_BINOP
 
 template <class A>
     requires IntVec<A>
@@ -1089,7 +1189,7 @@ SM_INT_SHIFT(>>, shr)
 #define SM_INT_COMPOUND(sym)                                                            \
     template <int N, class T, class Lg, class B>                                        \
         requires(is_int_elem_v<T> && requires(const fvec<N, T, Lg>& a, const B& b) {    \
-            { a sym b } -> std::same_as<fvec<N, T, Lg>>;                                \
+            { a sym b } -> std::convertible_to<fvec<N, T, Lg>>;                         \
         })                                                                              \
     SHADER_MATH_INLINE fvec<N, T, Lg>& operator sym##=(fvec<N, T, Lg>& a, const B& b) { \
         a = a sym b;                                                                    \
@@ -1588,6 +1688,19 @@ SHADER_MATH_INLINE vec_elem_t<A> idot(const A& a0, const B& b0) {
     std::uint32_t s = 0u;
     for (int i = 0; i < n; ++i) s += static_cast<std::uint32_t>(t[i]);
     return static_cast<T>(s);
+}
+
+// Integer vector arguments of a floating-point function as float vectors (HLSL
+// converts them implicitly: sqrt(int3) is a float3); other arguments as is
+template <class A>
+    requires(!IntVec<A>)
+SHADER_MATH_INLINE const A& float_arg(const A& a) {
+    return a;
+}
+template <class A>
+    requires IntVec<A>
+SHADER_MATH_INLINE float_vec_t<A> float_arg(const A& a) {
+    return float_vec_t<A>(to_vec(a));
 }
 
 // ---- bit reinterpretation (hlsl asint / asuint / asfloat, glsl

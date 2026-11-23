@@ -45,11 +45,16 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
   - Operators: `+ - * / %` (truncating), `& | ^ ~`, `<< >>` (the count is an int / uint vector of the same width or an integer
     scalar; `>>` is arithmetic on int and logical on uint), comparisons as for float vectors, and in HLSL `!` (true where zero) and
     `scalar << vector`
-  - **No implicit mixing yet**: `int3 * 2.5f`, `int3 + uint3`, `float3 r = i;` and `sqrt(i)` are compile errors (convert explicitly,
-    `float3(i)`). Following each language's conversions is planned. Constructors convert (`int3(a)`, `int4(i.xy, 2.9f, k)`)
+  - **Each language's implicit conversions and mixed operands**: HLSL converts between int, uint and float either way
+    (`float3 f = i;`, `int3 t = a;` truncates); GLSL only widens (int → uint, int / uint → float; `ivec3 t = a;` is an error).
+    Mixed operands compute in float when one side is float and in uint for int with uint, in both languages (`int3 * 2.5` and
+    `int3 + float3` are `float3`, `int3 + uint3` is `uint3`); a compound assignment keeps the left type, so it needs the implicit
+    conversion back (HLSL `int3 += float3` truncates, GLSL `ivec3 += vec3` is an error). In HLSL the floating-point functions
+    take int vectors as float (`sqrt(int3)` is a `float3`). bool ↔ int, half ↔ int and the other language stay explicit.
+    Constructors convert (`int3(a)`, `int4(i.xy, 2.9f, k)`)
   - Functions: `abs` `sign` (int only) `min` `max` `clamp`; HLSL `dot` `mul(v, v)` `all` `any` `select` `asint` `asuint`
     `asfloat`; GLSL `equal` / `lessThan` / … `mix(x, y, bvec)` `floatBitsToInt` `floatBitsToUint` `intBitsToFloat`
-    `uintBitsToFloat`. The floating-point functions (`sqrt`, `length`, …) do not take integer vectors
+    `uintBitsToFloat`. In GLSL the floating-point functions (`sqrt`, `length`, …) do not take integer vectors
 - Half matrices: `hlsl::halfRxC` and `glsl::f16matCxR` (as with float, **distinct types** with explicit conversion; the correspondence of non-square shapes is also the same as for float).
   `determinant` / `inverse` are also computed in half. Real fp16 underflows / overflows early, so do not pass ill-conditioned matrices
   - `sizeof(half3) == 8` (four packed binary16 values). As with `sizeof(float3) == 16`, this is **language compatibility, not GPU ABI compatibility**

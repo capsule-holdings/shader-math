@@ -51,6 +51,9 @@ The Slang version being checked is `slang_tag` in `ci.yml` (CI pins it and downl
 - **`dst`**: In Slang (v2026.20), the C++ prelude of the CPU target has no implementation of it, and with
   `-target spirv` parsing of the core built-in code fails (`snippet parsing failed`). Do not write it in the shared
   files (shader-math covers it with unit tests only). Via SPIR-V, `frexp` likewise takes an int exponent.
+- **Compound assignment of a float to an int vector** (`int4 t; t += b;` with a `float4` b): DXC (and shader-math)
+  add in float and truncate the sum; Slang (v2026.20) converts `b` to int first (`3 += -0.75` gives 2 against 3). It is
+  checked against DXC only (`case_bits_int_compound_float`).
 - **`sign` on int vectors**: the C++ prelude of the CPU target in Slang (v2026.20) has no `I32_sign`, so the generated
   code does not compile. It is checked against DXC only (`case_bits_int_sign`).
 
