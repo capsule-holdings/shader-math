@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795427910905,
+  "lastUpdate": 1795427913792,
   "repoUrl": "https://github.com/capsule-holdings/shader-math",
   "entries": {
     "linux-x64-gcc": [
@@ -15207,6 +15207,160 @@ window.BENCHMARK_DATA = {
           {
             "name": "half4 a * b + c [scalar]",
             "value": 3.177,
+            "unit": "ns/elem"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "emuesuenu@hotmail.com",
+            "name": "Hidenori Kondo",
+            "username": "emuesuenu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "412dd2e34a53e8aca0ead3a93dc16a099e0a39ea",
+          "message": "HLSL one-component vectors: float1, int1, ... (vector<T, 1>) (#124)\n\nfvec<1, T, Lg> is a scalar spelled as a vector: it converts to and from its\nelement implicitly, takes part in operations as a one-component swizzle\ndoes (float1 + float3 is a float3, sqrt(f1) takes it as a float), and reads\nthrough .x / .r, .xx to .xxxx and [0]; compound assignment, ++ / -- and\nHLSL's floating-point % are members. hlsl gains float1, half1, int1, uint1,\nbool1 and the 16- / 64-bit ones.\n\nThe scalar operand rules take a scalar by its value type, so one component\nof a vector or matrix mixes as a number does (int3 * v.x is a float3,\nuint3 + i.x a uint3, m._m00 * v).\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-23T18:52:08+09:00",
+          "tree_id": "07b91f53db2b2a6b659f550652a543bb9c2b879a",
+          "url": "https://github.com/capsule-holdings/shader-math/commit/412dd2e34a53e8aca0ead3a93dc16a099e0a39ea"
+        },
+        "date": 1795427913056,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "hlsl mul(float4x4, float4x4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.274,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.345,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.903,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.709,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 4.944,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [SSE2+SSE4.1+FMA+AVX]",
+            "value": 12.014,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.399,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 1.458,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [SSE2+SSE4.1+FMA+AVX]",
+            "value": 7.46,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.206,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.207,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [SSE2+SSE4.1+FMA+AVX]",
+            "value": 0.357,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [SSE2+SSE4.1+FMA+AVX]",
+            "value": 2.465,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4x4) [scalar]",
+            "value": 2.779,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [scalar]",
+            "value": 2.97,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [scalar]",
+            "value": 0.781,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [scalar]",
+            "value": 3.103,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [scalar]",
+            "value": 4.748,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [scalar]",
+            "value": 12.73,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [scalar]",
+            "value": 0.755,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [scalar]",
+            "value": 0.887,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [scalar]",
+            "value": 7.546,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [scalar]",
+            "value": 0.636,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [scalar]",
+            "value": 0.165,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [scalar]",
+            "value": 1.114,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [scalar]",
+            "value": 3.179,
             "unit": "ns/elem"
           }
         ]
