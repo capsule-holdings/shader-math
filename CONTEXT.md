@@ -1,251 +1,251 @@
-# shader-math 開発コンテキスト
+# shader-math development context
 
-計画フェーズでの調査・設計判断の記録。実装の背景を追うためのドキュメント。
-作成: 2026-08-20
+A record of the research and design decisions made during the planning phase. This document exists to trace the background of the implementation.
+Created: 2026-08-20
 
-## 発端と要件の変遷
+## Origin and evolution of the requirements
 
-1. 初期要求: 「CUDA（HLSL）の行列計算と同じライブラリ。float3x3〜float4x4。完全互換。Boost + SIMD × template でインライン展開。.cpp でコンパイルできるもの」
-2. 調査結果: CUDA Runtime / `vector_types.h` に行列型は存在しない。「CUDA（HLSL）の行列」の実体は Microsoft HLSL の行列言語仕様
-3. 要件更新: 「Win 依存なしで HLSL×GLSL 互換の floatNxM SIMD が欲しい」→ 二重名前空間の設計へ
-4. スコープ拡大: float2 / 2x2 追加 → R,C ∈ {2,3,4} の全9形 → 任意 swizzle も v1（完全互換を貫く）
-5. ツールチェイン: 古い環境への忖度はしない。C++20 concepts 必須（フォールバック層なし）
+1. Initial request: "A library identical to CUDA (HLSL) matrix math. float3x3 to float4x4. Fully compatible. Inline expansion with Boost + SIMD × templates. Something that compiles in a .cpp file."
+2. Research findings: CUDA Runtime / `vector_types.h` has no matrix types. What "CUDA (HLSL) matrices" actually refers to is the matrix language specification of Microsoft HLSL.
+3. Updated requirement: "I want HLSL×GLSL-compatible floatNxM SIMD with no Windows dependency" → this led to the dual-namespace design.
+4. Scope expansion: float2 / 2x2 added → all 9 shapes with R,C ∈ {2,3,4} → arbitrary swizzles also in v1 (holding to full compatibility).
+5. Toolchain: no accommodation is made for old environments. C++20 concepts are required (no fallback layer).
 
-## 主要な設計判断
+## Key design decisions
 
-### 二重名前空間（最重要）
+### Dual namespaces (most important)
 
-HLSL と GLSL は `operator*` の意味が逆:
+HLSL and GLSL give `operator*` opposite meanings:
 
-- HLSL: `mat1 * mat2` は**成分ごと**（Hadamard）。行列積は `mul()`
-- GLSL: `mat1 * mat2` が**行列積**。成分ごとは `matrixCompMult()`
+- HLSL: `mat1 * mat2` is **component-wise** (Hadamard). Matrix multiplication is `mul()`.
+- GLSL: `mat1 * mat2` is **matrix multiplication**. Component-wise multiplication is `matrixCompMult()`.
 
-→ 1つの `*` で両言語互換は不可能。`shader_math::hlsl` / `shader_math::glsl` に分離し、
-翻訳単位ごとに片方だけ `using namespace` する。グローバルの `namespace hlsl = ...;`
-エイリアスは `SHADER_MATH_NO_ALIAS` で抑止可能。
+→ A single `*` cannot be compatible with both languages. The library is split into `shader_math::hlsl` / `shader_math::glsl`,
+and each translation unit applies `using namespace` to only one of them. The global `namespace hlsl = ...;`
+alias can be suppressed with `SHADER_MATH_NO_ALIAS`.
 
-**却下した代替案: `*` の挙動をビルド設定で切り替える** — コードを読んでも意味が決まらなくなる、
-設定違いの TU 混在で ODR 違反、依存間の伝播事故。「設定で変えたい」の実体は
-「どちらの言語の式も書きたい」であり、名前空間が型システムで同じことを表現する。
-挙動を変えてよいノブは FORCE_SCALAR（結果同一・速度のみ）に限定。
+**Rejected alternative: switching the behavior of `*` with a build setting** — the meaning could no longer be determined by reading the code,
+mixing TUs built with different settings would cause ODR violations, and the setting could propagate across dependencies by accident. What "wanting to change it with a setting" really means is
+"wanting to write expressions in either language", and namespaces express the same thing through the type system.
+The only knob allowed to change behavior is FORCE_SCALAR (results are identical; only speed differs).
 
-### 既存ライブラリを使わなかった理由
+### Why existing libraries were not used
 
-- [hlslpp](https://github.com/redorav/hlslpp): HLSL 互換としては最良の既存実装（最有力競合）。GLSL 面がない
-- [NVIDIA MathLib](https://github.com/NVIDIA-RTX/MathLib): HLSL 互換 + SIMD だが float3x3 未実装
-- [DirectXMath](https://github.com/Microsoft/DirectXMath): `XMMATRIX::operator*` が行列積で HLSL と逆。
-  第一級型は 4x4 のみ。**ラップは不適**（言語契約が逆、GLSL 非対応、Win/D3D 寄り）
-- [GLM](https://github.com/g-truc/glm): GLSL 専用。HLSL の `*` と非互換
-- Boost.QVM: `*` が行列積・SIMD なし。旧 Boost.SIMD はメンテ終了
+- [hlslpp](https://github.com/redorav/hlslpp): the best existing implementation in terms of HLSL compatibility (the strongest competitor). It has no GLSL side.
+- [NVIDIA MathLib](https://github.com/NVIDIA-RTX/MathLib): HLSL-compatible + SIMD, but float3x3 is not implemented.
+- [DirectXMath](https://github.com/Microsoft/DirectXMath): `XMMATRIX::operator*` is matrix multiplication, the opposite of HLSL.
+  The only first-class type is 4x4. **Not suitable for wrapping** (opposite language contract, no GLSL support, oriented toward Win/D3D).
+- [GLM](https://github.com/g-truc/glm): GLSL only. Incompatible with HLSL's `*`.
+- Boost.QVM: `*` is matrix multiplication, and there is no SIMD. The former Boost.SIMD is no longer maintained.
 
-自作の存在意義は「一つの SIMD 核で両言語の式が書ける」こと。
+The reason for writing our own library is that "expressions in both languages can be written on top of a single SIMD core".
 
-### 型の対応関係（互換性監査で発見した罠）
+### Type correspondence (pitfalls found in compatibility audits)
 
-両言語の公式仕様との突合監査（2回実施）で見つけた非互換ポイント:
+Incompatibilities found in audits that cross-checked against the official specifications of both languages (performed twice):
 
-1. **比較演算子の意味が言語で逆**（`*` と同型の罠）: HLSL の `==` は成分ごと bool 行列
-   （`if` 不可、`all()`/`any()` で還元）、GLSL の `==` はスカラー bool（成分ごとは `equal()` 系）
-2. **非正方の型対応が入れ替わる**: GLSL `matCxR` は C列×R行 → `float3x4`(3行4列) ≡ `mat4x3`(4列3行)
-3. **スカラー ctor の意味差**: HLSL `float3x3(1)` = 全成分 splat / GLSL `mat3(1)` = 単位行列（対角）
-4. **行列⇔行列 ctor**: GLSL は拡大時に単位行列で補完・縮小は左上切り出し / HLSL は縮小キャストのみ
-5. **GLSL の `<` `>` はスカラー限定**: ベクトルには定義しない（定義すると過剰互換）
-6. vec×mat の意味は両言語で同一（GLSL `v*m` = HLSL `mul(v,m)`）→ `mul` 実装は共有可能
+1. **Comparison operators have opposite meanings in the two languages** (the same kind of pitfall as `*`): HLSL `==` yields a component-wise bool matrix
+   (it cannot be used in `if`; reduce it with `all()`/`any()`), while GLSL `==` yields a scalar bool (component-wise comparison is the `equal()` family).
+2. **The non-square type correspondence is swapped**: GLSL `matCxR` is C columns × R rows → `float3x4` (3 rows, 4 columns) ≡ `mat4x3` (4 columns, 3 rows).
+3. **Scalar ctors have different meanings**: HLSL `float3x3(1)` = splat to all components / GLSL `mat3(1)` = identity matrix (diagonal).
+4. **Matrix-to-matrix ctors**: GLSL fills with the identity matrix when enlarging and takes the upper-left part when shrinking / HLSL only has truncating casts.
+5. **GLSL `<` `>` are scalar-only**: they are not defined for vectors (defining them would be over-compatible).
+6. vec×mat has the same meaning in both languages (GLSL `v*m` = HLSL `mul(v,m)`) → the `mul` implementation can be shared.
 
-### 型の分け方
+### How the types are split
 
-- **ベクトルは 1 つのテンプレート、型は言語ごと**: `detail::fvec<N, T, Lg>` の `Lg` が言語タグ
-  （`hlsl::lang_tag` / `glsl::lang_tag`）。`hlsl::float3` = `fvec<3, float, hlsl::lang_tag>`、
-  `glsl::vec3` = `fvec<3, float, glsl::lang_tag>` で別型。演算の実装（`detail` の `+` / `dot` など）は
-  共通で、結果は引数と同じ言語の型になる。言語をまたぐ演算はエラー、変換は explicit
-- 言語で分かれるのは、レジスタと同じ union に置く swizzle の綴り（GLSL だけ `.stpq`）、スカラーからの
-  暗黙変換（HLSL の `float3 v = 1.0f` は可、GLSL は ctor のみ）、GLSL の `.length()`。union の
-  メンバは派生クラスで足せないので、union を持つ基底 `fvec_store<N, T, Lg>` を言語ごとに特殊化する
-- **却下した代替案: ベクトルを 1 つの型で共有する**。片方の言語にしか無いもの
-  （`.stpq`、`.length()`、GLSL でのスカラー暗黙変換の禁止）が両方に漏れるか、両方から消えるかになる。
-  比較演算子も型から言語が決まらず、using-directive の有無で意味が変わる
-- **却下した代替案: 使う言語をマクロで 1 つに絞る**。クラス定義が変わるので翻訳単位ごとに揃わないと
-  ODR 違反になり、両言語を 1 つのプログラムで使えなくなる
-- コンパイル時間: 前処理の大半は swizzle のプロキシ型の実体化（選ぶレーンの組ごとに 1 型、`xyzw` /
-  `rgba` / `stpq` で同じ組は同じ型）。幅 K のベクトルは自分の K 文字の組み合わせだけを宣言する
-  （幅 2 は 30 型、3 は 120 型、4 は 340 型）。全幅に 4 文字分を宣言して範囲外を使用時のエラーにすると、
-  1 要素型・1 言語あたり 1020 型になり、両言語の全型を使う翻訳単位が約 1.5 倍遅くなる。
-  include しただけではベクトルを実体化しない（非テンプレート関数の本体でベクトルを作らない）。`fvec_store` のコピー演算はユーザー定義にしてある。暗黙のままだと
-  コンパイラが union の全 swizzle メンバのコピー演算を解決しにいき、フロントエンド時間が増える
-- **行列は別型**: `hlsl::matrix<R,C>`（行格納・行優先 ctor）と `glsl::matrix<C,R>`（列格納・列優先 ctor）。
-  `operator*` と ctor 順が違うため同一型にはできない。相互変換は explicit
-- glsl 側を列レジスタ格納（内部転置）にしたのは `m[col]` をレジスタ直読みにするため。
-  行格納共有 + gather は遅いので却下
-- `bool2/3/4` / `boolRxC` は比較結果専用型（マスクレジスタ）。算術なし・bool 暗黙変換なし
+- **One template for vectors, separate types per language**: the `Lg` in `detail::fvec<N, T, Lg>` is the language tag
+  (`hlsl::lang_tag` / `glsl::lang_tag`). `hlsl::float3` = `fvec<3, float, hlsl::lang_tag>` and
+  `glsl::vec3` = `fvec<3, float, glsl::lang_tag>` are distinct types. The implementation of the operations (`+` / `dot` etc. in `detail`) is
+  shared, and the result has the same language type as the arguments. Operations across languages are errors, and conversions are explicit.
+- What differs by language: the swizzle spellings placed in the same union as the register (only GLSL has `.stpq`), implicit conversion
+  from scalars (HLSL allows `float3 v = 1.0f`; GLSL allows only the ctor), and GLSL's `.length()`. Union
+  members cannot be added in a derived class, so the base `fvec_store<N, T, Lg>` that holds the union is specialized per language.
+- **Rejected alternative: sharing one type for vectors**. Things that exist in only one language
+  (`.stpq`, `.length()`, the ban on implicit scalar conversion in GLSL) would either leak into both or disappear from both.
+  Comparison operators also could not determine the language from the type, and their meaning would change depending on whether a using-directive is present.
+- **Rejected alternative: narrowing to a single language with a macro**. The class definition changes, so unless every translation unit agrees
+  it is an ODR violation, and both languages can no longer be used in one program.
+- Compile time: most of the front-end time is the instantiation of the swizzle proxy types (one type per combination of selected lanes; the same combination in `xyzw` /
+  `rgba` / `stpq` is the same type). A vector of width K declares only the combinations of its own K letters
+  (width 2: 30 types, 3: 120 types, 4: 340 types). Declaring 4-letter combinations for every width and making out-of-range ones an error at the point of use
+  would result in 1020 types per element type per language, and a translation unit that uses all types of both languages would be about 1.5 times slower.
+  Including the header alone does not instantiate any vectors (no vectors are created in the bodies of non-template functions). The copy operations of `fvec_store` are user-defined. If they were left implicit,
+  the compiler would go and resolve the copy operations of every swizzle member of the union, which increases front-end time.
+- **Matrices are separate types**: `hlsl::matrix<R,C>` (row storage, row-major ctor) and `glsl::matrix<C,R>` (column storage, column-major ctor).
+  `operator*` and the ctor order differ, so they cannot be the same type. Conversion between them is explicit.
+- The glsl side uses column-register storage (internally transposed) so that `m[col]` reads a register directly.
+  Sharing row storage + gather is slow, so it was rejected.
+- `bool2/3/4` / `boolRxC` are types used only for comparison results (mask registers). No arithmetic and no implicit conversion to bool.
 
-### union による成分アクセス（実装依存の前提）
+### Component access through unions (an implementation-dependent assumption)
 
-`fvec` は `union { reg_t q_; T comp_[4]; swz<...> x, xy, ...; }`、`hlsl::matrix` は
-`union { fvec row_[R]; T flat_[R*4]; mswz<...> _m00, ...; }` で、SIMD レジスタと成分配列・
-swizzle プロキシが同じ 16 バイトを共有する。演算は `q_` に書き、`v[i]` / `v.x` / `v.xy = ...` は
-`comp_` / プロキシの `d[]` 経由で読み書きする。
+`fvec` is `union { reg_t q_; T comp_[4]; swz<...> x, xy, ...; }` and `hlsl::matrix` is
+`union { fvec row_[R]; T flat_[R*4]; mswz<...> _m00, ...; }`, so the SIMD register, the component array, and the
+swizzle proxies share the same storage (16 bytes per vector or matrix row). Operations write to `q_`, while `v[i]` / `v.x` / `v.xy = ...` read and write
+through `comp_` / the proxy's `d[]`.
 
-- **ISO C++ では未定義動作**（最後に書いたのと別の union メンバを読む型パンニング）
-- gcc が保証するのは union メンバ式を経由したアクセスだけ。プロキシの読み書きはプロキシ型の
-  `this->d[k]` で行うため保証の外にある。gcc の型ベースエイリアス解析はアクセスのベース型
-  （`fvec` と `mswz` / `swz`）を比べ、どちらも他方を含まないので別オブジェクトとみなす。
-  実際に `float2x2 m = a * b; return m._22;` は `row_{}` のゼロ初期化を前方伝播して 0 を返す
-  （gcc 10〜14、x86 / AArch64 / scalar バックエンド、-O2 以上・LTO でも同じ。clang は再現しない）。
-  レジスタ型に `may_alias` を付けても（x86 の `__m128` はもともと付いている）ベース型の比較は
-  変わらないので防げない
-- 対策: `swz` / `mswz` に `SHADER_MATH_MAY_ALIAS`（gcc / clang では `__attribute__((__may_alias__))`）
-  を付け、プロキシ経由のアクセスを全型とエイリアスしうるものとして扱わせる。`comp_` / `flat_` は
-  union メンバ式経由なので対象外。MSVC は型ベースのエイリアス解析をしないので空定義。
-  ベンチマーク（NEON / gcc 13）の差は計測誤差の範囲（±2% 以内）
-- 他の主要コンパイラ: clang も union 経由の型パンニングを gcc と同じ扱いにする。scalar バックエンドの
-  レジスタは `float[4]` を持つ構造体
-- 帰結: `constexpr` 化はできない（定数評価は非アクティブメンバの読み出しを拒否する）。
-  UBSan はこの種の UB を検出しないので、ASan/UBSan ジョブは保証にならない
-- 担保: 全 CI 構成（gcc / clang / MSVC / Apple Clang、-O3・Debug）での全テスト。
-  `test_vector.cpp` の union アクセス検査は、レジスタ書き込みと成分 / swizzle 読み書きを
-  noinline 関数内のループで交互に行い、素のスカラー計算と一致することを確認する
-  （エイリアス解析で読み書きが並べ替えられると不一致になる）。
-  `test_proxy_alias.cpp` は上の誤最適化が起きる形（行ごとのレジスタ書き込みの直後に `_mRC` で読む、
-  プロキシ書き込みの直後にレジスタ演算）を noinline 関数で持ち、`may_alias` が外れると gcc 構成
-  （linux-arm-gcc / linux-arm-gcc10-min / linux-x64-gcc 系 / scalar）で失敗する
-- 却下した代替: 親ベクトルへの参照を持つプロキシ（`sizeof` が増え、`v.x` を値で持てない）、
-  アクセサ関数（`v.x()` になり HLSL / GLSL の式がそのまま書けない）。
-  新しいコンパイラでこの前提が崩れた場合に再検討する
+- **This is undefined behavior in ISO C++** (type punning that reads a union member other than the one last written).
+- What gcc guarantees is only access through a union member expression. Proxy reads and writes go through the proxy type's
+  `this->d[k]`, so they are outside that guarantee. gcc's type-based alias analysis compares the base types of the accesses
+  (`fvec` and `mswz` / `swz`), and since neither contains the other, it treats them as distinct objects.
+  In practice, `float2x2 m = a * b; return m._22;` forward-propagates the zero initialization of `row_{}` and returns 0
+  (gcc 10 to 14, x86 / AArch64 / scalar backends, the same at -O2 and above and with LTO; clang does not reproduce it).
+  Adding `may_alias` to the register type (x86's `__m128` already has it) does not change the base-type comparison,
+  so it does not prevent this.
+- Countermeasure: `swz` / `mswz` carry `SHADER_MATH_MAY_ALIAS` (`__attribute__((__may_alias__))` on gcc / clang),
+  so that access through proxies is treated as possibly aliasing any type. `comp_` / `flat_` are accessed through
+  union member expressions, so they are not covered. MSVC does not perform type-based alias analysis, so the macro is defined as empty.
+  The benchmark difference (NEON / gcc 13) is within measurement error (within ±2%).
+- Other major compilers: clang also treats type punning through unions the same way as gcc. The scalar backend's
+  register is a struct that holds `float[4]`.
+- Consequence: `constexpr` is not possible (constant evaluation rejects reads of inactive members).
+  UBSan does not detect this kind of UB, so the ASan/UBSan job is not a guarantee.
+- Assurance: all tests on all CI configurations (gcc / clang / MSVC / Apple Clang, -O3 and Debug).
+  The union access check in `test_vector.cpp` alternates register writes with component / swizzle reads and writes
+  in a loop inside a noinline function and confirms that the result matches plain scalar computation
+  (if alias analysis reorders the reads and writes, the results do not match).
+  `test_proxy_alias.cpp` contains, in noinline functions, the patterns in which the miscompilation above occurs (reading with `_mRC` immediately after per-row register writes,
+  and register operations immediately after a proxy write), and it fails on the gcc configurations
+  (linux-arm-gcc / linux-arm-gcc10-min / the linux-x64-gcc family / scalar) if `may_alias` is removed.
+- Rejected alternatives: proxies that hold a reference to the parent vector (`sizeof` grows, and `v.x` cannot be held by value),
+  accessor functions (they become `v.x()`, so HLSL / GLSL expressions cannot be written as is).
+  To be reconsidered if this assumption breaks with a newer compiler.
 
-### ADL と名前空間配置
+### ADL and namespace placement
 
-- 言語共通の演算（ベクトル `+`、`dot` 等）→ `detail`（fvec の実体名前空間、ADL で見つかる）
-- 言語で意味が分かれる演算（行列 `*`、比較）と言語固有の名前（`frac`、`mix` 等）→ 各言語名前空間。
-  言語タグがその名前空間のクラスなので、ベクトルでも ADL で見つかる（using-directive 不要）。
-  もう片方の言語のベクトルには見つからず、修飾して呼んでも制約で弾く
-- 言語共通の関数も、各言語名前空間には `using detail::X` ではなく自分の言語の引数だけを取る転送テンプレート
-  （`SHADER_MATH_LANG_FORWARD`）で置く。`using` だと `hlsl::dot(glsl のベクトル)` が通ってしまう。
-  `isnan` / `isinf` / `round` / `all` / `any` は MSVC UCRT の `isnan(_Ty)` や `::round(float)` との兼ね合いで
-  シグネチャを明示する。スカラーの `round` / `isnan` / `isinf` は言語名前空間にだけ置く（`detail` にも同じものが
-  あると、成分 `v.x` を渡した呼び出しが ADL で曖昧になる）
-- 言語に無い機能（`inverse` の HLSL 版など）は `shader_math::ext`。どの型の関連名前空間でもないので ADL では
-  見つからず、シェーダの書き方のまま（`inverse(m)`）では通らない
-- トップレベル `hlsl` / `glsl` の直置きは却下（DirectXShaderCompiler が `hlsl` 名前空間を使う等、
-  衝突リスク）。ルート `shader_math` 配下 + グローバルエイリアスで解決
+- Operations common to both languages (vector `+`, `dot`, etc.) → `detail` (the namespace where fvec is actually defined; found by ADL).
+- Operations whose meaning differs by language (matrix `*`, comparisons) and language-specific names (`frac`, `mix`, etc.) → each language namespace.
+  The language tag is a class in that namespace, so these are found by ADL even for vectors (no using-directive needed).
+  They are not found for vectors of the other language, and even a qualified call is rejected by the constraints.
+- Functions common to both languages are also placed in each language namespace, not with `using detail::X` but as forwarding templates that take only arguments of their own language
+  (`SHADER_MATH_LANG_FORWARD`). With `using`, `hlsl::dot(a glsl vector)` would compile.
+  `isnan` / `isinf` / `round` / `all` / `any` have explicit signatures because of interactions with MSVC UCRT's `isnan(_Ty)` and `::round(float)`.
+  The scalar `round` / `isnan` / `isinf` are placed only in the language namespaces (if `detail` also had the same ones,
+  a call that passes a component `v.x` would be ambiguous under ADL).
+- Features that the languages do not have (such as an HLSL version of `inverse`) are in `shader_math::ext`. It is not an associated namespace of any type, so these functions are not
+  found by ADL, and writing them as in a shader (`inverse(m)`) does not compile.
+- Placing `hlsl` / `glsl` directly at the top level was rejected (risk of collisions, e.g. DirectXShaderCompiler uses an `hlsl` namespace).
+  Resolved by placing them under the root `shader_math` + global aliases.
 
-### restrict 設計（未定義の演算はコンパイルエラー）
+### Restriction design (undefined operations are compile errors)
 
-concepts + オーバーロード不宣言 + `= delete` 相当の3段構え:
+A three-layer approach: concepts + not declaring the overloads + the equivalent of `= delete`:
 
-- `hlsl` の `float3x4 * float4x3` → エラー（同形のみ。行列積は `mul`）
-- `glsl` の内次元不一致（`mat3 * mat4x2`）→ シグネチャで不成立
-- `float3 + float4` → エラー（スカラーのみブロードキャスト）
-- `if (a == b)`（hlsl）→ bvec は bool に変換しないのでエラー（言語仕様どおり）
-- 重複 swizzle 書き込み `v.xx = ...` → requires で不成立
-- hlsl⇔glsl 行列の暗黙変換なし
-- テストは requires 式 + static_assert で「コンパイルできないこと」自体を検証
+- `float3x4 * float4x3` in `hlsl` → error (same shape only; matrix multiplication is `mul`)
+- Inner-dimension mismatch in `glsl` (`mat3 * mat4x2`) → no matching signature
+- `float3 + float4` → error (only scalars are broadcast)
+- `if (a == b)` (hlsl) → error, because bvec does not convert to bool (as in the language specification)
+- Duplicate swizzle write `v.xx = ...` → fails the requires clause
+- No implicit conversion between hlsl and glsl matrices
+- Tests verify "does not compile" itself with requires expressions + static_assert
 
-### SIMD / ツールチェイン
+### SIMD / toolchain
 
-- NEON（AArch64）と SSE2（x86-64）が第一級。不明アーキ（RISC-V 等）は scalar 4-wide に
-  フォールバックしてビルド可能。RVV 対応は可能だが CI が薄いので初版見送り
-- PS5 = prospero-clang（Clang 系、x86-64/SSE2）、Switch = GCC 系（AArch64/NEON）。
-  要件は gcc 10+ / clang 14+ / MSVC 19.30+ / Apple Clang。gcc 10 と clang 14 は CI の下限ジョブで
-  確認（clang 11〜12 はコンパイラ内部エラー、13 は誤警告）。MSVC と Apple Clang はランナー既定版のみ
-- x86 のサブ機能（コンパイル時のみ、既定ベースライン SSE2 は上げない）: FMA3、SSE4.1（`roundps`）、
-  F16C（half ⇔ f32 変換を 1 命令）、AVX1（FMA 併用時のみ 4x4 積の 2 行詰め）。MSVC は GCC 系マクロが
-  無いので `__AVX2__` → FMA / F16C、`__AVX__` → SSE4.1 / AVX で検出する。ARM は FEAT_FP16 で half を
-  ネイティブ 16-bit レーンで計算
-- 制約は `<concepts>` ライブラリヘッダに依存せず、コア言語の `requires` 句のみで記述
-- Boost はヘッダのみ（Config = FORCEINLINE、Predef = ISA 検出）。concepts のポリフィルではない
-- scalar は間引かない: 同一テスト全件を SIMD と FORCE_SCALAR の両方で実行。
-  丸めの入る演算（fmadd 系）は近似比較、丸めなし演算（Hadamard・転置・ctor）は厳密一致
+- NEON (AArch64) and SSE2 (x86-64) are first-class. Unknown architectures (RISC-V, etc.) fall back to scalar 4-wide
+  and can still be built. RVV support is possible, but CI coverage would be thin, so it was deferred from the first release.
+- PS5 = prospero-clang (Clang-based, x86-64/SSE2), Switch = GCC-based (AArch64/NEON).
+  The requirements are gcc 10+ / clang 14+ / MSVC 19.30+ / Apple Clang. gcc 10 and clang 14 are verified by the CI minimum-version jobs
+  (clang 11 to 12 hit internal compiler errors, and 13 emits false warnings). MSVC and Apple Clang are tested only with the runner's default version.
+- x86 sub-features (compile time only; the default baseline of SSE2 is not raised): FMA3, SSE4.1 (`roundps`),
+  F16C (half ⇔ f32 conversion in a single instruction), AVX1 (packing two rows for the 4x4 product, only when combined with FMA). MSVC does not have the GCC-style
+  macros, so detection uses `__AVX2__` → FMA / F16C and `__AVX__` → SSE4.1 / AVX. On ARM, FEAT_FP16 is used to compute half in
+  native 16-bit lanes.
+- Constraints are written only with core-language `requires` clauses, without depending on the `<concepts>` library header.
+- Boost is used header-only (Config = FORCEINLINE, Predef = ISA detection). It is not a polyfill for concepts.
+- scalar is not given reduced coverage: the same full test suite runs with both SIMD and FORCE_SCALAR.
+  Operations that involve rounding (the fmadd family) use approximate comparison; operations without rounding (Hadamard, transpose, ctor) require an exact match.
 
 ### CI
 
-ジョブ一覧は `.github/workflows/ci.yml` が正（ここには分類だけを書く）。`fail-fast: false`、
-全ジョブで `-DSHADER_MATH_WARNINGS_AS_ERRORS=ON`。push は `main` のみ、ブランチは
-pull_request の 1 本で検証し、同じ PR への追加 push で古い実行を打ち切る。`*.md` と `docs/`
-だけの変更では CI を走らせない（`paths-ignore`。`release.yml` は、CI の無いコミットでも、CI が通った
-直近の祖先からの差分が文書だけなら受け付ける）。
+The job list in `.github/workflows/ci.yml` is authoritative (only the categories are described here). `fail-fast: false`, and
+all jobs use `-DSHADER_MATH_WARNINGS_AS_ERRORS=ON`. push triggers only on `main`; branches are verified by a single
+pull_request run, and an additional push to the same PR cancels the older run. Changes that touch only `*.md` and `docs/`
+do not run CI (`paths-ignore`; `release.yml` accepts a commit that has no CI run, as long as the diff from the
+nearest ancestor that passed CI contains only documentation).
 
-- バックエンド: Linux x64（SSE2 / x86-64-v2 = SSE4.1 / ivybridge = AVX+F16C で FMA なし /
-  x86-64-v3 = FMA+AVX）、Linux ARM
-  （NEON / armv8.2-a+fp16）、FORCE_SCALAR（x64 / ARM）
-- コンパイラ: g++ / clang++、MSVC（SSE2 / `/arch:AVX2` / ARM64）、Apple Clang（macOS arm64）、
-  下限（gcc 10 x64 / ARM、clang 14）
-- 品質: Debug ASan/UBSan、codegen チェック（逆アセンブルで fmadd / roundps / 展開を確認）、
-  CMake パッケージの利用側検証（install + `find_package` / `add_subdirectory`）
-- その他: Slang 相互検証（固定版 + sha256、コミット済み SPIR-V の再生成一致）、GLSL 相互検証
-  （glslang → SPIR-V → lavapipe）、DXC 相互検証（SPIR-V → lavapipe と、Windows の DXIL → D3D12 WARP）、SDL_GPU デモの
-  lavapipe ヘッドレス描画、ベンチマーク（参考値をジョブサマリーへ、合否なし。`main` の push では
-  `publish-bench` ジョブが `gh-pages` の `bench/` に履歴を積み、GitHub Pages でグラフを公開する）
-- `release.yml` は別ワークフロー（`vX.Y.Z` タグ push 時のみ。「バージョンとリリース」参照）
+- Backends: Linux x64 (SSE2 / x86-64-v2 = SSE4.1 / ivybridge = AVX+F16C without FMA /
+  x86-64-v3 = FMA+AVX), Linux ARM
+  (NEON / armv8.2-a+fp16), FORCE_SCALAR (x64 / ARM)
+- Compilers: g++ / clang++, MSVC (SSE2 / `/arch:AVX2` / ARM64), Apple Clang (macOS arm64),
+  minimum versions (gcc 10 x64 / ARM, clang 14)
+- Quality: Debug ASan/UBSan, codegen checks (disassembly is used to confirm fmadd / roundps / inlining),
+  consumer-side validation of the CMake package (install + `find_package` / `add_subdirectory`)
+- Other: Slang cross-validation (pinned version + sha256; regenerating the committed SPIR-V must produce identical output), GLSL cross-validation
+  (glslang → SPIR-V → lavapipe), DXC cross-validation (SPIR-V → lavapipe, and DXIL → D3D12 WARP on Windows), headless rendering of the SDL_GPU demo
+  on lavapipe, benchmarks (reference values are written to the job summary, with no pass/fail; on pushes to `main`,
+  the `publish-bench` job accumulates history in `bench/` on `gh-pages`, and the graphs are published on GitHub Pages)
+- `release.yml` is a separate workflow (runs only when a `vX.Y.Z` tag is pushed; see "Versioning and releases")
 
-ランナーは Blacksmith が基本（前提: org に Blacksmith app がインストールされていること）。
-macOS と Windows ARM64 は Blacksmith に無いので GitHub-hosted（公開リポジトリのため無料）。
+The runners are Blacksmith by default (prerequisite: the Blacksmith app is installed in the org).
+macOS and Windows ARM64 are not available on Blacksmith, so they use GitHub-hosted runners (free because the repository is public).
 
-### バージョンとリリース
+### Versioning and releases
 
-- 版は `project(shader_math VERSION x.y.z)` と `include/shader_math/version.hpp`
-  （`SHADER_MATH_VERSION_MAJOR/MINOR/PATCH`、CMake を使わない利用者向け）の 2 か所。
-  食い違うと CMake の configure が止まる
-- 0.x の間は同一マイナーのみ互換（`write_basic_package_version_file` の `SameMinorVersion`）
-- 手順: 版を上げる PR を `main` にマージ → その `main` の ci（push）が通るのを待つ →
-  `vX.Y.Z` タグを push。`.github/workflows/release.yml` がタグと 2 か所の版の一致、タグが
-  `main` 上であること、そのコミットの ci 成功を確認してから、マージ済み PR からリリースノートを
-  生成して GitHub Release を作る。ci 待ちで落ちたら、ci 完了後にジョブを再実行すればよい
+- The version is recorded in two places: `project(shader_math VERSION x.y.z)` and `include/shader_math/version.hpp`
+  (`SHADER_MATH_VERSION_MAJOR/MINOR/PATCH`, for users who do not use CMake).
+  If they disagree, CMake configure stops with an error.
+- While the version is 0.x, only the same minor version is compatible (`SameMinorVersion` in `write_basic_package_version_file`).
+- Procedure: merge the version-bump PR into `main` → wait for ci (push) on that `main` to pass →
+  push the `vX.Y.Z` tag. `.github/workflows/release.yml` checks that the tag matches the version in both places, that the tag is
+  on `main`, and that ci succeeded for that commit, and then generates release notes from the merged PRs
+  and creates a GitHub Release. If the job fails while waiting for ci, re-run it after ci completes.
 
-## 既知の逸脱（意図的）
+## Known deviations (intentional)
 
-- 行列の複数成分 swizzle（`_m00_m11`）は未実装。単成分 `_m00`〜`_44` は全対応
-  （複数成分はメンバ宣言が最大 16⁴ 通りで組み合わせ爆発するため。実シェーダでもほぼ未使用）
-- GLSL `not()` → `not_()`（C++ キーワード）
-- `v.x` はプロキシ型（varargs には `float(v.x)`）
-- 対象は float と half ベクトル（half は ARM FEAT_FP16 のみネイティブ、他は f32 昇格）。
-  `int` / `double`、1xN、GPU 専用機能（テクスチャ・微分・atomic）は対象外
-- `%` は HLSL のみの演算（GLSL float に無い）→ 対象外。`++`/`--` も対象外
-- 言語互換でありメモリ ABI 互換ではない（`sizeof(float3) == 16`、定数バッファのパッキングは別）
+- Multi-component matrix swizzles (`_m00_m11`) are not implemented. All single components `_m00` to `_44` are supported
+  (multi-component swizzles would need up to 16⁴ member declarations, a combinatorial explosion. They are also rarely used in real shaders).
+- GLSL `not()` → `not_()` (C++ keyword)
+- `v.x` is a proxy type (use `float(v.x)` for varargs)
+- The scope is float and half vectors (half is native only on ARM FEAT_FP16; elsewhere it is promoted to f32).
+  `int` / `double`, 1xN, and GPU-only features (textures, derivatives, atomics) are out of scope.
+- `%` is an HLSL-only operation (GLSL float does not have it) → out of scope. `++`/`--` are also out of scope.
+- The library provides language compatibility, not memory ABI compatibility (`sizeof(float3) == 16`; constant buffer packing is a separate matter).
 
-## v2 候補
+## v2 candidates
 
-- **実装済み**: 逆三角 / 双曲線 / 幾何（`distance` `reflect` `refract` `faceforward`）/
-  `atan2`（GLSL `atan(y, x)`）/ `fmod`（HLSL, trunc 基準）と `mod`（GLSL, floor 基準）/
-  `mad`・`fma` / `isnan` `isinf` `isfinite` / `modf` / `sincos` / `radians` `degrees`。
-  `fmod` / `mod` は `*` と同型の意味差なので言語別に分離し、相手側の名前はコンパイルエラー。
-- **実装済み**: 成分ごと関数（`abs`〜`tan` の 23 関数 + `roundEven`。ベクトル対象、
-  言語別名: HLSL `lerp`/`frac`/`rcp`/`rsqrt`/`saturate` ⇔ GLSL `mix`/`fract`/`inversesqrt`。
-  超越関数は per-lane libm、丸めは SSE2 のみ per-lane、他 backend はネイティブ）。
-  2 行レジスタ詰め込み最適化（AVX1+FMA3 の 4x4）。
-- **実装済み**: 行列への成分ごと intrinsic（HLSL のみ。`abs(m)` `lerp(a, b, t)` `isnan(m)` 等。
-  各行にベクトル版を適用）。GLSL の汎用関数は genType のみなので `glsl` 側には置かない。
-- **実装済み**: スカラーへの intrinsic（`max(dot(n, l), 0.0)`）。ベクトル引数が無く float / half / 1 成分の
-  swizzle を含む呼び出しを、ベクトル版を 1 レーンで実行して返す（`detail::ScalarCall`）。制約付きテンプレート
-  なので、`using namespace hlsl` の下で見える C の同名関数と衝突せず、`abs(-2.5f)` が C の int `abs` に化けない。
-- **未実装**: RVV バックエンド。
+- **Implemented**: inverse trigonometric / hyperbolic / geometric (`distance` `reflect` `refract` `faceforward`) /
+  `atan2` (GLSL `atan(y, x)`) / `fmod` (HLSL, trunc-based) and `mod` (GLSL, floor-based) /
+  `mad` and `fma` / `isnan` `isinf` `isfinite` / `modf` / `sincos` / `radians` `degrees`.
+  `fmod` / `mod` differ in meaning in the same way as `*`, so they are separated by language, and the other language's name is a compile error.
+- **Implemented**: component-wise functions (the 23 functions from `abs` to `tan` + `roundEven`; for vectors;
+  language-specific names: HLSL `lerp`/`frac`/`rcp`/`rsqrt`/`saturate` ⇔ GLSL `mix`/`fract`/`inversesqrt`.
+  Transcendental functions use per-lane libm; rounding is per-lane only on SSE2 and native on the other backends).
+  The two-row register packing optimization (4x4 with AVX1+FMA3).
+- **Implemented**: component-wise intrinsics for matrices (HLSL only; `abs(m)` `lerp(a, b, t)` `isnan(m)` etc.
+  The vector version is applied to each row). GLSL's generic functions take only genType, so they are not provided on the `glsl` side.
+- **Implemented**: intrinsics on scalars (`max(dot(n, l), 0.0)`). A call that has no vector argument and includes a float / half / single-component
+  swizzle runs the vector version on one lane and returns the result (`detail::ScalarCall`). These are constrained templates,
+  so they do not collide with the C functions of the same name that are visible under `using namespace hlsl`, and `abs(-2.5f)` does not turn into C's int `abs`.
+- **Not implemented**: RVV backend.
 
-## Slang 相互検証ハーネス（2026-08-20 追加）
+## Slang cross-validation harness (added 2026-08-20)
 
-同一の `tests/interop/shared/math_cases.hlsli` を Slang（`slangc -target cpp` → g++ で
-CPU 実行）と shader-math（`cpp_harness.cpp`）の両方でビルド・実行し、
-`tests/interop/compare.py` が階層許容誤差（`exact_` = ビット一致 / `near_` = 相対 1e-5 /
-`half_` = 相対 2e-3）で照合する。dual compile 自体がサブセットの lint。
-実行方法: `-DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=<slang展開先>` で
-configure し `ctest -R slang_interop`。CI は `linux-x64-slang-interop` ジョブが
-`ci.yml` の `slang_tag` で固定した Slang をダウンロードして実行する。Renovate が `slang_tag` と
-`slang_sha256`（Linux 版アセットの sha256）を一緒に更新する（14 日待ってから）。
+The same `tests/interop/shared/math_cases.hlsli` is built and run both with Slang (`slangc -target cpp` → g++,
+executed on the CPU) and with shader-math (`cpp_harness.cpp`), and
+`tests/interop/compare.py` compares the results with tiered tolerances (`exact_` = bit-exact / `near_` = relative 1e-5 /
+`half_` = relative 2e-3). The dual compile itself serves as a lint for the subset.
+How to run: configure with `-DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=<extracted Slang directory>`
+and run `ctest -R slang_interop`. In CI, the `linux-x64-slang-interop` job
+downloads the Slang version pinned by `slang_tag` in `ci.yml` and runs it. Renovate updates `slang_tag` and
+`slang_sha256` (the sha256 of the Linux asset) together (after waiting 14 days).
 
-実測記録（Slang v2026.16、v2026.20 でも同じ）: CPU ターゲットの C++ prelude は half ベクトル演算が未実装
-（`Vector<_Float16, 4>` に `operator*` 等が無い）ため、half ケースは共有ファイルに
-`SM_INTEROP_ENABLE_HALF` ガード付きで保持しつつ照合対象から除外し、SPIR-V 実行
-フェーズ（lavapipe）送りとした。サブセット定義・除外・意味差は `docs/slang_compat.md`。
+Measurement record (Slang v2026.16; the same with v2026.20): the C++ prelude of the CPU target does not implement half vector operations
+(`Vector<_Float16, 4>` has no `operator*` etc.), so the half cases are kept in the shared file
+behind the `SM_INTEROP_ENABLE_HALF` guard but excluded from comparison, and deferred to the SPIR-V execution
+phase (lavapipe). The subset definition, exclusions, and semantic differences are documented in `docs/slang_compat.md`.
 
-## 検証記録（2026-08-20、Cloud Agent VM）
+## Verification record (2026-08-20, Cloud Agent VM)
 
-同一スイート 397 checks を5構成で実行、すべて 0 failures:
+The same suite of 397 checks was run in 5 configurations, all with 0 failures:
 
-| 構成 | バックエンド |
+| Configuration | Backend |
 | --- | --- |
 | g++ 13 (x64) | SSE2 |
 | clang++ 18 (x64) | SSE2 |
 | g++ 13 scalar twin | scalar |
-| g++ 13 FORCE_SCALAR 構成 | scalar |
-| aarch64-linux-gnu-g++ 13 + qemu-aarch64 | NEON（実SIMD） |
+| g++ 13 FORCE_SCALAR configuration | scalar |
+| aarch64-linux-gnu-g++ 13 + qemu-aarch64 | NEON (real SIMD) |
 
-実装中に踏んだバグ: swizzle 生成マクロのパラメータ名 `a`/`b` が rgba の文字トークンと衝突
-（`p##a` がパラメータ値に置換される）→ パラメータを `i0/i1/i2` に改名して解決。
+Bug encountered during implementation: the swizzle generation macro's parameter names `a`/`b` collided with the letter tokens of rgba
+(`p##a` was replaced with the parameter value) → resolved by renaming the parameters to `i0/i1/i2`.

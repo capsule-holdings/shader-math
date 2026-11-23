@@ -1,65 +1,71 @@
 # AGENTS.md
 
-## 全体のルール（すべてのエージェント）
+## Rules for every agent
 
 ### Git / PR
 
-- **PR は必ず `main` に向ける**（base = main）。スタックする場合も中間ブランチを base にせず、
-  全 PR を main 向きにしてマージ順で管理する（先行マージで後続の差分は自動的に縮小する）。
-  中間ブランチへマージすると内容が main に届かず迷子になる。
-- **PR は squash マージする**。squash 時のコミットメッセージ（タイトル・説明）は
-  その時点の PR 内容に合わせて都度書き直すこと（古い説明の使い回し禁止）。
-- **`main` への `push -f`（force push）は禁止**。
-- **README は日本語（`README.md`）と英語（`README.en.md`）の 2 つ**。利用者向けの内容（型・関数・
-  意味差・使い方）を変えたら両方を更新する。詳細な注記は日本語版が正、英語版は概要を保つ。
-- **リリースタグ（`vX.Y.Z`）は人間の確認なしに作らない**。手順と自動チェックは CONTEXT.md の
-  「バージョンとリリース」。版を変えるときは `project(VERSION)` と `include/shader_math/version.hpp` の両方を変える。
+- **Every PR targets `main`** (base = main). When PRs stack, do not use an intermediate branch as the
+  base: point every PR at main and manage them by merge order (merging the earlier PR shrinks the later
+  diffs on its own). A PR merged into an intermediate branch never reaches main.
+- **PRs are squash-merged.** Rewrite the squash commit's title and description to match the PR as it is
+  at merge time (do not reuse an outdated description).
+- **No `push -f` (force push) to `main`.**
+- **The repository's primary language is English.** Code, comments, commit messages, PR descriptions and
+  documentation (`docs/`, `CONTEXT.md`) are in English.
+- **There are two READMEs: `README.md` (English, canonical) and `README.ja.md` (Japanese translation).**
+  When user-facing content changes (types, functions, semantic differences, usage), update `README.md`
+  and bring `README.ja.md` in line with it.
+- **Never create a release tag (`vX.Y.Z`) without a human's confirmation.** The procedure and its
+  automated checks are in the "Versions and releases" section of CONTEXT.md. When the version changes,
+  change both `project(VERSION)` and `include/shader_math/version.hpp`.
 
-## 開発環境の要点
+## Development environment
 
-`shader-math` はヘッダオンリーの C++20 ライブラリ（CMake、Boost はヘッダのみ利用）。
-常駐するサーバ・Web アプリは無く、「アプリケーション」に相当するのは
-テストスイート（`shader_math_tests` / `shader_math_tests_scalar`）、
-遊び場実行ファイル `sandbox`、ベンチマーク（`shader_math_bench` / `shader_math_bench_scalar`）。
+`shader-math` is a header-only C++20 library (CMake; Boost is used header-only).
+There is no server or web application; the closest things to an "application" are the
+test suites (`shader_math_tests` / `shader_math_tests_scalar`), the playground executable
+`sandbox`, and the benchmarks (`shader_math_bench` / `shader_math_bench_scalar`).
 
-### ビルド・テスト・実行
+### Build, test, run
 
-標準手順は `README.md`（「ビルドとテスト」節）と `CMakeLists.txt` を参照。要点のみ:
+The standard steps are in `README.md` ("Build and test") and `CMakeLists.txt`. In short:
 
-- 通常ビルド + テスト: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest --test-dir build --output-on-failure`
-- アプリ実行: `./build/sandbox`
-- scalar 強制ビルド: `cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON`
-- Slang 相互検証（任意、slangc が必要）: Slang リリース（`ci.yml` の `slang_tag` の版）を展開して
-  `cmake -S . -B build-interop -DCMAKE_BUILD_TYPE=Release -DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=<展開先>`
-  → build 後 `ctest --test-dir build-interop -R slang_interop --output-on-failure`。
-  サブセット定義は `docs/slang_compat.md`、ケース本体は `tests/interop/shared/math_cases.hlsli`。
-- GLSL 相互検証（任意、glslang-tools / libvulkan-dev / mesa-vulkan-drivers が必要）:
-  `-DSHADER_MATH_INTEROP_GLSL=ON` → `ctest -R glsl_interop`。ケースは `tests/interop/glsl/math_cases.glsl`、
-  詳細は `docs/glsl_interop.md`。
-- DXC 相互検証（任意）: SPIR-V 版は Linux で `-DSHADER_MATH_INTEROP_DXC=ON`（`ctest -R dxc_interop`）、
-  DXIL 版は Windows で `-DSHADER_MATH_INTEROP_DXIL=ON`（`ctest -R dxil_interop`、D3D12 WARP で実行）。
-  どちらも `-DSHADER_MATH_DXC_DIR=<DXC リリースの展開先>`。詳細は `docs/slang_compat.md` の DXC 節。
-- テストバイナリを直接実行するとバックエンド名（例: `SSE2+FMA`、`NEON+FP16`）と
-  `N checks, 0 failures` を出力する。件数はテスト追加で増えるので固定値で比べないこと。
-- 既定ビルドの `ctest` は 8 件: SIMD 版と scalar twin（`shader_math_tests_scalar`）、
-  codegen チェック（Release かつ非 MSVC のみ。objdump が無ければ skip）、`sandbox`、`skin_batch_check`、
-  オプトインのマクロ付きでビルドした `shader_math_tests_nested` / `shader_math_tests_matrix_swizzle` /
-  `shader_math_tests_matrix_swizzle3`。
-- CI は全ジョブ `-DSHADER_MATH_WARNINGS_AS_ERRORS=ON`（gcc/clang は `-Wall -Wextra -Wpedantic -Werror`、
-  MSVC は `/W4 /WX`）。手元でも付けて確認すること。
-- ベンチマーク: `./build/shader_math_bench` と `./build/shader_math_bench_scalar`（`--markdown` で表）。
-  参考値であり合否判定はしない。
-- SDL_GPU デモ（任意）: `-DSHADER_MATH_DEMO_SDLGPU=ON`。ヘッドレスなら `-DSDL_UNIX_CONSOLE_BUILD=ON` で
-  X11 不要、lavapipe（`mesa-vulkan-drivers`）上で `--headless N --out <dir>`（出力先は事前に作成）。
+- Build and test: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && ctest --test-dir build --output-on-failure`
+- Run the playground: `./build/sandbox`
+- Scalar-only build: `cmake -S . -B build-scalar -DSHADER_MATH_FORCE_SCALAR=ON`
+- Slang cross-check (optional, needs slangc): unpack the Slang release pinned by `slang_tag` in `ci.yml`, then
+  `cmake -S . -B build-interop -DCMAKE_BUILD_TYPE=Release -DSHADER_MATH_INTEROP_SLANG=ON -DSHADER_MATH_SLANG_DIR=<unpacked dir>`,
+  build, and run `ctest --test-dir build-interop -R slang_interop --output-on-failure`.
+  The subset is defined in `docs/slang_compat.md`; the cases are in `tests/interop/shared/math_cases.hlsli`.
+- GLSL cross-check (optional, needs glslang-tools / libvulkan-dev / mesa-vulkan-drivers):
+  `-DSHADER_MATH_INTEROP_GLSL=ON`, then `ctest -R glsl_interop`. The cases are in
+  `tests/interop/glsl/math_cases.glsl`; details in `docs/glsl_interop.md`.
+- DXC cross-check (optional): the SPIR-V variant on Linux with `-DSHADER_MATH_INTEROP_DXC=ON`
+  (`ctest -R dxc_interop`), the DXIL variant on Windows with `-DSHADER_MATH_INTEROP_DXIL=ON`
+  (`ctest -R dxil_interop`, run on D3D12 WARP). Both take `-DSHADER_MATH_DXC_DIR=<unpacked DXC release>`.
+  Details in the DXC section of `docs/slang_compat.md`.
+- Running a test binary directly prints the backend name (for example `SSE2+FMA`, `NEON+FP16`) and
+  `N checks, 0 failures`. The count grows as tests are added, so do not compare it against a fixed number.
+- `ctest` on a default build runs 8 tests: the SIMD suite and its scalar twin (`shader_math_tests_scalar`),
+  the codegen check (Release and non-MSVC only; skipped without objdump), `sandbox`, `skin_batch_check`,
+  and `shader_math_tests_nested` / `shader_math_tests_matrix_swizzle` / `shader_math_tests_matrix_swizzle3`,
+  which are built with the opt-in macros.
+- Every CI job builds with `-DSHADER_MATH_WARNINGS_AS_ERRORS=ON` (`-Wall -Wextra -Wpedantic -Werror` on
+  gcc/clang, `/W4 /WX` on MSVC). Use it locally as well.
+- Benchmarks: `./build/shader_math_bench` and `./build/shader_math_bench_scalar` (`--markdown` prints a
+  table). The numbers are for reference; nothing is gated on them.
+- SDL_GPU demo (optional): `-DSHADER_MATH_DEMO_SDLGPU=ON`. For a headless run, `-DSDL_UNIX_CONSOLE_BUILD=ON`
+  removes the X11 dependency; run it on lavapipe (`mesa-vulkan-drivers`) with `--headless N --out <dir>`
+  (create the output directory first).
 
-### 非自明な注意点
+### Non-obvious points
 
-- **既定コンパイラ `c++` は clang++（clang-18）**。CI は g++ / clang++ の両方を明示指定してビルドするので、
-  両対応を確認するときは `-DCMAKE_CXX_COMPILER=g++` / `-DCMAKE_CXX_COMPILER=clang++` を明示すること。
-- clang が GCC ツールチェイン（libstdc++）を参照するため **`libstdc++-14-dev` が必要**。
-  無いと既定コンパイラでのリンクが `cannot find -lstdc++` で失敗する（update script で導入済み）。
-- **Boost はヘッダのみ**。`libboost-dev` が入っていれば CMake はそれを使う（update script で導入済み）。
-  未インストール時は `CMakeLists.txt` の `FetchContent` が boost config/predef を git 取得するためネットワークが必要。
-- **lint / format 用の設定は無い**（`.clang-tidy` / `.clang-format` なし）。独立した lint ステップは存在せず、
-  検証はビルド成功とテスト通過で行う。
-- 生成物ディレクトリ `build/` `build-*/` は `.gitignore` 済み。
+- **The default compiler `c++` is clang++ (clang-18).** CI builds with g++ and clang++ explicitly, so to
+  check both, pass `-DCMAKE_CXX_COMPILER=g++` / `-DCMAKE_CXX_COMPILER=clang++`.
+- clang uses the GCC toolchain (libstdc++), so **`libstdc++-14-dev` is required**. Without it, linking with
+  the default compiler fails with `cannot find -lstdc++` (the update script installs it).
+- **Boost is header-only.** CMake uses `libboost-dev` when it is installed (the update script installs it).
+  Otherwise `FetchContent` in `CMakeLists.txt` clones boost config/predef with git, which needs network access.
+- **There is no lint / format configuration** (no `.clang-tidy` / `.clang-format`). There is no separate
+  lint step; a successful build and passing tests are the check.
+- The build directories `build/` and `build-*/` are in `.gitignore`.
