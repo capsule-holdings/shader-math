@@ -167,6 +167,10 @@ Differences caused by C++ syntax:
 | Float functions on int | `sqrt(i)` → float3 | `sqrt(i)` → ambiguous (error) | ○ / ○ | |
 | Bit casts | `asint` `asuint` `asfloat` | `floatBitsToInt` `floatBitsToUint` `intBitsToFloat` `uintBitsToFloat` | ○ / ○ | Vectors and scalars |
 | `frexp` / `ldexp` | float exponent | int exponent | ○ / ○ | |
+| Bit counts and positions | `countbits` `firstbithigh` `firstbitlow` (uint) | `bitCount` `findMSB` `findLSB` (int) | ○ / ○ | On int, the highest bit that differs from the sign bit; -1 where none. HLSL also takes float (converted to uint) |
+| Bit reversal | `reversebits` (uint) | `bitfieldReverse` (same type) | ○ / ○ | |
+| Bit fields | − | `bitfieldExtract` `bitfieldInsert` (int offset / bits) | ○ / ○ | Sign-extended on int. A field outside the 32 bits (undefined in GLSL) ends at bit 31; negative values count as 0 |
+| Carry, borrow, 64-bit product | − | `uaddCarry` `usubBorrow` `umulExtended` (uint), `imulExtended` (int) | ○ / ○ | |
 
 ## Tolerated for compatibility
 
@@ -243,13 +247,13 @@ GPU ABI. Shader compilers also differ from each other (Slang's CPU `round`, DXC'
 | Category | Examples |
 | --- | --- |
 | Other numeric types | Integer matrices (`int3x3`), 16- / 64-bit integers, `double` / `dvec3`, `1.0L` / `1.0lf` |
-| Bit manipulation and packing | `countbits` `firstbithigh` `reversebits` `f32tof16` `bitCount` `findMSB` `packHalf2x16` |
+| Packing and half conversion | `f32tof16` `f16tof32` `packHalf2x16` `unpackUnorm4x8` |
 | GPU-only | Derivatives (`ddx` / `dFdx`), textures, wave / subgroup, atomics, `clip` / `discard` |
 | Qualifiers and layout | `precise`, semantics, `cbuffer` / `uniform` packing (`sizeof(float3) == 16` is not the GPU ABI) |
 
 ## Conformance rate (2026-11-23)
 
-The fraction of the 645 cases in `tests/conformance/` (HLSL 340, GLSL 305) for which shader-math accepts and rejects
+The fraction of the 672 cases in `tests/conformance/` (HLSL 350, GLSL 322) for which shader-math accepts and rejects
 the same code as the language. The values exclude the out-of-scope categories. The int / uint cases were added with
 the integer vectors; the earlier columns cover the float / half cases only.
 
@@ -257,10 +261,10 @@ the integer vectors; the earlier columns cover the float / half cases only.
 | --- | --- | --- | --- |
 | HLSL float / half (286) | 74.8% | 91.6% | 91.6% |
 | GLSL float / half (256) | 78.5% | 96.1% | 96.9% |
-| HLSL int / uint (50) | − | − | 98.0% |
-| GLSL int / uint (45) | − | − | 100.0% |
-| HLSL total (336) | − | − | 92.6% |
-| GLSL total (301) | − | − | 97.3% |
+| HLSL int / uint (61) | − | − | 98.4% |
+| GLSL int / uint (63) | − | − | 100.0% |
+| HLSL total (347) | − | − | 92.8% |
+| GLSL total (319) | − | − | 97.5% |
 
 The one int / uint mismatch is HLSL's implicit bool → int (`int3 r = bb;`), kept explicit like bool → float. GLSL's
 float / half cases went up with `frexp` / `ldexp` taking int exponents.

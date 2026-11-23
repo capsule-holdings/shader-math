@@ -55,6 +55,11 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
   - Functions: `abs` `sign` (int only) `min` `max` `clamp`; HLSL `dot` `mul(v, v)` `all` `any` `select` `asint` `asuint`
     `asfloat`; GLSL `equal` / `lessThan` / … `mix(x, y, bvec)` `floatBitsToInt` `floatBitsToUint` `intBitsToFloat`
     `uintBitsToFloat`. In GLSL the floating-point functions (`sqrt`, `length`, …) do not take integer vectors
+  - Bit functions: HLSL `countbits` `firstbithigh` `firstbitlow` `reversebits` (uint results; a float argument converts to uint);
+    GLSL `bitCount` `findMSB` `findLSB` `bitfieldReverse` `bitfieldExtract` `bitfieldInsert` `uaddCarry` `usubBorrow`
+    `umulExtended` `imulExtended`. On int, `firstbithigh` / `findMSB` give the highest bit that differs from the sign bit, and
+    -1 (`0xFFFFFFFF` in HLSL) where there is no such bit. A `bitfieldExtract` / `bitfieldInsert` field outside the 32 bits
+    (undefined in GLSL) ends at bit 31, and negative offsets and counts count as 0
 - Half matrices: `hlsl::halfRxC` and `glsl::f16matCxR` (as with float, **distinct types** with explicit conversion; the correspondence of non-square shapes is also the same as for float).
   `determinant` / `inverse` are also computed in half. Real fp16 underflows / overflows early, so do not pass ill-conditioned matrices
   - `sizeof(half3) == 8` (four packed binary16 values). As with `sizeof(float3) == 16`, this is **language compatibility, not GPU ABI compatibility**
@@ -323,7 +328,7 @@ MSVC and Apple Clang are checked only at the CI runners' default versions.
 - GLSL's `not()` is `not_()` because `not` is a C++ alternative token (for `!`)
 - `v.x` is a proxy type (when passing it directly to variadic arguments, write `float(v.x)`)
 - The covered types are float and half (vectors and matrices) and int / uint (vectors). Integer matrices, 16- / 64-bit integers, `double`,
-  `1xN` matrices, the bit-manipulation and packing functions (`countbits`, `bitCount`, `packHalf2x16`, …) and GPU-only features (textures, derivatives, atomics) are out of scope
+  `1xN` matrices, the packing and half conversion functions (`packHalf2x16`, `f32tof16`, …) and GPU-only features (textures, derivatives, atomics) are out of scope
 - Language-compatible, not memory-ABI-compatible (`sizeof(float3) == 16`; this is unrelated to constant buffer packing)
 - Component access and swizzles are implemented with type punning through a union with the SIMD register.
   This is undefined behavior in ISO C++ and depends on how gcc / clang / MSVC handle it in practice (on gcc / clang the proxy types

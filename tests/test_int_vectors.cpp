@@ -58,6 +58,14 @@ template <class A>
 concept HasOuterProduct = requires(const A& a) { g::outerProduct(a, a); };
 template <class V, class S>
 concept CompAssignable = requires(V& v, const S& s) { v.x = s; };
+template <class A>
+concept HasBitCount = requires(const A& a) { g::bitCount(a); };
+template <class A>
+concept HasCountbits = requires(const A& a) { h::countbits(a); };
+template <class A, class O>
+concept HasExtract = requires(const A& a, const O& o) { g::bitfieldExtract(a, o, 2); };
+template <class A, class B>
+concept HasAddCarry = requires(const A& a, const B& b, A& c) { g::uaddCarry(a, b, c); };
 template <class A, class B>
 concept AddAssignable = requires(A& a, const B& b) { a += b; };
 template <class A, class B>
@@ -117,6 +125,86 @@ static_assert(CompAssignable<ivec3, int> && CompAssignable<ivec3, unsigned>);
 static_assert(!CompAssignable<ivec3, float> && !CompAssignable<ivec3, bool>);
 static_assert(CompAssignable<vec3, int>);  // int -> float converts in GLSL
 }  // namespace glsl_scope
+
+namespace bits_scope {
+using namespace shader_math::glsl;
+static_assert(HasBitCount<ivec3> && HasBitCount<uvec2> && HasBitCount<int>);
+static_assert(!HasBitCount<vec3> && !HasBitCount<float>);       // GLSL: integers only
+static_assert(!HasCountbits<ivec3>);                             // an HLSL name
+static_assert(HasExtract<ivec3, int> && !HasExtract<ivec3, unsigned>);  // offset is int
+static_assert(HasAddCarry<uvec3, uvec3> && !HasAddCarry<ivec3, ivec3> && !HasAddCarry<float, float>);
+static_assert(HasAddCarry<unsigned, unsigned>);
+}  // namespace bits_scope
+static_assert(HasCountbits<h::int3> && HasCountbits<h::float3> && !HasBitCount<h::int3>);
+
+static void test_int_bits() {
+    {
+        using namespace shader_math::hlsl;
+        const uint3 c = countbits(uint3(0u, 0xFFu, 0xFFFFFFFFu));
+        CHECK(c.x == 0u && c.y == 8u && c.z == 32u);
+        CHECK(countbits(int2(-1, 5)).x == 32u && countbits(7u) == 3u);
+        CHECK(countbits(float2(3.9f, 255.0f)).y == 8u);  // float converts to uint
+        const uint3 hu = firstbithigh(uint3(0u, 1u, 0x80000000u));
+        CHECK(hu.x == 0xFFFFFFFFu && hu.y == 0u && hu.z == 31u);
+        // int: the highest bit that differs from the sign bit
+        const uint3 hs = firstbithigh(int3(-1, -2, 0x7FFFFFFF));
+        CHECK(hs.x == 0xFFFFFFFFu && hs.y == 0u && hs.z == 30u);
+        CHECK(firstbithigh(-8) == 2u);
+        const uint3 lo = firstbitlow(uint3(0u, 8u, 0x80000000u));
+        CHECK(lo.x == 0xFFFFFFFFu && lo.y == 3u && lo.z == 31u);
+        CHECK(reversebits(1u) == 0x80000000u);
+        CHECK(reversebits(int2(1, 0x00F0000F)).y == 0xF0000F00u);
+        const int3 v(12, -1, 0);
+        CHECK(countbits(v.x) == 2u);  // one component
+    }
+    {
+        using namespace shader_math::glsl;
+        const ivec2 bc = bitCount(ivec2(-1, 5));
+        CHECK(bc.x == 32 && bc.y == 2);
+        const ivec3 m = findMSB(ivec3(-1, -2, 5));
+        CHECK(m.x == -1 && m.y == 0 && m.z == 2);
+        CHECK(findMSB(uvec2(0u, 0x80000000u)).y == 31 && findMSB(0u) == -1);
+        CHECK(findLSB(ivec2(0, 12)).x == -1 && findLSB(12) == 2);
+        const uvec2 rev = bitfieldReverse(uvec2(1u, 0x0000FFFFu));
+        CHECK(rev.x == 0x80000000u && rev.y == 0xFFFF0000u);
+        CHECK(bitfieldReverse(1) == INT_MIN);
+        // extract: sign-extended on int, zero-extended on uint
+        const ivec2 ex = bitfieldExtract(ivec2(0x000000F0, 0x00007000), 4, 4);
+        CHECK(ex.x == -1 && ex.y == 0);
+        CHECK(bitfieldExtract(uvec2(0xF0u, 0u), 4, 4).x == 15u);
+        CHECK(bitfieldExtract(INT_MIN, 31, 1) == -1 && bitfieldExtract(5, 0, 0) == 0);
+        // a field past bit 31 ends there; negative values count as 0
+        CHECK(bitfieldExtract(0xC0000000u, 30, 8) == 3u);
+        CHECK(bitfieldExtract(0xFFu, -4, 4) == 15u);
+        const uvec2 ins = bitfieldInsert(uvec2(0xFFFFFFFFu, 0u), uvec2(0u, 0xFFu), 8, 4);
+        CHECK(ins.x == 0xFFFFF0FFu && ins.y == 0x00000F00u);
+        CHECK(bitfieldInsert(0, -1, 28, 8) == static_cast<int>(0xF0000000u));
+        CHECK(bitfieldInsert(7u, 0u, 0, 0) == 7u);
+        // carries, borrows and 64-bit products
+        uvec2 carry;
+        const uvec2 s = uaddCarry(uvec2(0xFFFFFFFFu, 1u), uvec2(1u, 2u), carry);
+        CHECK(s.x == 0u && s.y == 3u && carry.x == 1u && carry.y == 0u);
+        uvec2 borrow;
+        const uvec2 d = usubBorrow(uvec2(0u, 5u), uvec2(1u, 2u), borrow);
+        CHECK(d.x == 0xFFFFFFFFu && d.y == 3u && borrow.x == 1u && borrow.y == 0u);
+        uvec2 hi, low;
+        umulExtended(uvec2(0xFFFFFFFFu, 3u), uvec2(0xFFFFFFFFu, 5u), hi, low);
+        CHECK(hi.x == 0xFFFFFFFEu && low.x == 1u && hi.y == 0u && low.y == 15u);
+        ivec2 shi, slo;
+        imulExtended(ivec2(-1, INT_MIN), ivec2(2, -1), shi, slo);
+        CHECK(shi.x == -1 && slo.x == -2 && shi.y == 0 && slo.y == INT_MIN);
+        uint c1 = 0u;
+        CHECK(uaddCarry(0xFFFFFFFFu, 1u, c1) == 0u && c1 == 1u);
+        uint b1 = 0u;
+        CHECK(usubBorrow(1u, 2u, b1) == 0xFFFFFFFFu && b1 == 1u);
+        uint mh = 0u, ml = 0u;
+        umulExtended(0x10000u, 0x10000u, mh, ml);
+        CHECK(mh == 1u && ml == 0u);
+        int ih = 0, il = 0;
+        imulExtended(-3, 5, ih, il);
+        CHECK(ih == -1 && il == -15);
+    }
+}
 
 static void test_int_mixed() {
     {
@@ -412,6 +500,7 @@ static void test_int_std() {
 void test_int_vectors() {
     test_int_construction();
     test_int_mixed();
+    test_int_bits();
     test_int_swizzles();
     test_int_operators();
     test_int_comparisons();

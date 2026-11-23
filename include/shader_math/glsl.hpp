@@ -296,6 +296,152 @@ SM_GLSL_BITCAST(intBitsToFloat, int, float)
 SM_GLSL_BITCAST(uintBitsToFloat, uint, float)
 #undef SM_GLSL_BITCAST
 
+// ---- integer functions (GLSL 8.8) -------------------------------------------
+// bitCount / findMSB / findLSB give int (findMSB on int: the highest bit that
+// differs from the sign bit; -1 where there is no such bit); bitfieldReverse,
+// bitfieldExtract and bitfieldInsert keep the type (offset and bits are int; a
+// field outside the 32 bits, undefined in GLSL, is cut at bit 31 and negative
+// values count as 0). uaddCarry / usubBorrow / umulExtended take uint,
+// imulExtended int.
+template <class A>
+    requires (detail::VecOf<A, lang_tag> && detail::IntVec<A>)
+SHADER_MATH_INLINE auto bitCount(const A& a) {
+    return detail::map_int_lanes<int>(
+        a, [](auto x) { return static_cast<int>(detail::int_lane::popcount(static_cast<uint>(x))); });
+}
+template <class S>
+    requires detail::is_int32_scalar_v<S>
+SHADER_MATH_INLINE int bitCount(const S& s) {
+    return static_cast<int>(detail::int_lane::popcount(static_cast<uint>(s)));
+}
+template <class A>
+    requires (detail::VecOf<A, lang_tag> && detail::IntVec<A>)
+SHADER_MATH_INLINE auto findMSB(const A& a) {
+    return detail::map_int_lanes<int>(a, [](auto x) { return detail::find_msb_lane(x); });
+}
+template <class S>
+    requires detail::is_int32_scalar_v<S>
+SHADER_MATH_INLINE int findMSB(const S& s) {
+    return detail::find_msb_lane(static_cast<typename detail::scalar_value<std::remove_cvref_t<S>>::type>(s));
+}
+template <class A>
+    requires (detail::VecOf<A, lang_tag> && detail::IntVec<A>)
+SHADER_MATH_INLINE auto findLSB(const A& a) {
+    return detail::map_int_lanes<int>(
+        a, [](auto x) { return detail::int_lane::lsb(static_cast<uint>(x)); });
+}
+template <class S>
+    requires detail::is_int32_scalar_v<S>
+SHADER_MATH_INLINE int findLSB(const S& s) {
+    return detail::int_lane::lsb(static_cast<uint>(s));
+}
+template <class A>
+    requires (detail::VecOf<A, lang_tag> && detail::IntVec<A>)
+SHADER_MATH_INLINE auto bitfieldReverse(const A& a) {
+    using T = detail::vec_elem_t<A>;
+    return detail::map_int_lanes<T>(
+        a, [](T x) { return static_cast<T>(detail::int_lane::reverse(static_cast<uint>(x))); });
+}
+template <class S, class T = typename detail::scalar_value<std::remove_cvref_t<S>>::type>
+    requires detail::is_int32_scalar_v<S>
+SHADER_MATH_INLINE T bitfieldReverse(const S& s) {
+    return static_cast<T>(detail::int_lane::reverse(static_cast<uint>(static_cast<T>(s))));
+}
+template <class A, class O, class B>
+    requires((detail::VecOf<A, lang_tag> && detail::IntVec<A>) && std::same_as<O, int> && std::same_as<B, int>)
+SHADER_MATH_INLINE auto bitfieldExtract(const A& a, O offset, B bits) {
+    using T = detail::vec_elem_t<A>;
+    return detail::map_int_lanes<T>(a, [=](T x) { return detail::extract_lane(x, offset, bits); });
+}
+template <class S, class O, class B, class T = typename detail::scalar_value<std::remove_cvref_t<S>>::type>
+    requires(detail::is_int32_scalar_v<S> && std::same_as<O, int> && std::same_as<B, int>)
+SHADER_MATH_INLINE T bitfieldExtract(const S& s, O offset, B bits) {
+    return detail::extract_lane(static_cast<T>(s), offset, bits);
+}
+template <class A, class I, class O, class B>
+    requires((detail::VecOf<A, lang_tag> && detail::IntVec<A>) && detail::SameVec<A, I> && std::same_as<O, int> && std::same_as<B, int>)
+SHADER_MATH_INLINE auto bitfieldInsert(const A& base, const I& insert, O offset, B bits) {
+    using T = detail::vec_elem_t<A>;
+    const detail::vec_t<A> b = detail::to_vec(base);
+    const detail::vec_t<A> n = detail::to_vec(insert);
+    T r[4] = {T(0), T(0), T(0), T(0)};
+    for (int i = 0; i < detail::vec_size_v<A>; ++i)
+        r[i] = static_cast<T>(detail::int_lane::insert(static_cast<uint>(b[i]), static_cast<uint>(n[i]),
+                                                       offset, bits));
+    return detail::vec_t<A>(detail::vops<T>::load4(r));
+}
+template <class S, class I, class O, class B,
+          class T = typename detail::scalar_value<std::remove_cvref_t<S>>::type>
+    requires(detail::is_int32_scalar_v<S> && detail::is_int32_scalar_v<I> && std::same_as<O, int> &&
+             std::same_as<B, int>)
+SHADER_MATH_INLINE T bitfieldInsert(const S& base, const I& insert, O offset, B bits) {
+    return static_cast<T>(detail::int_lane::insert(static_cast<uint>(static_cast<T>(base)),
+                                                   static_cast<uint>(insert), offset, bits));
+}
+
+// uaddCarry(x, y, out carry) = x + y modulo 2^32, carry 1 where it overflows;
+// usubBorrow(x, y, out borrow) = x - y modulo 2^32, borrow 1 where x < y;
+// umulExtended / imulExtended(x, y, out msb, out lsb): the 64-bit product
+template <class A, class B>
+    requires(detail::VecOf<A, lang_tag> && std::is_same_v<detail::vec_elem_t<A>, uint> && detail::SameVec<A, B>)
+SHADER_MATH_INLINE auto uaddCarry(const A& x, const B& y, detail::vec_t<A>& carry) {
+    const detail::vec_t<A> s = detail::to_vec(x) + detail::to_vec(y);
+    carry = detail::vec_t<A>(lessThan(s, detail::to_vec(x)));
+    return s;
+}
+template <class A, class B>
+    requires(detail::VecOf<A, lang_tag> && std::is_same_v<detail::vec_elem_t<A>, uint> && detail::SameVec<A, B>)
+SHADER_MATH_INLINE auto usubBorrow(const A& x, const B& y, detail::vec_t<A>& borrow) {
+    borrow = detail::vec_t<A>(lessThan(x, y));
+    return detail::to_vec(x) - detail::to_vec(y);
+}
+template <class A, class B>
+    requires(detail::VecOf<A, lang_tag> && std::is_same_v<detail::vec_elem_t<A>, uint> && detail::SameVec<A, B>)
+SHADER_MATH_INLINE void umulExtended(const A& x, const B& y, detail::vec_t<A>& msb,
+                                     detail::vec_t<A>& lsb) {
+    detail::mul_extended(x, y, msb, lsb);
+}
+template <class A, class B>
+    requires(detail::VecOf<A, lang_tag> && std::is_same_v<detail::vec_elem_t<A>, int> && detail::SameVec<A, B>)
+SHADER_MATH_INLINE void imulExtended(const A& x, const B& y, detail::vec_t<A>& msb,
+                                     detail::vec_t<A>& lsb) {
+    detail::mul_extended(x, y, msb, lsb);
+}
+// scalar forms
+template <class X, class Y>
+    requires(detail::is_int32_scalar_v<X> && detail::is_int32_scalar_v<Y>)
+SHADER_MATH_INLINE uint uaddCarry(const X& x0, const Y& y0, uint& carry) {
+    const uint x = static_cast<uint>(x0);
+    const uint y = static_cast<uint>(y0);
+    const uint s = x + y;
+    carry = s < x ? 1u : 0u;
+    return s;
+}
+template <class X, class Y>
+    requires(detail::is_int32_scalar_v<X> && detail::is_int32_scalar_v<Y>)
+SHADER_MATH_INLINE uint usubBorrow(const X& x0, const Y& y0, uint& borrow) {
+    const uint x = static_cast<uint>(x0);
+    const uint y = static_cast<uint>(y0);
+    borrow = x < y ? 1u : 0u;
+    return x - y;
+}
+template <class X, class Y>
+    requires(detail::is_int32_scalar_v<X> && detail::is_int32_scalar_v<Y>)
+SHADER_MATH_INLINE void umulExtended(const X& x, const Y& y, uint& msb, uint& lsb) {
+    const std::uint64_t p = static_cast<std::uint64_t>(static_cast<uint>(x)) * static_cast<uint>(y);
+    msb = static_cast<uint>(p >> 32);
+    lsb = static_cast<uint>(p);
+}
+template <class X, class Y>
+    requires(std::is_same_v<typename detail::scalar_value<X>::type, int> &&
+             std::is_same_v<typename detail::scalar_value<Y>::type, int>)
+SHADER_MATH_INLINE void imulExtended(const X& x, const Y& y, int& msb, int& lsb) {
+    const auto p = static_cast<std::uint64_t>(static_cast<std::int64_t>(static_cast<int>(x)) *
+                                              static_cast<int>(y));
+    msb = static_cast<int>(static_cast<uint>(p >> 32));
+    lsb = static_cast<int>(static_cast<uint>(p));
+}
+
 // scalar arguments (detail::ScalarCall): GLSL-only spellings
 SHADER_MATH_SCALAR_FN3(mix)
 SHADER_MATH_SCALAR_FN1(fract)

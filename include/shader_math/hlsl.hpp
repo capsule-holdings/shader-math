@@ -701,6 +701,27 @@ SM_HLSL_BITCAST(asuint, uint)
 SM_HLSL_BITCAST(asfloat, float)
 #undef SM_HLSL_BITCAST
 
+// countbits / firstbithigh / firstbitlow / reversebits on int and uint vectors
+// and scalars (a float argument converts to uint, as in HLSL); the results
+// are uint. firstbithigh on int is the highest bit that differs from the sign
+// bit; firstbithigh / firstbitlow give 0xFFFFFFFF where there is no such bit.
+#define SM_HLSL_BITFN(name, fn)                                                          \
+    template <class A>                                                                   \
+        requires(detail::VecOf<A, lang_tag> && detail::is_num32_v<detail::vec_elem_t<A>>) \
+    SHADER_MATH_INLINE auto name(const A& a) {                                           \
+        return detail::map_int_lanes<uint>(detail::bits_vec(a), detail::fn{});      \
+    }                                                                                    \
+    template <class S>                                                                   \
+        requires detail::is_bits_scalar_v<S>                                             \
+    SHADER_MATH_INLINE uint name(const S& s) {                                           \
+        return detail::fn{}(detail::bits_scalar(s));                                \
+    }
+SM_HLSL_BITFN(countbits, popcount_fn)
+SM_HLSL_BITFN(firstbithigh, high_fn)
+SM_HLSL_BITFN(firstbitlow, low_fn)
+SM_HLSL_BITFN(reversebits, reverse_fn)
+#undef SM_HLSL_BITFN
+
 // ---- mul: the 9 official overloads ------------------------------------------
 SHADER_MATH_INLINE float mul(float a, float b) { return a * b; }
 #if defined(SHADER_MATH_HAS_HALF)

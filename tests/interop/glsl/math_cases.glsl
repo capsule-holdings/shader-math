@@ -334,3 +334,26 @@ vec4 case_bits_int_mixed(vec4 a, vec4 b)
     vec4 r = f + g * 0.25f;
     return uintBitsToFloat(floatBitsToUint(r) + s);
 }
+
+// integer functions (GLSL 8.8); fields stay inside the 32 bits, where GLSL
+// defines them
+vec4 case_bits_int_bitfns(vec4 a, vec4 b)
+{
+    ivec4 i = ivec4(a * 4.0f);                  // 5, -10, 15, 2
+    uvec4 u = uvec4(i) * 2654435761u;
+    ivec4 r = bitCount(u) + bitCount(i) * 64;
+    r += (findMSB(i) << 12) + (findMSB(u) << 18) + (findLSB(u) << 24);
+    r ^= ivec4(bitfieldReverse(u)) ^ bitfieldReverse(i);
+    r += findMSB(ivec4(0, -1, 1, -2147483647 - 1)) + findLSB(uvec4(0u, 8u, 1u, 0u));
+    r += findMSB(ivec4(b * 4.0f));              // -3, 16, 1, -6
+    r += bitfieldExtract(i, 1, 3) + ivec4(bitfieldExtract(u, 28, 4));
+    uvec4 ins = bitfieldInsert(u, uvec4(i), 8, 12);
+    uvec4 carry, borrow, hi, lo;
+    uvec4 sum = uaddCarry(u, ins, carry);
+    uvec4 diff = usubBorrow(u, ins, borrow);
+    umulExtended(u, ins, hi, lo);
+    ivec4 shi, slo;
+    imulExtended(i * 300000, ivec4(u), shi, slo);
+    uvec4 w = sum + diff * 3u + carry * 5u + borrow * 7u + hi + (lo >> 1) + uvec4(shi) + uvec4(slo);
+    return uintBitsToFloat(uvec4(r) ^ w);
+}

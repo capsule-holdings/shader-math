@@ -339,6 +339,20 @@ float4 case_bits_int_mixed(float4 a, float4 b)
     return asfloat(asuint(r) + s + uint4(t) + uint4(i < a));
 }
 
+// bit functions; firstbithigh on int counts from the sign (negative lanes)
+float4 case_bits_int_bitfns(float4 a, float4 b)
+{
+    int4 i = int4(a * 4.0f);                    // 5, -10, 15, 2
+    uint4 u = uint4(i) * 2654435761u;
+    uint4 r = countbits(u) + countbits(i) * 64u;
+    r += (firstbithigh(i) << 12) + (firstbithigh(u) << 18);
+    r += firstbitlow(u) << 24;
+    r ^= reversebits(u);
+    r += firstbithigh(int4(0, -1, 1, -2147483647 - 1)) + firstbitlow(uint4(0u, 8u, 1u, 0u));
+    r += firstbithigh(int4(b * 4.0f));          // -3, 16, 1, -6
+    return asfloat(r);
+}
+
 // lit's specular term is (n.h)^m (Microsoft's lit documentation, Slang,
 // DXC's DXIL backend, shader-math); DXC's SPIR-V backend emits (n.h) * m,
 // so only its SPIR-V check leaves this case out (dxc/dxc_case_list.h)

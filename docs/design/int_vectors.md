@@ -1,8 +1,7 @@
 # Design: 32-bit integer vectors (int / uint)
 
-Status: accepted. Steps 1 to 4 of "Phasing" are implemented (the backend, the public types, the interop cases,
-and the mixed operands with each language's implicit conversions); step 5 (bit manipulation) remains. The decisions
-are listed at the end. HLSL's implicit bool <-> int conversion stays explicit, like bool <-> float.
+Status: implemented (all five steps of "Phasing"); the decisions are listed at the end. HLSL's implicit
+bool <-> int conversion stays explicit, like bool <-> float.
 
 ## Goal and scope
 
