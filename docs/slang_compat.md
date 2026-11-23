@@ -51,6 +51,8 @@ The Slang version being checked is `slang_tag` in `ci.yml` (CI pins it and downl
 - **`dst`**: In Slang (v2026.20), the C++ prelude of the CPU target has no implementation of it, and with
   `-target spirv` parsing of the core built-in code fails (`snippet parsing failed`). Do not write it in the shared
   files (shader-math covers it with unit tests only). Via SPIR-V, `frexp` likewise takes an int exponent.
+- **`sign` on int vectors**: the C++ prelude of the CPU target in Slang (v2026.20) has no `I32_sign`, so the generated
+  code does not compile. It is checked against DXC only (`case_bits_int_sign`).
 
 - **Implicit mixing of half and float**: Slang (following HLSL rules) allows implicit promotion, but shader-math makes
   it a compile error. The shared files **require explicit conversion** (`half4(f4)` / `float4(h4)`).
@@ -58,7 +60,8 @@ The Slang version being checked is `slang_tag` in `ci.yml` (CI pins it and downl
 - **fp contraction (fmadd fusion)**: Rounding changes depending on the target and compiler.
   The harness builds the Slang-generated code with `-ffp-contract=off`, and the `near_` tier absorbs the difference
   with a relative 1e-5 (the tiered tolerances in `compare.py`: `exact_` = bit-exact,
-  `near_` = relative 1e-5, `half_` = relative 2e-3).
+  `near_` = relative 1e-5, `half_` = relative 2e-3, `bits_` = identical bit patterns including NaN patterns, for
+  int / uint results returned through `asfloat`).
 - **Halfway values (.5) in `round`**: HLSL's `round` rounds .5 to even (DXC emits `Round_ne` in DXIL and `RoundEven`
   in SPIR-V). shader-math does the same. Slang's CPU target uses `::roundf` (away from zero), so the shared cases
   avoid exact .5 values, and .5 is checked in the DXC-only `case_exact_round_ties`.
@@ -79,7 +82,8 @@ The same shared cases are checked against DXC (v1.9.2609) in two ways.
   bits of the output buffer (zero-initialized) to turn them into values that are unknown at compile time
   (`SM_INTEROP_OPAQUE_INPUTS`).
 
-`frexp` / `dst` / .5 in `round`, which cannot be checked with Slang, are checked in `tests/interop/dxc/dxc_cases.hlsli`.
+`frexp` / `dst` / .5 in `round` / `sign` on int vectors, which cannot be checked with Slang, are checked in
+`tests/interop/dxc/dxc_cases.hlsli`.
 The opt-in multi-component matrix access is also checked by compiling `shared/matrix_swizzle_cases.hlsli` with
 `SM_INTEROP_MATRIX_SWIZZLE` to SPIR-V with DXC (`dxc_interop_matrix_swizzle_check`).
 

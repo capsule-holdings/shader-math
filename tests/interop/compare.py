@@ -11,6 +11,8 @@ Tolerance is chosen from the case-name prefix:
   near_   relative 1e-5 (inner products, divisions, transcendentals)
   approx_ relative 1e-4 (GPU transcendentals with relaxed GLSL precision)
   half_   relative 2e-3 (binary16 ulp + promoted-path rounding)
+  bits_   identical bit patterns, NaN patterns included (integer results
+          carried as floats)
 --tol=<case>:<relative> overrides that for one case of this run (the shared
 case names are fixed across references, a looser device is not).
 NaN == NaN is accepted (bit pattern may differ); an infinity matches only an
@@ -97,7 +99,9 @@ def main():
         sb, cb = slang[key], cpp[key]
         sf, cf = as_float(sb), as_float(cb)
         tol = tolerance(key, overrides)
-        if math.isnan(sf) or math.isnan(cf):
+        if key.startswith("bits_"):
+            ok = sb == cb
+        elif math.isnan(sf) or math.isnan(cf):
             ok = math.isnan(sf) and math.isnan(cf)
         elif math.isinf(sf) or math.isinf(cf):
             ok = sf == cf  # an infinity matches only the same infinity

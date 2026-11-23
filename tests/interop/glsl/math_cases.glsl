@@ -256,3 +256,67 @@ vec4 case_exact_index_matrix_args(vec4 a, vec4 b)
     vec4 d = vec4(b.xy, mat2(b));
     return c + d + vec4(vec3(k), 0.0);
 }
+
+// ---- integer tier (bits_: the 32-bit patterns must be identical) ------------
+// int / uint results travel as intBitsToFloat / uintBitsToFloat. No case
+// divides by zero, overflows a signed value, shifts by 32 or more, or takes %
+// of a negative operand: GLSL leaves those undefined. uint arithmetic wraps.
+vec4 case_bits_int_arith(vec4 a, vec4 b)
+{
+    ivec4 i = ivec4(a * 4.0f);  // 5, -10, 15, 2
+    ivec4 j = ivec4(b * 4.0f);  // -3, 16, 1, -6
+    ivec4 r = i * j + i - j / 2 + abs(i) % (abs(j) + 1) + j / i;
+    r = r + abs(j) + min(i, j) * 3 - max(i, j) + clamp(i, -4, 4) + sign(j);
+    r += i.wzyx * 2;
+    r.y -= 7;
+    return intBitsToFloat(r);
+}
+
+vec4 case_bits_uint_wrap(vec4 a, vec4 b)
+{
+    uvec4 u = uvec4(ivec4(a * 4.0f));  // negative lanes keep their bits
+    uvec4 v = u * 2654435761u + uvec4(b * b * 16.0f);
+    v = v - uvec4(7u, 0xFFFFFFFFu, 3u, 0x80000000u);
+    v = v / uvec4(3u, 7u, 0x10000u, 5u) + v % uvec4(10u, 1000u, 3u, 0x7FFFFFFFu);
+    return uintBitsToFloat(v);
+}
+
+vec4 case_bits_int_bitwise(vec4 a, vec4 b)
+{
+    ivec4 i = ivec4(a * 4.0f);
+    ivec4 j = ivec4(b * 4.0f);
+    uvec4 u = uvec4(i) * 2654435761u;
+    uvec4 v = ((u >> 7) ^ (u << 3)) | (uvec4(j) & 0xFFFFu);
+    v = ~v + (u >> uvec4(1u, 5u, 13u, 31u)) + (u << 4u);
+    ivec4 s = (i << 3) + (j >> 1) + (j >> ivec4(0, 2, 4, 1)) + (~i & j) + (i ^ j) + (i | 3);
+    return uintBitsToFloat(v + uvec4(s));
+}
+
+vec4 case_bits_int_compare(vec4 a, vec4 b)
+{
+    ivec4 i = ivec4(a * 4.0f);
+    ivec4 j = ivec4(b * 4.0f);
+    uvec4 u = uvec4(i);
+    ivec4 r = mix(j, i, lessThan(i, j)) * 4 + ivec4(greaterThan(u, uvec4(j)));
+    r.x += i == j ? 1 : 0;
+    r.y += all(notEqual(i, ivec4(0))) ? 16 : 0;
+    r.z += any(equal(i - i, ivec4(1))) ? 32 : 0;
+    r.w += i.x * j.z + i.y * j.w;
+    return intBitsToFloat(r + ivec4(equal(i, j.yxwz)) * 128 + ivec4(greaterThanEqual(i, ivec4(2))) * 256);
+}
+
+vec4 case_bits_int_convert(vec4 a, vec4 b)
+{
+    ivec4 i = ivec4(a * 3.3f);  // truncates toward zero
+    uvec4 u = uvec4(abs(b) * 1000.5f);
+    vec4 f = vec4(i) * 0.5f + vec4(u);
+    uvec4 big = uvec4(0xFFFFFFFFu, 0x80000001u, 16777217u, 3u) - uvec4(ivec4(b));
+    vec4 g = vec4(big);  // rounds to nearest
+    uvec4 bits = floatBitsToUint(a) ^ floatBitsToUint(b);
+    ivec4 e;
+    vec4 m = frexp(a, e);
+    vec4 l = ldexp(m, e + ivec4(1, -2, 3, 0));
+    return uintBitsToFloat(floatBitsToUint(f + g) + bits + uvec4(i) + u +
+                           floatBitsToUint(vec4(ivec4(-7, 0, 9, -100))) + uvec4(e) +
+                           floatBitsToUint(l));
+}

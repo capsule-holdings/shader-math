@@ -72,3 +72,12 @@ float4 case_exact_index_matrix_args(float4 a, float4 b)
     float3x3 m = float3x3(m2, b.x, b.y, b.z, b.w, 1.0f);
     return float4(m[0].x + m[1].y, m[1].x, m[2].z, 0.0f) + float4(float3(k), m[0].z);
 }
+
+// sign on int vectors: the Slang CPU target's C++ prelude (v2026.20) has no
+// I32_sign, so only DXC checks it
+float4 case_bits_int_sign(float4 a, float4 b)
+{
+    int4 i = int4(a * 4.0f);
+    int4 j = int4(b * 4.0f);
+    return asfloat(sign(i) * 3 + sign(j) + sign(i - i) * 5);
+}

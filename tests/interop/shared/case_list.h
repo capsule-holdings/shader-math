@@ -4,7 +4,7 @@
 // compiled there).
 //
 // Every case returns a float4 = 4 output slots. Tolerances are chosen from
-// the name prefix by compare.py (exact_ / near_ / half_).
+// the name prefix by compare.py (exact_ / near_ / half_ / bits_).
 
 // Half cases are a separate list: the Slang CPU target's C++ prelude (v2026.20)
 // does not implement half vector arithmetic, so SM_INTEROP_HALF_CASES runs
@@ -59,4 +59,9 @@
     X(near_log10_ldexp, case_near_log10_ldexp(IN_A, IN_B))     \
     X(near_scalar, case_near_scalar(IN_A, IN_B))               \
     X(near_edges, case_near_edges(IN_A, IN_B))                 \
-    X(exact_bool_numeric, case_exact_bool_numeric(IN_A, IN_B))
+    X(exact_bool_numeric, case_exact_bool_numeric(IN_A, IN_B))   \
+    X(bits_int_arith, case_bits_int_arith(IN_A, IN_B))         \
+    X(bits_uint_wrap, case_bits_uint_wrap(IN_A, IN_B))         \
+    X(bits_int_bitwise, case_bits_int_bitwise(IN_A, IN_B))     \
+    X(bits_int_compare, case_bits_int_compare(IN_A, IN_B))     \
+    X(bits_int_convert, case_bits_int_convert(IN_A, IN_B))

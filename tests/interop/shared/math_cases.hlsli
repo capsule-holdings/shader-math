@@ -262,6 +262,67 @@ float4 case_exact_bool_numeric(float4 a, float4 b)
     return float4(s + m * 2.0f + float3(k) * 4.0f, t + u * 2.0f + n);
 }
 
+// ---- integer tier (bits_: the 32-bit patterns must be identical) ------------
+// int / uint results travel as asfloat(...). The integer inputs come from
+// IN_A / IN_B through in-range float -> int conversions, and no case divides
+// by zero, overflows a signed value or shifts by 32 or more: the languages
+// leave those undefined (tests/test_int_vectors.cpp checks shader-math's
+// results there). uint arithmetic wraps by definition and is used for that.
+float4 case_bits_int_arith(float4 a, float4 b)
+{
+    int4 i = int4(a * 4.0f);  // 5, -10, 15, 2
+    int4 j = int4(b * 4.0f);  // -3, 16, 1, -6
+    int4 r = i * j + i - j / 2 + i % j + j / i;
+    r = r + abs(j) + min(i, j) * 3 - max(i, j) + clamp(i, -4, 4);
+    r += i.wzyx * 2;
+    r.y -= 7;
+    return asfloat(r);
+}
+
+float4 case_bits_uint_wrap(float4 a, float4 b)
+{
+    uint4 u = uint4(int4(a * 4.0f));  // negative lanes keep their bits
+    uint4 v = u * 2654435761u + uint4(b * b * 16.0f);
+    v = v - uint4(7u, 0xFFFFFFFFu, 3u, 0x80000000u);
+    v = v / uint4(3u, 7u, 0x10000u, 5u) + v % uint4(10u, 1000u, 3u, 0x7FFFFFFFu);
+    return asfloat(v);
+}
+
+float4 case_bits_int_bitwise(float4 a, float4 b)
+{
+    int4 i = int4(a * 4.0f);
+    int4 j = int4(b * 4.0f);
+    uint4 u = uint4(i) * 2654435761u;
+    uint4 v = ((u >> 7) ^ (u << 3)) | (uint4(j) & 0xFFFFu);
+    v = ~v + (u >> uint4(1u, 5u, 13u, 31u)) + (u << 4u);
+    int4 s = (i << 3) + (j >> 1) + (j >> int4(0, 2, 4, 1)) + (~i & j) + (i ^ j) + (i | 3);
+    return asfloat(v + uint4(s));
+}
+
+float4 case_bits_int_compare(float4 a, float4 b)
+{
+    int4 i = int4(a * 4.0f);
+    int4 j = int4(b * 4.0f);
+    uint4 u = uint4(i);
+    int4 r = select(i < j, i, j) * 4 + int4(u > uint4(j));
+    r.x += dot(i, j);
+    r.y += all(i) ? 16 : 0;
+    r.z += any(i - i) ? 32 : 0;
+    r.w += mul(i.xy, j.zw);
+    return asfloat(r + int4(i == j.yxwz) * 128 + int4(i >= 2) * 256);
+}
+
+float4 case_bits_int_convert(float4 a, float4 b)
+{
+    int4 i = int4(a * 3.3f);  // truncates toward zero
+    uint4 u = uint4(abs(b) * 1000.5f);
+    float4 f = float4(i) * 0.5f + float4(u);
+    uint4 big = uint4(0xFFFFFFFFu, 0x80000001u, 16777217u, 3u) - uint4(int4(b));
+    float4 g = float4(big);  // rounds to nearest
+    uint4 bits = asuint(a) ^ asuint(b);
+    return asfloat(asuint(f + g) + bits + uint4(i) + u + asuint(float4(int4(-7, 0, 9, -100))));
+}
+
 // lit's specular term is (n.h)^m (Microsoft's lit documentation, Slang,
 // DXC's DXIL backend, shader-math); DXC's SPIR-V backend emits (n.h) * m,
 // so only its SPIR-V check leaves this case out (dxc/dxc_case_list.h)
