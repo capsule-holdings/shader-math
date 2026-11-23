@@ -116,5 +116,52 @@ concept SimdHalfOps = requires(Reg r, Mask m, const T* cp, T* p, T s, int i) {
     { Ops::cmp_ge(r, r) } -> std::same_as<Mask>;
 };
 
+// 32-bit integer backend (signed and unsigned share Reg): wrapping
+// arithmetic, division and shifts with defined results for every input
+// (detail/int_lane.hpp), comparisons producing the shared float Mask, and
+// conversions to and from the float register FReg.
+template <class Ops, class Reg, class Mask, class FReg, class T>
+concept SimdIntOps = requires(Reg r, Mask m, FReg f, const T* cp, T* p, T s, int i) {
+    { Ops::zero() } -> std::same_as<Reg>;
+    { Ops::splat(s) } -> std::same_as<Reg>;
+    { Ops::set(s, s, s, s) } -> std::same_as<Reg>;
+    { Ops::load4(cp) } -> std::same_as<Reg>;
+    { Ops::store4(r, p) } -> std::same_as<void>;
+    { Ops::lane(r, i) } -> std::same_as<T>;
+    { Ops::template lane_c<0>(r) } -> std::same_as<T>;
+    { Ops::template bcast<0>(r) } -> std::same_as<Reg>;
+
+    { Ops::add(r, r) } -> std::same_as<Reg>;
+    { Ops::sub(r, r) } -> std::same_as<Reg>;
+    { Ops::mul(r, r) } -> std::same_as<Reg>;
+    { Ops::div(r, r) } -> std::same_as<Reg>;
+    { Ops::rem(r, r) } -> std::same_as<Reg>;
+    { Ops::neg(r) } -> std::same_as<Reg>;
+    { Ops::band(r, r) } -> std::same_as<Reg>;
+    { Ops::bor(r, r) } -> std::same_as<Reg>;
+    { Ops::bxor(r, r) } -> std::same_as<Reg>;
+    { Ops::bnot(r) } -> std::same_as<Reg>;
+    { Ops::shl(r, r) } -> std::same_as<Reg>;
+    { Ops::shr(r, r) } -> std::same_as<Reg>;
+
+    { Ops::abs(r) } -> std::same_as<Reg>;
+    { Ops::min(r, r) } -> std::same_as<Reg>;
+    { Ops::max(r, r) } -> std::same_as<Reg>;
+    { Ops::sel(m, r, r) } -> std::same_as<Reg>;
+
+    { Ops::cmp_eq(r, r) } -> std::same_as<Mask>;
+    { Ops::cmp_ne(r, r) } -> std::same_as<Mask>;
+    { Ops::cmp_lt(r, r) } -> std::same_as<Mask>;
+    { Ops::cmp_le(r, r) } -> std::same_as<Mask>;
+    { Ops::cmp_gt(r, r) } -> std::same_as<Mask>;
+    { Ops::cmp_ge(r, r) } -> std::same_as<Mask>;
+
+    { Ops::to_f32(r) } -> std::same_as<FReg>;
+    { Ops::from_f32(f) } -> std::same_as<Reg>;
+    { Ops::bits_to_f32(r) } -> std::same_as<FReg>;
+    { Ops::bits_from_f32(f) } -> std::same_as<Reg>;
+    { Ops::from_mask(m) } -> std::same_as<Reg>;
+};
+
 }  // namespace detail
 }  // namespace shader_math

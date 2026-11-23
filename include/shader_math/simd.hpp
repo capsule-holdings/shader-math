@@ -11,6 +11,7 @@
 #define SHADER_MATH_SIMD_DISPATCH 1
 
 #include "detail/simd_concepts.hpp"
+#include "detail/int_lane.hpp"
 
 #if defined(SHADER_MATH_ISA_NEON)
 #  include "detail/simd_neon.hpp"
@@ -50,6 +51,10 @@ namespace shader_math {
 namespace detail {
 static_assert(SimdFloatOps<ops, freg, mreg, float>,
               "shader-math: the selected float backend does not satisfy SimdFloatOps");
+static_assert(SimdIntOps<iops, ireg, mreg, freg, std::int32_t>,
+              "shader-math: the selected int backend does not satisfy SimdIntOps");
+static_assert(SimdIntOps<uops, ireg, mreg, freg, std::uint32_t>,
+              "shader-math: the selected uint backend does not satisfy SimdIntOps");
 #if defined(SHADER_MATH_HAS_HALF)
 static_assert(SimdHalfOps<hops, hreg, mreg, half_t>,
               "shader-math: the selected half backend does not satisfy SimdHalfOps");

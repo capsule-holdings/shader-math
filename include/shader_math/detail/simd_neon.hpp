@@ -8,6 +8,9 @@
 
 #include <arm_neon.h>
 
+#include <cstdint>
+#include <type_traits>
+
 namespace shader_math {
 namespace detail {
 
@@ -100,6 +103,146 @@ struct ops {
         return false;
     }
 };
+
+// 32-bit integer lanes, signed (iops) or unsigned (uops), in one register type
+using ireg = int32x4_t;
+
+template <bool Signed>
+struct int_ops {
+    using T = std::conditional_t<Signed, std::int32_t, std::uint32_t>;
+
+    static SHADER_MATH_INLINE ireg zero() { return vdupq_n_s32(0); }
+    static SHADER_MATH_INLINE ireg splat(T s) { return vdupq_n_s32(static_cast<std::int32_t>(s)); }
+    static SHADER_MATH_INLINE ireg set(T x, T y, T z, T w) {
+        const std::int32_t t[4] = {static_cast<std::int32_t>(x), static_cast<std::int32_t>(y),
+                                   static_cast<std::int32_t>(z), static_cast<std::int32_t>(w)};
+        return vld1q_s32(t);
+    }
+    static SHADER_MATH_INLINE ireg load4(const T* p) {
+        return vld1q_s32(reinterpret_cast<const std::int32_t*>(p));
+    }
+    static SHADER_MATH_INLINE void store4(ireg v, T* p) {
+        vst1q_s32(reinterpret_cast<std::int32_t*>(p), v);
+    }
+    static SHADER_MATH_INLINE T lane(ireg v, int i) {
+        T t[4];
+        store4(v, t);
+        return t[i];
+    }
+    template <int I>
+    static SHADER_MATH_INLINE T lane_c(ireg v) {
+        return static_cast<T>(vgetq_lane_s32(v, I));
+    }
+    template <int I>
+    static SHADER_MATH_INLINE ireg bcast(ireg v) { return vdupq_laneq_s32(v, I); }
+
+    static SHADER_MATH_INLINE ireg add(ireg a, ireg b) { return vaddq_s32(a, b); }
+    static SHADER_MATH_INLINE ireg sub(ireg a, ireg b) { return vsubq_s32(a, b); }
+    static SHADER_MATH_INLINE ireg neg(ireg a) { return vnegq_s32(a); }
+    static SHADER_MATH_INLINE ireg mul(ireg a, ireg b) { return vmulq_s32(a, b); }
+    // no integer division in Advanced SIMD: one lane at a time
+    static SHADER_MATH_INLINE ireg div(ireg a, ireg b) {
+        T x[4], y[4];
+        store4(a, x);
+        store4(b, y);
+        if constexpr (Signed)
+            return set(int_lane::sdiv(x[0], y[0]), int_lane::sdiv(x[1], y[1]),
+                       int_lane::sdiv(x[2], y[2]), int_lane::sdiv(x[3], y[3]));
+        else
+            return set(int_lane::udiv(x[0], y[0]), int_lane::udiv(x[1], y[1]),
+                       int_lane::udiv(x[2], y[2]), int_lane::udiv(x[3], y[3]));
+    }
+    static SHADER_MATH_INLINE ireg rem(ireg a, ireg b) {
+        T x[4], y[4];
+        store4(a, x);
+        store4(b, y);
+        if constexpr (Signed)
+            return set(int_lane::srem(x[0], y[0]), int_lane::srem(x[1], y[1]),
+                       int_lane::srem(x[2], y[2]), int_lane::srem(x[3], y[3]));
+        else
+            return set(int_lane::urem(x[0], y[0]), int_lane::urem(x[1], y[1]),
+                       int_lane::urem(x[2], y[2]), int_lane::urem(x[3], y[3]));
+    }
+
+    static SHADER_MATH_INLINE ireg band(ireg a, ireg b) { return vandq_s32(a, b); }
+    static SHADER_MATH_INLINE ireg bor(ireg a, ireg b) { return vorrq_s32(a, b); }
+    static SHADER_MATH_INLINE ireg bxor(ireg a, ireg b) { return veorq_s32(a, b); }
+    static SHADER_MATH_INLINE ireg bnot(ireg a) { return vmvnq_s32(a); }
+    // USHL / SSHL shift left by a signed per-lane count and right by its
+    // negation; the count is taken modulo 32 first
+    static SHADER_MATH_INLINE ireg shl(ireg a, ireg n) {
+        return vshlq_s32(a, vandq_s32(n, vdupq_n_s32(31)));
+    }
+    static SHADER_MATH_INLINE ireg shr(ireg a, ireg n) {
+        const int32x4_t c = vnegq_s32(vandq_s32(n, vdupq_n_s32(31)));
+        if constexpr (Signed)
+            return vshlq_s32(a, c);
+        else
+            return vreinterpretq_s32_u32(vshlq_u32(vreinterpretq_u32_s32(a), c));
+    }
+
+    // m ? a : b, per lane
+    static SHADER_MATH_INLINE ireg sel(mreg m, ireg a, ireg b) { return vbslq_s32(m, a, b); }
+
+    static SHADER_MATH_INLINE mreg cmp_eq(ireg a, ireg b) { return vceqq_s32(a, b); }
+    static SHADER_MATH_INLINE mreg cmp_ne(ireg a, ireg b) { return vmvnq_u32(vceqq_s32(a, b)); }
+#define SM_NEON_ICMP(name, fn)                                                          \
+    static SHADER_MATH_INLINE mreg name(ireg a, ireg b) {                               \
+        if constexpr (Signed)                                                           \
+            return fn##_s32(a, b);                                                      \
+        else                                                                            \
+            return fn##_u32(vreinterpretq_u32_s32(a), vreinterpretq_u32_s32(b));        \
+    }
+    SM_NEON_ICMP(cmp_lt, vcltq)
+    SM_NEON_ICMP(cmp_le, vcleq)
+    SM_NEON_ICMP(cmp_gt, vcgtq)
+    SM_NEON_ICMP(cmp_ge, vcgeq)
+#undef SM_NEON_ICMP
+
+    static SHADER_MATH_INLINE ireg min(ireg a, ireg b) {
+        if constexpr (Signed)
+            return vminq_s32(a, b);
+        else
+            return vreinterpretq_s32_u32(
+                vminq_u32(vreinterpretq_u32_s32(a), vreinterpretq_u32_s32(b)));
+    }
+    static SHADER_MATH_INLINE ireg max(ireg a, ireg b) {
+        if constexpr (Signed)
+            return vmaxq_s32(a, b);
+        else
+            return vreinterpretq_s32_u32(
+                vmaxq_u32(vreinterpretq_u32_s32(a), vreinterpretq_u32_s32(b)));
+    }
+    // abs(INT_MIN) wraps to INT_MIN; unsigned lanes are returned unchanged
+    static SHADER_MATH_INLINE ireg abs(ireg a) {
+        if constexpr (Signed)
+            return vabsq_s32(a);
+        else
+            return a;
+    }
+
+    // value conversions: SCVTF / UCVTF round to nearest; FCVTZS / FCVTZU
+    // truncate, saturate and map NaN to 0 (int_lane::f2i / f2u)
+    static SHADER_MATH_INLINE freg to_f32(ireg a) {
+        if constexpr (Signed)
+            return vcvtq_f32_s32(a);
+        else
+            return vcvtq_f32_u32(vreinterpretq_u32_s32(a));
+    }
+    static SHADER_MATH_INLINE ireg from_f32(freg f) {
+        if constexpr (Signed)
+            return vcvtq_s32_f32(f);
+        else
+            return vreinterpretq_s32_u32(vcvtq_u32_f32(f));
+    }
+    // bit reinterpretation (asfloat / asint, floatBitsToInt ...)
+    static SHADER_MATH_INLINE freg bits_to_f32(ireg a) { return vreinterpretq_f32_s32(a); }
+    static SHADER_MATH_INLINE ireg bits_from_f32(freg f) { return vreinterpretq_s32_f32(f); }
+    // a comparison mask as lanes of all bits set / zero
+    static SHADER_MATH_INLINE ireg from_mask(mreg m) { return vreinterpretq_s32_u32(m); }
+};
+using iops = int_ops<true>;
+using uops = int_ops<false>;
 
 }  // namespace detail
 }  // namespace shader_math
