@@ -19,15 +19,15 @@ template struct bvec<4, glsl::lang_tag>;
 }  // namespace detail
 
 namespace hlsl {
-template struct matrix<2, 2>;
-template struct matrix<2, 3>;
-template struct matrix<2, 4>;
-template struct matrix<3, 2>;
-template struct matrix<3, 3>;
-template struct matrix<3, 4>;
-template struct matrix<4, 2>;
-template struct matrix<4, 3>;
-template struct matrix<4, 4>;
+template struct matrix<float, 2, 2>;
+template struct matrix<float, 2, 3>;
+template struct matrix<float, 2, 4>;
+template struct matrix<float, 3, 2>;
+template struct matrix<float, 3, 3>;
+template struct matrix<float, 3, 4>;
+template struct matrix<float, 4, 2>;
+template struct matrix<float, 4, 3>;
+template struct matrix<float, 4, 4>;
 }  // namespace hlsl
 
 namespace glsl {

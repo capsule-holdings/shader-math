@@ -271,6 +271,10 @@ float の引数を uint ではなく int に変換するので、負の値の結
 その言語での型を持つようになった（上の整数ベクトルの項を参照）: `int3 * 2u` は両言語で `uint3` なので、`int3(-1) < 2u` は偽で、
 結果への `>>` は論理シフトになる。GLSL の `i16vec3 * 2` は `ivec3` なので、`i16vec3 *= 2` と `ivec3 *= 2u` はコンパイルできなくなった。
 
+`hlsl::matrix` は HLSL と同じテンプレート引数 `matrix<T, R, C>` を取る（`matrix<float, 3, 3>` は `float3x3`、`matrix<>` は
+`float4x4`）。以前は `matrix<R, C, T>` だった。明示的に書いているコードは引数を並べ替える（`hlsl::matrix<3, 3>` は
+`hlsl::matrix<float, 3, 3>` になる）。`float3x3` などの別名は変わらない。
+
 ## 0.6 からの移行
 
 0.7 は int / uint ベクトルを追加する。0.6 向けのコードはそのままコンパイルできるが、`using namespace hlsl` /

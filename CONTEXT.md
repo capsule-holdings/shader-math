@@ -72,7 +72,7 @@ Incompatibilities found in audits that cross-checked against the official specif
   would result in 1020 types per element type per language, and a translation unit that uses all types of both languages would be about 1.5 times slower.
   Including the header alone does not instantiate any vectors (no vectors are created in the bodies of non-template functions). The copy operations of `fvec_store` are user-defined. If they were left implicit,
   the compiler would go and resolve the copy operations of every swizzle member of the union, which increases front-end time.
-- **Matrices are separate types**: `hlsl::matrix<R,C>` (row storage, row-major ctor) and `glsl::matrix<C,R>` (column storage, column-major ctor).
+- **Matrices are separate types**: `hlsl::matrix<T,R,C>` (HLSL's own template; row storage, row-major ctor) and `glsl::matrix<C,R>` (column storage, column-major ctor).
   `operator*` and the ctor order differ, so they cannot be the same type. Conversion between them is explicit.
 - The glsl side uses column-register storage (internally transposed) so that `m[col]` reads a register directly.
   Sharing row storage + gather is slow, so it was rejected.

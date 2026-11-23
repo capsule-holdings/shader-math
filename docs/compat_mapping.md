@@ -24,7 +24,7 @@ textures, and so on are listed under "Out of scope" at the end).
 | Matrix | `floatRxC` (R rows, C columns) | `matCxR` (C columns, R rows) | ○ / ○ | `float3x4` and `mat4x3` have the same shape. They are distinct types, and conversion is explicit |
 | half matrix | `halfRxC` | `f16matCxR` | ○ / ○ | |
 | bool matrix | `boolRxC` | − | ○ / − | Result of HLSL matrix comparisons |
-| Matrix template syntax | `matrix<float, R, C>` | − | × | The argument order differs from `hlsl::matrix<R, C, T>` |
+| Matrix template syntax | `matrix<float, R, C>`, `matrix<>` (float4x4) | − | ○ / − | |
 | Single component, 1xN | `float1`, `float1x3`, etc. | − | × / − | |
 | Language of a type | − | − | `hlsl::lang_tag` / `glsl::lang_tag` | Internal to shader-math. Used so that operators and language-specific functions are found by ADL |
 
@@ -263,13 +263,13 @@ GPU ABI. Shader compilers also differ from each other (Slang's CPU `round`, DXC'
 
 ## Conformance rate (2026-11-23)
 
-The fraction of the 800 cases in `tests/conformance/` (HLSL 410, GLSL 390) for which shader-math accepts and rejects
+The fraction of the 803 cases in `tests/conformance/` (HLSL 413, GLSL 390) for which shader-math accepts and rejects
 the same code as the language. The values exclude the out-of-scope categories. The int / uint cases were added with
 the integer vectors; the earlier columns cover the float / half cases only.
 
 | | v0.5.0 | before int / uint | main |
 | --- | --- | --- | --- |
-| HLSL float / half (286) | 74.8% | 91.6% | 91.6% |
+| HLSL float / half (289) | 74.8% | 91.6% | 92.0% |
 | GLSL float / half (256) | 78.5% | 96.1% | 96.9% |
 | HLSL int / uint (77) | − | − | 98.7% |
 | GLSL int / uint (63) | − | − | 100.0% |
@@ -277,7 +277,7 @@ the integer vectors; the earlier columns cover the float / half cases only.
 | GLSL 16- / 64-bit (54) | − | − | 98.1% |
 | HLSL packing (8) | − | − | 100.0% |
 | GLSL packing (15) | − | − | 100.0% |
-| HLSL total (408) | − | − | 93.6% |
+| HLSL total (411) | − | − | 93.9% |
 | GLSL total (388) | − | − | 97.7% |
 
 The one int / uint mismatch is HLSL's implicit bool → int (`int3 r = bb;`), kept explicit like bool → float. The

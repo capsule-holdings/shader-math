@@ -273,6 +273,10 @@ functions convert a float argument to int instead of uint, which changes negativ
 languages, so `int3(-1) < 2u` is false and `>>` on the result is logical, and GLSL's `i16vec3 * 2` is an `ivec3`, so
 `i16vec3 *= 2` and `ivec3 *= 2u` no longer compile there.
 
+`hlsl::matrix` takes HLSL's template arguments, `matrix<T, R, C>` (`matrix<float, 3, 3>` is a `float3x3`, `matrix<>` a
+`float4x4`); it was `matrix<R, C, T>`. Code that names it explicitly swaps the arguments (`hlsl::matrix<3, 3>` becomes
+`hlsl::matrix<float, 3, 3>`); the `float3x3`-style aliases are unchanged.
+
 ## Migrating from 0.6
 
 0.7 adds the int / uint vectors. Code written for 0.6 compiles unchanged, except where the new names collide with your own

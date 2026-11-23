@@ -41,7 +41,7 @@ SHADER_MATH_INLINE written_t<T> as_written(T v) {
 template <class M>
 struct is_matrix : std::false_type {};
 template <int R, int C, class T>
-struct is_matrix<hlsl::matrix<R, C, T>> : std::true_type {
+struct is_matrix<hlsl::matrix<T, R, C>> : std::true_type {
     static constexpr int count = R;  // m[i] is a row
     static constexpr int lanes = C;
 };
@@ -126,24 +126,24 @@ SHADER_MATH_INLINE void store(const M& m, T* p) {
 namespace hlsl {
 
 template <class Ch, class Tr, int R, int C, class T>
-std::basic_ostream<Ch, Tr>& operator<<(std::basic_ostream<Ch, Tr>& os, const matrix<R, C, T>& m) {
+std::basic_ostream<Ch, Tr>& operator<<(std::basic_ostream<Ch, Tr>& os, const matrix<T, R, C>& m) {
     os << '(';
     for (int r = 0; r < R; ++r) os << (r ? ", " : "") << m[r];
     return os << ')';
 }
 
 template <std::size_t I, int R, int C, class T>
-SHADER_MATH_INLINE vector<T, C>& get(matrix<R, C, T>& m) {
+SHADER_MATH_INLINE vector<T, C>& get(matrix<T, R, C>& m) {
     static_assert(I < static_cast<std::size_t>(R), "shader-math: row out of range");
     return m[static_cast<int>(I)];
 }
 template <std::size_t I, int R, int C, class T>
-SHADER_MATH_INLINE vector<T, C> get(const matrix<R, C, T>& m) {
+SHADER_MATH_INLINE vector<T, C> get(const matrix<T, R, C>& m) {
     static_assert(I < static_cast<std::size_t>(R), "shader-math: row out of range");
     return m[static_cast<int>(I)];
 }
 template <std::size_t I, int R, int C, class T>
-SHADER_MATH_INLINE vector<T, C> get(matrix<R, C, T>&& m) {
+SHADER_MATH_INLINE vector<T, C> get(matrix<T, R, C>&& m) {
     static_assert(I < static_cast<std::size_t>(R), "shader-math: row out of range");
     return m[static_cast<int>(I)];
 }
@@ -187,10 +187,10 @@ struct std::tuple_element<I, shader_math::detail::fvec<N, T, Lg>> {
     using type = T;
 };
 template <int R, int C, class T>
-struct std::tuple_size<shader_math::hlsl::matrix<R, C, T>>
+struct std::tuple_size<shader_math::hlsl::matrix<T, R, C>>
     : std::integral_constant<std::size_t, R> {};
 template <std::size_t I, int R, int C, class T>
-struct std::tuple_element<I, shader_math::hlsl::matrix<R, C, T>> {
+struct std::tuple_element<I, shader_math::hlsl::matrix<T, R, C>> {
     using type = shader_math::detail::hvec<C, T>;
 };
 template <int Cn, int Rn, class T>

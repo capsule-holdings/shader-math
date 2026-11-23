@@ -21,6 +21,9 @@ h_cast_splat	ok
 h_vector_template	ok	
 h_vector_bare	ok	
 h_matrix_template	ok	
+h_matrix_template_int	ok	
+h_matrix_template_empty	ok	
+h_matrix_bare	ok	
 h_float1	ok	
 h_half_explicit	ok	
 h_half_implicit_from_float	ok	
