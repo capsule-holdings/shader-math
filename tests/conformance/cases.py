@@ -404,6 +404,8 @@ for cid, body in [
     ("int_times_uint_literal", "uint3 r = ia * 2u + (ia & 1u) + (ia % 2u) + (2u - ia);"),
     ("int16_times_uint_literal", "uint3 r = sa * 2u;"),
     ("int_less_than_uint", "bool3 r = ia < 2u;"),
+    ("int_min_uint_literal", "uint3 r = min(ia, 2u) + max(ia, 2u) + clamp(ia, 0, 5u) + select(bb, ia, 2u);"),
+    ("int_matrix_uint_scalar", "uint3x3 r = im * 2u + (im & 1u) + (im % 2u) + min(im, 2u);"),
 ]:
     H("width", cid, body)
 
@@ -840,6 +842,11 @@ for cid, body in [
     ("i16_mul_assign_int", "i16vec3 r = sa; r *= 2;"),
     ("uvec_mul_assign_int", "uvec3 r = ua; r *= 2;"),
     ("i16_shift_int", "i16vec3 r = sa << 2;"),
+    ("i16_min_int_literal", "i16vec3 r = min(sa, 2);"),
+    ("i16_min_to_int", "ivec3 r = min(sa, 2) + clamp(sb, 0, 5);"),
+    ("ivec_clamp_uint", "ivec3 r = clamp(ia, 0u, 5u);"),
+    ("ivec_clamp_to_uint", "uvec3 r = clamp(ia, 0, 5u) + max(ia, 2u);"),
+    ("i64_min_int_literal", "i64vec3 r = min(la, 2) + max(la, 2u);"),
 ]:
     G("width", cid, body)
 

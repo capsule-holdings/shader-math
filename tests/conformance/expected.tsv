@@ -359,6 +359,8 @@ h_asfloat16_float	err	no matching function for call to 'asfloat16'
 h_int_times_uint_literal	ok	
 h_int16_times_uint_literal	ok	
 h_int_less_than_uint	ok	
+h_int_min_uint_literal	ok	
+h_int_matrix_uint_scalar	ok	
 h_f32tof16	ok	
 h_f32tof16_vec	ok	
 h_f32tof16_int	ok	
@@ -734,6 +736,11 @@ g_i64_times_uint_literal	ok
 g_i16_mul_assign_int	err	g_i16_mul_assign_int.comp:4: 'assign' : cannot convert from ' const int' to ' temp 3-component vector of int16_t'
 g_uvec_mul_assign_int	ok	
 g_i16_shift_int	ok	
+g_i16_min_int_literal	err	g_i16_min_int_literal.comp:4: '=' : cannot convert from ' global 3-component vector of int' to ' temp 3-component vector
+g_i16_min_to_int	ok	
+g_ivec_clamp_uint	err	g_ivec_clamp_uint.comp:4: '=' : cannot convert from ' global 3-component vector of uint' to ' temp highp 3-component vec
+g_ivec_clamp_to_uint	ok	
+g_i64_min_int_literal	ok	
 g_packHalf2x16	ok	
 g_packHalf2x16_vec3	err	g_packHalf2x16_vec3.comp:4: 'packHalf2x16' : no matching overloaded function found
 g_unpackHalf2x16	ok	

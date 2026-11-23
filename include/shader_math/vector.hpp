@@ -1073,21 +1073,29 @@ constexpr auto int_scalar_elem() {
         return std::type_identity<std::conditional_t<std::is_signed_v<V>, W, std::make_unsigned_t<W>>>{};
     }
 }
-// The element type an integer vector A and an integer scalar S compute in:
+// The element type an integer vector A and integer scalars S... compute in:
 // their common type (GLSL i16vec3 * 2 is an ivec3, HLSL and GLSL int3 * 2u a
-// uint3); void where there is none
-template <class A, class S>
+// uint3, clamp(ivec3, 0, 5u) a uvec3); void where there is none
+template <class Lg, class T, class... Us>
+struct common_elems {
+    using type = T;
+};
+template <class Lg, class T, class U, class... Us>
+struct common_elems<Lg, T, U, Us...> : common_elems<Lg, common_elem_t<T, U, Lg>, Us...> {};
+template <class A, class... S>
 using int_scalar_op_t =
-    common_elem_t<vec_elem_t<A>, typename decltype(int_scalar_elem<S, vec_elem_t<A>, vec_lang_t<A>>())::type,
-                  vec_lang_t<A>>;
-// A scalar operand that keeps vector A's type, and an integer scalar that
-// takes it to another element type
+    typename common_elems<vec_lang_t<A>, vec_elem_t<A>,
+                          typename decltype(int_scalar_elem<S, vec_elem_t<A>, vec_lang_t<A>>())::type...>::type;
+// A scalar operand that keeps vector A's type, and integer scalars that take
+// it to another element type
 template <class S, class A>
 concept VecScalar = VecLike<A> && ScalarFor<S, vec_elem_t<A>> &&
                     (!IntVec<A> || std::is_same_v<int_scalar_op_t<A, S>, vec_elem_t<A>>);
+template <class A, class... S>
+concept PromotingScalars = IntVec<A> && !std::is_void_v<int_scalar_op_t<A, S...>> &&
+                           !std::is_same_v<int_scalar_op_t<A, S...>, vec_elem_t<A>>;
 template <class S, class A>
-concept PromotingScalar = IntVec<A> && !std::is_void_v<int_scalar_op_t<A, S>> &&
-                          !std::is_same_v<int_scalar_op_t<A, S>, vec_elem_t<A>>;
+concept PromotingScalar = PromotingScalars<A, S>;
 
 template <class V>
 SHADER_MATH_INLINE decltype(auto) to_vec(const V& t) {
@@ -1420,11 +1428,17 @@ SM_VEC_UNARY_FN(round_even_impl, rnd_even)  // glsl::roundEven
         return vec_t<A>(vops<T>::name(to_vec(a).q_, to_vec(b).q_));            \
     }                                                                          \
     template <class A, class S>                                                \
-        requires(VecLike<A> && ScalarFor<S, vec_elem_t<A>>)                    \
+        requires VecScalar<S, A>                                               \
     SHADER_MATH_INLINE auto name(const A& a, const S& s) {                     \
         using T = vec_elem_t<A>;                                               \
         return vec_t<A>(                                                       \
             vops<T>::name(to_vec(a).q_, vops<T>::splat(static_cast<T>(s))));   \
+    }                                                                          \
+    template <class A, class S>                                                \
+        requires PromotingScalar<S, A>                                         \
+    SHADER_MATH_INLINE auto name(const A& a, const S& s) {                     \
+        using R = int_scalar_op_t<A, S>;                                       \
+        return name(fvec<vec_size_v<A>, R, vec_lang_t<A>>(to_vec(a)), static_cast<R>(s)); \
     }
 
 SM_VEC_MINMAX_FN(min)
@@ -1452,12 +1466,18 @@ SHADER_MATH_INLINE auto clamp(const A& x, const B& lo, const C& hi) {
         vops<T>::min(vops<T>::max(to_vec(x).q_, to_vec(lo).q_), to_vec(hi).q_));
 }
 template <class A, class SL, class SH>
-    requires(VecLike<A> && ScalarFor<SL, vec_elem_t<A>> && ScalarFor<SH, vec_elem_t<A>>)
+    requires(VecScalar<SL, A> && VecScalar<SH, A>)
 SHADER_MATH_INLINE auto clamp(const A& x, const SL& lo, const SH& hi) {
     using T = vec_elem_t<A>;
     return vec_t<A>(vops<T>::min(
         vops<T>::max(to_vec(x).q_, vops<T>::splat(static_cast<T>(lo))),
         vops<T>::splat(static_cast<T>(hi))));
+}
+template <class A, class SL, class SH>
+    requires(ScalarFor<SL, vec_elem_t<A>> && ScalarFor<SH, vec_elem_t<A>> && PromotingScalars<A, SL, SH>)
+SHADER_MATH_INLINE auto clamp(const A& x, const SL& lo, const SH& hi) {
+    using R = int_scalar_op_t<A, SL, SH>;
+    return clamp(fvec<vec_size_v<A>, R, vec_lang_t<A>>(to_vec(x)), static_cast<R>(lo), static_cast<R>(hi));
 }
 
 // hlsl::saturate (GLSL has no saturate; use clamp(x, 0.0, 1.0))
@@ -2257,16 +2277,28 @@ SHADER_MATH_INLINE auto select_impl(const bvec<N, Lg>& c, const A& a, const B& b
     return vec_t<A>(vops<T>::sel(c.m_, to_vec(a).q_, to_vec(b).q_));
 }
 template <int N, class Lg, class A, class S>
-    requires(VecOf<A, Lg> && vec_size_v<A> == N && ScalarFor<S, vec_elem_t<A>>)
+    requires(VecOf<A, Lg> && vec_size_v<A> == N && VecScalar<S, A>)
 SHADER_MATH_INLINE auto select_impl(const bvec<N, Lg>& c, const A& a, const S& s) {
     using T = vec_elem_t<A>;
     return vec_t<A>(vops<T>::sel(c.m_, to_vec(a).q_, vops<T>::splat(static_cast<T>(s))));
 }
 template <int N, class Lg, class S, class B>
-    requires(VecOf<B, Lg> && vec_size_v<B> == N && ScalarFor<S, vec_elem_t<B>>)
+    requires(VecOf<B, Lg> && vec_size_v<B> == N && VecScalar<S, B>)
 SHADER_MATH_INLINE auto select_impl(const bvec<N, Lg>& c, const S& s, const B& b) {
     using T = vec_elem_t<B>;
     return vec_t<B>(vops<T>::sel(c.m_, vops<T>::splat(static_cast<T>(s)), to_vec(b).q_));
+}
+template <int N, class Lg, class A, class S>
+    requires(VecOf<A, Lg> && vec_size_v<A> == N && PromotingScalar<S, A>)
+SHADER_MATH_INLINE auto select_impl(const bvec<N, Lg>& c, const A& a, const S& s) {
+    using R = int_scalar_op_t<A, S>;
+    return select_impl(c, fvec<N, R, Lg>(to_vec(a)), static_cast<R>(s));
+}
+template <int N, class Lg, class S, class B>
+    requires(VecOf<B, Lg> && vec_size_v<B> == N && PromotingScalar<S, B>)
+SHADER_MATH_INLINE auto select_impl(const bvec<N, Lg>& c, const S& s, const B& b) {
+    using R = int_scalar_op_t<B, S>;
+    return select_impl(c, static_cast<R>(s), fvec<N, R, Lg>(to_vec(b)));
 }
 
 // ---- scalar arguments ---------------------------------------------------------

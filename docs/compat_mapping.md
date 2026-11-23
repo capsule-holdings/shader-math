@@ -160,7 +160,7 @@ Differences caused by C++ syntax:
 | `& \| ^ ~` | ○ | ○ | ○ / ○ | |
 | `<< >>` | count masked to 5 bits | undefined for counts ≥ 32 | ○ / ○ | Count modulo 32 in both. The count may have the other signedness (`i >> u`). `k << v` is HLSL only |
 | Mixed operands | `i * 2.5` → float3, `i + u` → uint3 | `i * 2.5` → vec3, `i + u` → uvec3 | ○ / ○ | Compound assignment keeps the left type: HLSL `i += a` truncates, GLSL `i += a` is an error |
-| Integer scalar operands | `i * 2u` → uint3, `s16 * 2` → int16_t3 | `i * 2u` → uvec3, `s16 * 2` → ivec3 | ○ / ○ | GLSL types every integer; HLSL types `2u` and components, an unsuffixed literal takes the vector's type. An HLSL `int` variable (`s16 * k` is an `int3`) counts as such a literal here |
+| Integer scalar operands | `i * 2u` → uint3, `s16 * 2` → int16_t3 | `i * 2u` → uvec3, `s16 * 2` → ivec3 | ○ / ○ | GLSL types every integer; HLSL types `2u` and components, an unsuffixed literal takes the vector's type. An HLSL `int` variable (`s16 * k` is an `int3`) counts as such a literal here. The same for `min` `max` `clamp`, HLSL `select` `mul`, and HLSL's integer matrices (`im * 2u` → uint3x3) |
 | `!` | `!i` → bool3 | − | ○ / ○ | |
 | Comparisons | `i < j` → bool3 | `lessThan(i, j)`, `i == j` → bool | ○ / ○ | As for float vectors |
 | `abs` `min` `max` `clamp` `sign` | ○ | ○ | ○ / ○ | `abs(INT_MIN)` wraps; `sign` takes int, not uint |
@@ -263,7 +263,7 @@ GPU ABI. Shader compilers also differ from each other (Slang's CPU `round`, DXC'
 
 ## Conformance rate (2026-11-23)
 
-The fraction of the 793 cases in `tests/conformance/` (HLSL 408, GLSL 385) for which shader-math accepts and rejects
+The fraction of the 800 cases in `tests/conformance/` (HLSL 410, GLSL 390) for which shader-math accepts and rejects
 the same code as the language. The values exclude the out-of-scope categories. The int / uint cases were added with
 the integer vectors; the earlier columns cover the float / half cases only.
 
@@ -273,12 +273,12 @@ the integer vectors; the earlier columns cover the float / half cases only.
 | GLSL float / half (256) | 78.5% | 96.1% | 96.9% |
 | HLSL int / uint (77) | − | − | 98.7% |
 | GLSL int / uint (63) | − | − | 100.0% |
-| HLSL 16- / 64-bit (35) | − | − | 97.1% |
-| GLSL 16- / 64-bit (49) | − | − | 98.0% |
+| HLSL 16- / 64-bit (37) | − | − | 97.3% |
+| GLSL 16- / 64-bit (54) | − | − | 98.1% |
 | HLSL packing (8) | − | − | 100.0% |
 | GLSL packing (15) | − | − | 100.0% |
-| HLSL total (406) | − | − | 93.6% |
-| GLSL total (383) | − | − | 97.7% |
+| HLSL total (408) | − | − | 93.6% |
+| GLSL total (388) | − | − | 97.7% |
 
 The one int / uint mismatch is HLSL's implicit bool → int (`int3 r = bb;`), kept explicit like bool → float. The
 16- / 64-bit mismatches are 16-bit integers mixed with half (both languages). GLSL's float / half cases went up with `frexp` / `ldexp` taking int exponents.
