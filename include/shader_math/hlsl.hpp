@@ -17,9 +17,13 @@ namespace hlsl {
 template <class T = float, int N = 4>
 using vector = detail::fvec<N, T, lang_tag>;
 
+// One-component vectors (float1 ...): scalars spelled as vectors; see
+// detail::fvec<1, T, Lg>
+using float1 = vector<float, 1>;
 using float2 = vector<float, 2>;
 using float3 = vector<float, 3>;
 using float4 = vector<float, 4>;
+using bool1 = vector<bool, 1>;
 using bool2 = detail::bvec<2, lang_tag>;
 using bool3 = detail::bvec<3, lang_tag>;
 using bool4 = detail::bvec<4, lang_tag>;
@@ -30,9 +34,11 @@ using bool4 = detail::bvec<4, lang_tag>;
 static_assert(sizeof(int) == 4, "shader-math: int must be 32 bits");
 using uint = unsigned int;
 using dword = unsigned int;
+using int1 = vector<int, 1>;
 using int2 = vector<int, 2>;
 using int3 = vector<int, 3>;
 using int4 = vector<int, 4>;
+using uint1 = vector<uint, 1>;
 using uint2 = vector<uint, 2>;
 using uint3 = vector<uint, 3>;
 using uint4 = vector<uint, 4>;
@@ -42,15 +48,19 @@ using int16_t = std::int16_t;
 using uint16_t = std::uint16_t;
 using int64_t = std::int64_t;
 using uint64_t = std::uint64_t;
+using int16_t1 = vector<int16_t, 1>;
 using int16_t2 = vector<int16_t, 2>;
 using int16_t3 = vector<int16_t, 3>;
 using int16_t4 = vector<int16_t, 4>;
+using uint16_t1 = vector<uint16_t, 1>;
 using uint16_t2 = vector<uint16_t, 2>;
 using uint16_t3 = vector<uint16_t, 3>;
 using uint16_t4 = vector<uint16_t, 4>;
+using int64_t1 = vector<int64_t, 1>;
 using int64_t2 = vector<int64_t, 2>;
 using int64_t3 = vector<int64_t, 3>;
 using int64_t4 = vector<int64_t, 4>;
+using uint64_t1 = vector<uint64_t, 1>;
 using uint64_t2 = vector<uint64_t, 2>;
 using uint64_t3 = vector<uint64_t, 3>;
 using uint64_t4 = vector<uint64_t, 4>;
@@ -60,6 +70,7 @@ using uint64_t4 = vector<uint64_t, 4>;
 // a GPU ABI. Absent entirely on compilers without a half scalar type.
 #if defined(SHADER_MATH_HAS_HALF)
 using half = detail::half_t;
+using half1 = vector<half, 1>;
 using half2 = vector<half, 2>;
 using half3 = vector<half, 3>;
 using half4 = vector<half, 4>;
@@ -222,7 +233,7 @@ SM_HLSL_INT_PROMOTE(fmod, fmod_impl)
 // away from zero), which a template would quietly lose to; this way an
 // unqualified round(x) is ambiguous there and qualified calls always resolve.
 template <int N, class T>
-    requires(!detail::is_int_elem_v<T>)
+    requires(N >= 2 && !detail::is_int_elem_v<T>)
 SHADER_MATH_INLINE detail::bvec<N, lang_tag> isnan(const vector<T, N>& v) {
     return detail::isnan(v);
 }
@@ -237,7 +248,7 @@ SHADER_MATH_INLINE bool isnan(A a) {
     return detail::isnan(detail::lane1<detail::scalar_call_t<A>, lang_tag>(a))[0];
 }
 template <int N, class T>
-    requires(!detail::is_int_elem_v<T>)
+    requires(N >= 2 && !detail::is_int_elem_v<T>)
 SHADER_MATH_INLINE detail::bvec<N, lang_tag> isinf(const vector<T, N>& v) {
     return detail::isinf(v);
 }
@@ -384,7 +395,7 @@ SHADER_MATH_INLINE auto mad(const A& a, const B& b, const C& c) {
 }
 // fvec / swz parameters for the same reason as detail::isnan (MSVC UCRT)
 template <int N, class T>
-    requires(!detail::is_int_elem_v<T>)
+    requires(N >= 2 && !detail::is_int_elem_v<T>)
 SHADER_MATH_INLINE detail::bvec<N, lang_tag> isfinite(const vector<T, N>& v) {
     return detail::isfinite_impl(v);
 }

@@ -38,6 +38,10 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
 - Vectors: `hlsl::float2/3/4` and `glsl::vec2/3/4` (**distinct types**; the contents and the component-wise operations are the same).
   Conversion between them is explicit (`glsl::vec3(f)` / `hlsl::float3(v)`), and mixing them in an operation is a compile error
 - Half vectors: `hlsl::half2/3/4` and `glsl::f16vec2/3/4` (also distinct types). The scalars are `hlsl::half` / `glsl::float16_t`
+- One-component vectors (HLSL only): `float1`, `half1`, `int1`, `uint1`, `bool1` and the 16- / 64-bit ones (`vector<T, 1>`). They
+  are scalars spelled as vectors: they convert to and from their element type implicitly and take part in every operation as a
+  scalar (`float1 + float3` is a `float3`), with `.x` / `.r`, `.xx` to `.xxxx` and `[0]`. A scalar result stays a scalar
+  (`float1 + float1` is a `float`, which converts back). Not covered: the matrices with a dimension of 1 (`float1x3`)
 - Integer vectors: `hlsl::int2/3/4` / `uint2/3/4` and `glsl::ivec2/3/4` / `uvec2/3/4` (distinct types; the scalar aliases are
   `uint`, and `dword` in HLSL). Arithmetic wraps, and the cases the languages leave undefined give the same result on every backend:
   `x / 0` and `x % 0` give all bits set (`-1` for int), `INT_MIN / -1` wraps, shift counts are taken modulo 32, and float → int

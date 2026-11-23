@@ -339,6 +339,20 @@ float4 case_bits_int_mixed(float4 a, float4 b)
     return asfloat(asuint(r) + s + uint4(t) + uint4(i < a));
 }
 
+// one-component vectors: scalars spelled as vectors (float1 + float4 is a
+// float4), with .xx / .xxxx, [0] and compound assignment
+float4 case_exact_vector1(float4 a, float4 b)
+{
+    float1 f = a.x;
+    f += b.y;
+    f *= 0.5f;
+    float4 r = f + a;
+    r += f.xxxx * b;
+    float2 p = f.xx + b.zw;
+    float1 g = sqrt(abs(f));
+    return r + float4(p, g, f[0]);
+}
+
 // an integer scalar's type: int with 2u computes in uint (the comparison, >>
 // logical, %), an unsuffixed literal takes the vector's type
 float4 case_bits_int_scalar_types(float4 a, float4 b)

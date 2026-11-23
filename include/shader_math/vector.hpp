@@ -943,6 +943,81 @@ private:
 #undef SM_S4_C4
 #undef SM_SGEN4
 
+// ---- one-component vectors (HLSL float1, int1, ...) ------------------------
+// A scalar spelled as a vector: it converts to and from its element type
+// implicitly and takes part in every operation as a scalar, the way a
+// one-component swizzle does (float1 + float3 is a float3, sqrt(f1) takes it
+// as a float); .x / .r, .xx to .xxxx and [0] read it.
+template <class T, class Lg>
+struct fvec<1, T, Lg> {
+    static constexpr int size_v = 1;
+    using elem_t = T;
+    using lang_t = Lg;
+    union {
+        T comp_[4];
+        swz<T, 1, Lg, 0> x, r;
+        swz<T, 1, Lg, 0, 0> xx, rr;
+        swz<T, 1, Lg, 0, 0, 0> xxx, rrr;
+        swz<T, 1, Lg, 0, 0, 0, 0> xxxx, rrrr;
+    };
+
+    SHADER_MATH_INLINE fvec() : comp_{T(0), T(0), T(0), T(0)} {}
+    SHADER_MATH_INLINE fvec(const fvec& o) : comp_{o.comp_[0], T(0), T(0), T(0)} {}
+    SHADER_MATH_INLINE fvec& operator=(const fvec& o) {
+        comp_[0] = o.comp_[0];
+        return *this;
+    }
+    template <class S>
+        requires CvtScalar<S, T>
+    SHADER_MATH_INLINE fvec(const S& s) : comp_{elem_cast<T>(s), T(0), T(0), T(0)} {}
+    SHADER_MATH_INLINE operator T() const { return comp_[0]; }
+    SHADER_MATH_INLINE T& operator[](int) { return comp_[0]; }
+    SHADER_MATH_INLINE const T& operator[](int) const { return comp_[0]; }
+
+#define SM_VEC1_COMPOUND(sym)                                                    \
+    template <class S>                                                         \
+        requires requires(const T& t, const S& s) { elem_cast<T>(t sym s); }   \
+    SHADER_MATH_INLINE fvec& operator sym##=(const S& s) {                     \
+        comp_[0] = elem_cast<T>(comp_[0] sym s);                               \
+        return *this;                                                          \
+    }
+    SM_VEC1_COMPOUND(+)
+    SM_VEC1_COMPOUND(-)
+    SM_VEC1_COMPOUND(*)
+    SM_VEC1_COMPOUND(/)
+#undef SM_VEC1_COMPOUND
+    SHADER_MATH_INLINE fvec& operator++() {
+        comp_[0] = static_cast<T>(comp_[0] + T(1));
+        return *this;
+    }
+    SHADER_MATH_INLINE fvec& operator--() {
+        comp_[0] = static_cast<T>(comp_[0] - T(1));
+        return *this;
+    }
+    SHADER_MATH_INLINE fvec operator++(int) {
+        const fvec o = *this;
+        ++*this;
+        return o;
+    }
+    SHADER_MATH_INLINE fvec operator--(int) {
+        const fvec o = *this;
+        --*this;
+        return o;
+    }
+    // HLSL's % on a floating-point scalar (fmod: truncating, the sign of a);
+    // C++ has no built-in one to fall back on
+    template <class S>
+        requires(!std::is_integral_v<T> && CvtScalar<S, T>)
+    friend SHADER_MATH_INLINE T operator%(const fvec& a, const S& b) {
+        return fmod_impl(fvec<2, T, Lg>(a.comp_[0]), fvec<2, T, Lg>(elem_cast<T>(b)))[0];
+    }
+    template <class S>
+        requires(!std::is_integral_v<T> && CvtScalar<S, T> && !std::is_same_v<S, fvec>)
+    friend SHADER_MATH_INLINE T operator%(const S& a, const fvec& b) {
+        return fmod_impl(fvec<2, T, Lg>(elem_cast<T>(a)), fvec<2, T, Lg>(b.comp_[0]))[0];
+    }
+};
+
 // ---- vec_traits / concepts -------------------------------------------------
 template <int N, class T, class Lg>
 struct vec_traits<fvec<N, T, Lg>> {
@@ -1029,6 +1104,10 @@ template <class T, int N, class Lg, int I>
 struct swz_elem<swz<T, N, Lg, I>> {
     using type = T;
 };
+template <class T, class Lg>
+struct swz_elem<fvec<1, T, Lg>> {
+    using type = T;
+};
 #if defined(SHADER_MATH_NESTED_SWIZZLE)
 template <class T, int N, class Lg, int J>
 struct swz_elem<nswz<T, N, Lg, J>> {
@@ -1038,14 +1117,20 @@ struct swz_elem<nswz<T, N, Lg, J>> {
 template <class S>
 inline constexpr bool is_int_scalar_v =
     std::is_integral_v<std::remove_cvref_t<S>> && !std::is_same_v<std::remove_cvref_t<S>, bool>;
+// (a scalar here is a number, one component of a vector or matrix, or a
+// one-component vector, taken by its value type)
 template <class S, class T>
 concept ScalarFor =
     std::is_same_v<std::remove_cvref_t<S>, T> ||
-    (std::is_same_v<T, float> && std::is_arithmetic_v<std::remove_cvref_t<S>>) ||
-    (is_int_elem_v<T> && is_int_scalar_v<S>) ||
+    (std::is_same_v<T, float> && std::is_arithmetic_v<typename scalar_value<std::remove_cvref_t<S>>::type>) ||
+    (is_int_elem_v<T> && is_int_scalar_v<typename scalar_value<std::remove_cvref_t<S>>::type>) ||
     std::is_same_v<typename swz_elem<std::remove_cvref_t<S>>::type, T>;
 template <class T, int N, class Lg, int I>
 struct scalar_value<swz<T, N, Lg, I>> {
+    using type = T;
+};
+template <class T, class Lg>
+struct scalar_value<fvec<1, T, Lg>> {
     using type = T;
 };
 #if defined(SHADER_MATH_NESTED_SWIZZLE)
@@ -1143,22 +1228,26 @@ SHADER_MATH_INLINE auto operator+(const A& a) {
 
 // ++ / -- add or subtract 1 in every component (both languages)
 template <int N, class T, class Lg>
+    requires(N >= 2)
 SHADER_MATH_INLINE fvec<N, T, Lg>& operator++(fvec<N, T, Lg>& a) {
     a = a + T(1.0f);
     return a;
 }
 template <int N, class T, class Lg>
+    requires(N >= 2)
 SHADER_MATH_INLINE fvec<N, T, Lg>& operator--(fvec<N, T, Lg>& a) {
     a = a - T(1.0f);
     return a;
 }
 template <int N, class T, class Lg>
+    requires(N >= 2)
 SHADER_MATH_INLINE fvec<N, T, Lg> operator++(fvec<N, T, Lg>& a, int) {
     const fvec<N, T, Lg> old = a;
     a = a + T(1.0f);
     return old;
 }
 template <int N, class T, class Lg>
+    requires(N >= 2)
 SHADER_MATH_INLINE fvec<N, T, Lg> operator--(fvec<N, T, Lg>& a, int) {
     const fvec<N, T, Lg> old = a;
     a = a - T(1.0f);
@@ -1201,7 +1290,8 @@ using mixed_t = fvec<vec_size_v<A>, common_elem_t<vec_elem_t<A>, vec_elem_t<B>, 
 template <class A>
 using float_vec_t = fvec<vec_size_v<A>, float, vec_lang_t<A>>;
 template <class A, class S>
-concept IntVecFloatScalar = IntVec<A> && std::is_floating_point_v<std::remove_cvref_t<S>> &&
+concept IntVecFloatScalar = IntVec<A> &&
+                            std::is_floating_point_v<typename scalar_value<std::remove_cvref_t<S>>::type> &&
                             implicit_elem_v<vec_elem_t<A>, float, vec_lang_t<A>>;
 #define SM_MIXED_BINOP(sym)                                                         \
     template <class A, class B>                                                     \
@@ -2240,18 +2330,18 @@ struct bmat {
 // isfinite(_Ty), and only a more specialized parameter wins overload
 // resolution against them (a constrained generic `const A&` is ambiguous).
 template <int N, class T, class Lg>
-    requires(!is_int_elem_v<T>)
+    requires(N >= 2 && !is_int_elem_v<T>)
 SHADER_MATH_INLINE bvec<N, Lg> isnan(const fvec<N, T, Lg>& v) {
     return bvec<N, Lg>(vops<T>::cmp_ne(v.q_, v.q_));
 }
 template <int N, class T, class Lg>
-    requires(!is_int_elem_v<T>)
+    requires(N >= 2 && !is_int_elem_v<T>)
 SHADER_MATH_INLINE bvec<N, Lg> isinf(const fvec<N, T, Lg>& v) {
     const auto inf = vops<T>::splat(static_cast<T>(std::numeric_limits<float>::infinity()));
     return bvec<N, Lg>(vops<T>::cmp_eq(vops<T>::abs(v.q_), inf));
 }
 template <int N, class T, class Lg>
-    requires(!is_int_elem_v<T>)
+    requires(N >= 2 && !is_int_elem_v<T>)
 SHADER_MATH_INLINE bvec<N, Lg> isfinite_impl(const fvec<N, T, Lg>& v) {
     const auto inf = vops<T>::splat(static_cast<T>(std::numeric_limits<float>::infinity()));
     return bvec<N, Lg>(vops<T>::cmp_lt(vops<T>::abs(v.q_), inf));
@@ -2325,6 +2415,10 @@ struct scalar_elem<half_t> {
 #endif
 template <class T, int N, class Lg, int I>
 struct scalar_elem<swz<T, N, Lg, I>> {
+    using type = T;
+};
+template <class T, class Lg>
+struct scalar_elem<fvec<1, T, Lg>> {
     using type = T;
 };
 #if defined(SHADER_MATH_NESTED_SWIZZLE)

@@ -1,3 +1,6 @@
+#include <cmath>
+#include <type_traits>
+
 #include <shader_math/shader_math.hpp>
 
 #include "framework.hpp"
@@ -48,7 +51,44 @@ static void test_bool_vector_glsl() {
     CHECK(!lessThan(vec2(1.0f, 3.0f), vec2(2.0f, 2.0f)).y);
 }
 
+// One-component vectors (HLSL float1 ...): scalars spelled as vectors
+static_assert(std::is_same_v<shader_math::hlsl::vector<float, 1>, shader_math::hlsl::float1>);
+static_assert(std::is_convertible_v<shader_math::hlsl::float1, float> &&
+              std::is_convertible_v<float, shader_math::hlsl::float1>);
+static_assert(!std::is_convertible_v<shader_math::hlsl::float3, shader_math::hlsl::float1>);
+static_assert(std::is_same_v<decltype(shader_math::hlsl::float1() + shader_math::hlsl::float3()),
+                             shader_math::hlsl::float3>);
+static_assert(std::is_same_v<decltype(shader_math::hlsl::float1().xx), shader_math::detail::swz<float, 1, shader_math::hlsl::lang_tag, 0, 0>>);
+
+static void test_vector1() {
+    using namespace shader_math::hlsl;
+    float1 f = 2.0f;
+    const float s = f;
+    CHECK_EQF(s, 2.0f);
+    const float3 v = f + float3(1.0f, 2.0f, 3.0f);  // as a scalar
+    CHECK_EQF(v.z, 5.0f);
+    const float4 sw = f.xxxx;
+    CHECK_EQF(sw.w, 2.0f);
+    const float2 sp = f;  // splat, as from a scalar
+    CHECK_EQF(sp.y, 2.0f);
+    CHECK_EQF(float(sqrt(f)), std::sqrt(2.0f));
+    CHECK_EQF(float(float3(f, 1.0f, 2.0f).x), 2.0f);
+    f += 1.0f;
+    f *= f;
+    f.x = f[0] + 1.0f;
+    f++;
+    CHECK_EQF(float(f), 11.0f);
+    CHECK_EQF(float(float1(-7.5f) % 2.0f), -1.5f);  // fmod: the sign of x
+    const bool1 b = f < 1.0f;
+    CHECK(!b);
+    const int3 iv = int3(1, 2, 3) * float1(0.5f).x;  // int3 * float component: float3 back to int3 truncates
+    CHECK(iv.z == 1);
+    const uint3 u = uint3(1u, 2u, 3u) + int3(-1, 0, 0).x;
+    CHECK(u.x == 0u);
+}
+
 void test_vector() {
+    test_vector1();
     test_bool_vector_glsl();
     using namespace shader_math::hlsl;  // vectors are shared; hlsl surface used here
 

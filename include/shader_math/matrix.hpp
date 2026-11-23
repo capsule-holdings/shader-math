@@ -26,6 +26,10 @@ template <class T, int R, int C, int RI, int CI>
 struct scalar_elem<mswz<T, R, C, RI, CI>> {
     using type = T;
 };
+template <class T, int R, int C, int RI, int CI>
+struct scalar_value<mswz<T, R, C, RI, CI>> {
+    using type = T;
+};
 
 template <class T, int R, int C, int RI, int CI>
 struct SHADER_MATH_MAY_ALIAS mswz {
