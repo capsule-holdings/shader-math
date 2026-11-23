@@ -11,6 +11,7 @@ void test_cross_lang();
 void test_restrict();
 void test_simd();
 void test_int_ops();
+void test_int_vectors();
 void test_half();
 void test_funcs();
 void test_pad_lanes();
@@ -45,6 +46,7 @@ int main() {
     test_restrict();
     test_simd();
     test_int_ops();
+    test_int_vectors();
     test_half();
     test_funcs();
     test_pad_lanes();

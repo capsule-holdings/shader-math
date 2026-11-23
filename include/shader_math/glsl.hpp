@@ -4,7 +4,7 @@
 //   matrixCompMult(). == / != return a single bool; per-component comparisons
 //   are equal()/lessThan()/... returning bvec. Relational operators (<, > ...)
 //   are NOT defined for vectors, exactly like GLSL.
-//   GLSL's not() is spelled not_() (`not` is a C++ keyword).
+//   GLSL's not() is spelled not_() (`not` is a C++ alternative token).
 #pragma once
 
 #include "matrix.hpp"
@@ -19,6 +19,18 @@ using vec4 = detail::gvec<4>;
 using bvec2 = detail::bvec<2, lang_tag>;
 using bvec3 = detail::bvec<3, lang_tag>;
 using bvec4 = detail::bvec<4, lang_tag>;
+
+// 32-bit integer vectors: arithmetic wraps; x / 0, shifts by 32 or more and
+// out-of-range float -> int conversions have defined results
+// (docs/design/int_vectors.md)
+static_assert(sizeof(int) == 4, "shader-math: int must be 32 bits");
+using uint = unsigned int;
+using ivec2 = detail::gvec<2, int>;
+using ivec3 = detail::gvec<3, int>;
+using ivec4 = detail::gvec<4, int>;
+using uvec2 = detail::gvec<2, uint>;
+using uvec3 = detail::gvec<3, uint>;
+using uvec4 = detail::gvec<4, uint>;
 
 // Half vectors (GLSL GL_EXT_shader_explicit_arithmetic_types float16_t /
 // f16vecN). Language-level packing: sizeof(f16vec3) == 8 (4 x binary16),
@@ -109,6 +121,7 @@ SHADER_MATH_LANG_FORWARD(trunc)
 // away from zero), which a template would quietly lose to; this way an
 // unqualified round(x) is ambiguous there and qualified calls always resolve.
 template <int N, class T>
+    requires(!detail::is_int_elem_v<T>)
 SHADER_MATH_INLINE detail::bvec<N, lang_tag> isnan(const detail::gvec<N, T>& v) {
     return detail::isnan(v);
 }
@@ -118,11 +131,12 @@ SHADER_MATH_INLINE auto isnan(const detail::swz<T, N, lang_tag, Is...>& s) {
     return detail::isnan(s);
 }
 template <class A>
-    requires detail::ScalarCall<A>
+    requires detail::FloatScalarCall<A>
 SHADER_MATH_INLINE bool isnan(A a) {
     return detail::isnan(detail::lane1<detail::scalar_call_t<A>, lang_tag>(a))[0];
 }
 template <int N, class T>
+    requires(!detail::is_int_elem_v<T>)
 SHADER_MATH_INLINE detail::bvec<N, lang_tag> isinf(const detail::gvec<N, T>& v) {
     return detail::isinf(v);
 }
@@ -132,7 +146,7 @@ SHADER_MATH_INLINE auto isinf(const detail::swz<T, N, lang_tag, Is...>& s) {
     return detail::isinf(s);
 }
 template <class A>
-    requires detail::ScalarCall<A>
+    requires detail::FloatScalarCall<A>
 SHADER_MATH_INLINE bool isinf(A a) {
     return detail::isinf(detail::lane1<detail::scalar_call_t<A>, lang_tag>(a))[0];
 }
@@ -145,7 +159,7 @@ SHADER_MATH_INLINE detail::half_t round(detail::half_t a) {
 }
 #endif
 template <class A>
-    requires detail::VecOf<A, lang_tag>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
 SHADER_MATH_INLINE auto round(const A& a) {
     return detail::round(a);
 }
@@ -167,32 +181,32 @@ SHADER_MATH_INLINE auto mix(const As&... as) {
     return detail::mix_impl(as...);
 }
 template <class A>
-    requires detail::VecOf<A, lang_tag>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
 SHADER_MATH_INLINE auto fract(const A& a) {
     return detail::fract_impl(a);
 }
 template <class A>
-    requires detail::VecOf<A, lang_tag>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
 SHADER_MATH_INLINE auto inversesqrt(const A& a) {
     return detail::rsqrt_impl(a);
 }
 template <class A>
-    requires detail::VecOf<A, lang_tag>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
 SHADER_MATH_INLINE auto roundEven(const A& a) {
     return detail::round_even_impl(a);
 }
 template <class A>
-    requires detail::VecOf<A, lang_tag>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
 SHADER_MATH_INLINE auto asinh(const A& a) {
     return detail::asinh_impl(a);
 }
 template <class A>
-    requires detail::VecOf<A, lang_tag>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
 SHADER_MATH_INLINE auto acosh(const A& a) {
     return detail::acosh_impl(a);
 }
 template <class A>
-    requires detail::VecOf<A, lang_tag>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
 SHADER_MATH_INLINE auto atanh(const A& a) {
     return detail::atanh_impl(a);
 }
@@ -223,6 +237,64 @@ template <class A, class B, class C>
 SHADER_MATH_INLINE auto fma(const A& a, const B& b, const C& c) {
     return detail::mad_impl(a, b, c);
 }
+
+// frexp(x, out e): mantissa in [0.5, 1) with the sign of x, e as int (GLSL's
+// int exponent; HLSL's frexp returns it as float)
+template <class A, int N>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A> && detail::vec_size_v<A> == N)
+SHADER_MATH_INLINE auto frexp(const A& a, detail::gvec<N, int>& e) {
+    using T = detail::vec_elem_t<A>;
+    const detail::vec_t<A> v = detail::to_vec(a);
+    T m[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
+    int ex[4] = {0, 0, 0, 0};
+    for (int i = 0; i < N; ++i) m[i] = static_cast<T>(std::frexp(static_cast<float>(v[i]), &ex[i]));
+    e = detail::gvec<N, int>(detail::vops<int>::load4(ex));
+    return detail::vec_t<A>(detail::vops<T>::load4(m));
+}
+template <class A, class T = detail::scalar_call_t<A>>
+    requires detail::FloatScalarCall<A>
+SHADER_MATH_INLINE T frexp(const A& a, int& e) {
+    return static_cast<T>(std::frexp(static_cast<float>(static_cast<T>(a)), &e));
+}
+// ldexp(x, e) = x * 2^e with an int exponent
+template <class A, class B>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A> && detail::VecOf<B, lang_tag> &&
+             std::is_same_v<detail::vec_elem_t<B>, int> &&
+             detail::vec_size_v<A> == detail::vec_size_v<B>)
+SHADER_MATH_INLINE auto ldexp(const A& a, const B& b) {
+    using T = detail::vec_elem_t<A>;
+    const detail::vec_t<A> v = detail::to_vec(a);
+    const detail::vec_t<B> e = detail::to_vec(b);
+    T r[4] = {T(0.0f), T(0.0f), T(0.0f), T(0.0f)};
+    for (int i = 0; i < detail::vec_size_v<A>; ++i)
+        r[i] = static_cast<T>(std::ldexp(static_cast<float>(v[i]), e[i]));
+    return detail::vec_t<A>(detail::vops<T>::load4(r));
+}
+template <class A, class I, class T = detail::scalar_call_t<A>>
+    requires(detail::FloatScalarCall<A> && detail::is_int_scalar_v<I>)
+SHADER_MATH_INLINE T ldexp(const A& a, I e) {
+    return static_cast<T>(std::ldexp(static_cast<float>(static_cast<T>(a)), static_cast<int>(e)));
+}
+
+// floatBitsToInt / floatBitsToUint / intBitsToFloat / uintBitsToFloat: the
+// same bits as another 32-bit type
+#define SM_GLSL_BITCAST(name, From, U)                                                   \
+    template <class A>                                                                   \
+        requires(detail::VecOf<A, lang_tag> && std::is_same_v<detail::vec_elem_t<A>, From>) \
+    SHADER_MATH_INLINE auto name(const A& a) {                                           \
+        return detail::bitcast_vec<U>(a);                                                \
+    }                                                                                    \
+    template <class S>                                                                   \
+        requires(!detail::VecLike<S> &&                                                  \
+                 std::is_same_v<typename detail::scalar_value<std::remove_cvref_t<S>>::type, From>) \
+    SHADER_MATH_INLINE U name(const S& s) {                                              \
+        return detail::bitcast_scalar<U>(s);                                             \
+    }
+SM_GLSL_BITCAST(floatBitsToInt, float, int)
+SM_GLSL_BITCAST(floatBitsToUint, float, uint)
+SM_GLSL_BITCAST(intBitsToFloat, int, float)
+SM_GLSL_BITCAST(uintBitsToFloat, uint, float)
+#undef SM_GLSL_BITCAST
 
 // scalar arguments (detail::ScalarCall): GLSL-only spellings
 SHADER_MATH_SCALAR_FN3(mix)
@@ -501,7 +573,7 @@ SHADER_MATH_INLINE matrix<Cn, Rn, T> matrixCompMult(const matrix<Cn, Rn, T>& a,
 
 // outerProduct(c, r): c is a column (Rx1), r is a row (1xC) -> matCxR
 template <class A, class B>
-    requires(detail::VecOf<A, lang_tag> && detail::VecOf<B, lang_tag> &&
+    requires(detail::VecOf<A, lang_tag> && detail::VecOf<B, lang_tag> && detail::FloatVec<A> &&
              std::is_same_v<detail::vec_elem_t<A>, detail::vec_elem_t<B>>)
 SHADER_MATH_INLINE matrix<detail::vec_size_v<B>, detail::vec_size_v<A>, detail::vec_elem_t<A>>
 outerProduct(const A& c0, const B& r0) {

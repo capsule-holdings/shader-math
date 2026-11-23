@@ -29,10 +29,13 @@
 namespace shader_math {
 namespace detail {
 
-// Element type as written: half prints, formats and hashes through float.
+// Element type as written: half prints, formats and hashes through float;
+// int and uint stay integers.
 template <class T>
-SHADER_MATH_INLINE float to_float(T v) {
-    return static_cast<float>(v);
+using written_t = std::conditional_t<is_int_elem_v<T>, T, float>;
+template <class T>
+SHADER_MATH_INLINE written_t<T> as_written(T v) {
+    return static_cast<written_t<T>>(v);
 }
 
 template <class M>
@@ -57,7 +60,7 @@ std::basic_ostream<Ch, Tr>& operator<<(std::basic_ostream<Ch, Tr>& os, const V& 
     os << '(';
     for (int i = 0; i < vec_size_v<V>; ++i) {
         if (i) os << ", ";
-        os << to_float(v[i]);
+        os << as_written(v[i]);
     }
     return os << ')';
 }
@@ -207,7 +210,7 @@ struct std::equal_to<shader_math::detail::fvec<N, T, Lg>> {
     bool operator()(const shader_math::detail::fvec<N, T, Lg>& a,
                     const shader_math::detail::fvec<N, T, Lg>& b) const {
         for (int i = 0; i < N; ++i)
-            if (!(shader_math::detail::to_float(a[i]) == shader_math::detail::to_float(b[i])))
+            if (!(shader_math::detail::as_written(a[i]) == shader_math::detail::as_written(b[i])))
                 return false;
         return true;
     }
@@ -217,8 +220,9 @@ struct std::hash<shader_math::detail::fvec<N, T, Lg>> {
     std::size_t operator()(const shader_math::detail::fvec<N, T, Lg>& v) const {
         std::size_t h = 0;
         for (int i = 0; i < N; ++i) {
-            const float f = shader_math::detail::to_float(v[i]);
-            const std::size_t e = std::hash<float>{}(f == 0.0f ? 0.0f : f);
+            using W = shader_math::detail::written_t<T>;
+            const W f = shader_math::detail::as_written(v[i]);
+            const std::size_t e = std::hash<W>{}(f == W(0) ? W(0) : f);
             h ^= e + 0x9e3779b9u + (h << 6) + (h >> 2);
         }
         return h;
@@ -228,7 +232,8 @@ struct std::hash<shader_math::detail::fvec<N, T, Lg>> {
 #if defined(__cpp_lib_format)
 // The format spec (fill, width, precision, type) applies to each component.
 template <int N, class T, class Lg, class Ch>
-struct std::formatter<shader_math::detail::fvec<N, T, Lg>, Ch> : std::formatter<float, Ch> {
+struct std::formatter<shader_math::detail::fvec<N, T, Lg>, Ch>
+    : std::formatter<shader_math::detail::written_t<T>, Ch> {
     template <class Ctx>
     auto format(const shader_math::detail::fvec<N, T, Lg>& v, Ctx& ctx) const {
         auto out = ctx.out();
@@ -239,7 +244,8 @@ struct std::formatter<shader_math::detail::fvec<N, T, Lg>, Ch> : std::formatter<
                 *out++ = Ch(' ');
             }
             ctx.advance_to(out);
-            out = std::formatter<float, Ch>::format(shader_math::detail::to_float(v[i]), ctx);
+            out = std::formatter<shader_math::detail::written_t<T>, Ch>::format(
+                shader_math::detail::as_written(v[i]), ctx);
         }
         *out++ = Ch(')');
         return out;

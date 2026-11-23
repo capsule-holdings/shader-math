@@ -1,6 +1,7 @@
 # Design: 32-bit integer vectors (int / uint)
 
-Status: accepted. Nothing here is implemented yet; the decisions are listed at the end.
+Status: accepted. Steps 1 and 2 of "Phasing" are implemented (the backend, then the public types with the
+strict operators); the decisions are listed at the end.
 
 ## Goal and scope
 

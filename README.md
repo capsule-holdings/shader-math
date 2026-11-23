@@ -2,7 +2,7 @@
 
 English | [日本語](README.ja.md)
 
-A float vector and matrix library compatible with HLSL / GLSL (C++20, header-only, SIMD).
+A vector and matrix library compatible with HLSL / GLSL (C++20, header-only, SIMD): float and half vectors and matrices, and int / uint vectors.
 
 The goal is to let you write an expression from a shader in a `.cpp` file with the same meaning. Because `operator*` has opposite meanings in HLSL (component-wise) and GLSL (matrix product), the public API is split into two namespaces.
 
@@ -38,6 +38,18 @@ For this, each namespace has `hlsl::lang_tag` / `glsl::lang_tag`, which represen
 - Vectors: `hlsl::float2/3/4` and `glsl::vec2/3/4` (**distinct types**; the contents and the component-wise operations are the same).
   Conversion between them is explicit (`glsl::vec3(f)` / `hlsl::float3(v)`), and mixing them in an operation is a compile error
 - Half vectors: `hlsl::half2/3/4` and `glsl::f16vec2/3/4` (also distinct types). The scalars are `hlsl::half` / `glsl::float16_t`
+- Integer vectors: `hlsl::int2/3/4` / `uint2/3/4` and `glsl::ivec2/3/4` / `uvec2/3/4` (distinct types; the scalar aliases are
+  `uint`, and `dword` in HLSL). Arithmetic wraps, and the cases the languages leave undefined give the same result on every backend:
+  `x / 0` and `x % 0` give all bits set (`-1` for int), `INT_MIN / -1` wraps, shift counts are taken modulo 32, and float → int
+  truncates with NaN → 0 and saturation ([docs/design/int_vectors.md](docs/design/int_vectors.md))
+  - Operators: `+ - * / %` (truncating), `& | ^ ~`, `<< >>` (the count is an int / uint vector of the same width or an integer
+    scalar; `>>` is arithmetic on int and logical on uint), comparisons as for float vectors, and in HLSL `!` (true where zero) and
+    `scalar << vector`
+  - **No implicit mixing yet**: `int3 * 2.5f`, `int3 + uint3`, `float3 r = i;` and `sqrt(i)` are compile errors (convert explicitly,
+    `float3(i)`). Following each language's conversions is planned. Constructors convert (`int3(a)`, `int4(i.xy, 2.9f, k)`)
+  - Functions: `abs` `sign` (int only) `min` `max` `clamp`; HLSL `dot` `mul(v, v)` `all` `any` `select` `asint` `asuint`
+    `asfloat`; GLSL `equal` / `lessThan` / … `mix(x, y, bvec)` `floatBitsToInt` `floatBitsToUint` `intBitsToFloat`
+    `uintBitsToFloat`. The floating-point functions (`sqrt`, `length`, …) do not take integer vectors
 - Half matrices: `hlsl::halfRxC` and `glsl::f16matCxR` (as with float, **distinct types** with explicit conversion; the correspondence of non-square shapes is also the same as for float).
   `determinant` / `inverse` are also computed in half. Real fp16 underflows / overflows early, so do not pass ill-conditioned matrices
   - `sizeof(half3) == 8` (four packed binary16 values). As with `sizeof(float3) == 16`, this is **language compatibility, not GPU ABI compatibility**
@@ -185,9 +197,9 @@ genType = scalar / vector, so `abs(mat3)` under `glsl` is a compile error). The 
   `log10` `ldexp` (float exponent) `frexp` (returns the exponent as float) `select` (HLSL 2021) `dst` `lit`
   (`lit` takes scalar arguments and returns `float4`, as in HLSL), and `%` on float vectors / matrices (same as `fmod`)
 - GLSL only: `mix` `fract` `inversesqrt` `roundEven` `atan(y, x)` `mod` `fma` `asinh` `acosh` `atanh`,
-  `mix(x, y, bvec)` (y in the components where the selector is true) (GLSL has no
+  `mix(x, y, bvec)` (y in the components where the selector is true), `frexp` / `ldexp` (the exponent is an int vector) (GLSL has no
   `saturate` / `rcp`, so they are not defined. The same holds in the other direction: names that do not exist in the language are compile errors)
-- Not covered: GLSL's `ldexp` / `frexp` (they take int vectors; int types are out of scope). HLSL 2021's
+- Not covered: HLSL 2021's
   `and()` / `or()` (they cannot be defined because they have the same names as the C++ alternative tokens `and` / `or`. As in HLSL 2021,
   `&&` / `||` on bool vectors are not available either)
 
@@ -305,7 +317,8 @@ MSVC and Apple Clang are checked only at the CI runners' default versions.
   (measured with `bench/compile_time.py`: 3.2x on both gcc and clang). This is why it is disabled by default
 - GLSL's `not()` is `not_()` because `not` is a C++ alternative token (for `!`)
 - `v.x` is a proxy type (when passing it directly to variadic arguments, write `float(v.x)`)
-- The covered types are float and half (vectors). `int` / `double`, `1xN` matrices and GPU-only features (textures, derivatives, atomics) are out of scope
+- The covered types are float and half (vectors and matrices) and int / uint (vectors). Integer matrices, 16- / 64-bit integers, `double`,
+  `1xN` matrices, the bit-manipulation and packing functions (`countbits`, `bitCount`, `packHalf2x16`, …) and GPU-only features (textures, derivatives, atomics) are out of scope
 - Language-compatible, not memory-ABI-compatible (`sizeof(float3) == 16`; this is unrelated to constant buffer packing)
 - Component access and swizzles are implemented with type punning through a union with the SIMD register.
   This is undefined behavior in ISO C++ and depends on how gcc / clang / MSVC handle it in practice (on gcc / clang the proxy types

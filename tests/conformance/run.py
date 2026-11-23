@@ -32,7 +32,7 @@ sys.dont_write_bytecode = True
 import cases  # noqa: E402
 
 EXPECTED = os.path.join(HERE, "expected.tsv")
-CATEGORIES = ["ctor", "swizzle", "operator", "intrinsic", "scalar", "matrix_fn", "out_of_scope"]
+CATEGORIES = ["ctor", "swizzle", "operator", "intrinsic", "scalar", "matrix_fn", "int", "out_of_scope"]
 
 
 def corpus():

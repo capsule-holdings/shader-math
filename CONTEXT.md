@@ -197,8 +197,9 @@ macOS and Windows ARM64 are not available on Blacksmith, so they use GitHub-host
   (multi-component swizzles would need up to 16⁴ member declarations, a combinatorial explosion. They are also rarely used in real shaders).
 - GLSL `not()` → `not_()` (C++ keyword)
 - `v.x` is a proxy type (use `float(v.x)` for varargs)
-- The scope is float and half vectors (half is native only on ARM FEAT_FP16; elsewhere it is promoted to f32).
-  `int` / `double`, 1xN, and GPU-only features (textures, derivatives, atomics) are out of scope.
+- The scope is float and half vectors and matrices (half is native only on ARM FEAT_FP16; elsewhere it is promoted
+  to f32) and int / uint vectors (docs/design/int_vectors.md). Integer matrices, `double`, 1xN, and GPU-only features
+  (textures, derivatives, atomics) are out of scope.
 - `%` is an HLSL-only operation (GLSL float does not have it) → out of scope. `++`/`--` are also out of scope.
 - The library provides language compatibility, not memory ABI compatibility (`sizeof(float3) == 16`; constant buffer packing is a separate matter).
 

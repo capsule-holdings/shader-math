@@ -24,6 +24,19 @@ using bool2 = detail::bvec<2, lang_tag>;
 using bool3 = detail::bvec<3, lang_tag>;
 using bool4 = detail::bvec<4, lang_tag>;
 
+// 32-bit integer vectors: arithmetic wraps; x / 0, shifts by 32 or more and
+// out-of-range float -> int conversions have defined results
+// (docs/design/int_vectors.md)
+static_assert(sizeof(int) == 4, "shader-math: int must be 32 bits");
+using uint = unsigned int;
+using dword = unsigned int;
+using int2 = vector<int, 2>;
+using int3 = vector<int, 3>;
+using int4 = vector<int, 4>;
+using uint2 = vector<uint, 2>;
+using uint3 = vector<uint, 3>;
+using uint4 = vector<uint, 4>;
+
 // Half vectors (HLSL half). Language-level packing: sizeof(half3) == 8
 // (4 x binary16), just as sizeof(float3) == 16 — language compatibility, not
 // a GPU ABI. Absent entirely on compilers without a half scalar type.
@@ -116,6 +129,7 @@ SHADER_MATH_LANG_FORWARD(trunc)
 // away from zero), which a template would quietly lose to; this way an
 // unqualified round(x) is ambiguous there and qualified calls always resolve.
 template <int N, class T>
+    requires(!detail::is_int_elem_v<T>)
 SHADER_MATH_INLINE detail::bvec<N, lang_tag> isnan(const vector<T, N>& v) {
     return detail::isnan(v);
 }
@@ -125,11 +139,12 @@ SHADER_MATH_INLINE auto isnan(const detail::swz<T, N, lang_tag, Is...>& s) {
     return detail::isnan(s);
 }
 template <class A>
-    requires detail::ScalarCall<A>
+    requires detail::FloatScalarCall<A>
 SHADER_MATH_INLINE bool isnan(A a) {
     return detail::isnan(detail::lane1<detail::scalar_call_t<A>, lang_tag>(a))[0];
 }
 template <int N, class T>
+    requires(!detail::is_int_elem_v<T>)
 SHADER_MATH_INLINE detail::bvec<N, lang_tag> isinf(const vector<T, N>& v) {
     return detail::isinf(v);
 }
@@ -139,7 +154,7 @@ SHADER_MATH_INLINE auto isinf(const detail::swz<T, N, lang_tag, Is...>& s) {
     return detail::isinf(s);
 }
 template <class A>
-    requires detail::ScalarCall<A>
+    requires detail::FloatScalarCall<A>
 SHADER_MATH_INLINE bool isinf(A a) {
     return detail::isinf(detail::lane1<detail::scalar_call_t<A>, lang_tag>(a))[0];
 }
@@ -152,7 +167,7 @@ SHADER_MATH_INLINE detail::half_t round(detail::half_t a) {
 }
 #endif
 template <class A>
-    requires detail::VecOf<A, lang_tag>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
 SHADER_MATH_INLINE auto round(const A& a) {
     return detail::round(a);
 }
@@ -192,27 +207,27 @@ SHADER_MATH_INLINE auto lerp(const As&... as) {
     return detail::lerp_impl(as...);
 }
 template <class A>
-    requires detail::VecOf<A, lang_tag>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
 SHADER_MATH_INLINE auto saturate(const A& a) {
     return detail::saturate_impl(a);
 }
 template <class A>
-    requires detail::VecOf<A, lang_tag>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
 SHADER_MATH_INLINE auto frac(const A& a) {
     return detail::fract_impl(a);
 }
 template <class A>
-    requires detail::VecOf<A, lang_tag>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
 SHADER_MATH_INLINE auto rcp(const A& a) {
     return detail::rcp_impl(a);
 }
 template <class A>
-    requires detail::VecOf<A, lang_tag>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
 SHADER_MATH_INLINE auto rsqrt(const A& a) {
     return detail::rsqrt_impl(a);
 }
 template <class A>
-    requires detail::VecOf<A, lang_tag>
+    requires(detail::VecOf<A, lang_tag> && detail::FloatVec<A>)
 SHADER_MATH_INLINE auto log10(const A& a) {
     return detail::log10_impl(a);
 }
@@ -276,11 +291,12 @@ SHADER_MATH_INLINE auto mad(const A& a, const B& b, const C& c) {
 }
 // fvec / swz parameters for the same reason as detail::isnan (MSVC UCRT)
 template <int N, class T>
+    requires(!detail::is_int_elem_v<T>)
 SHADER_MATH_INLINE detail::bvec<N, lang_tag> isfinite(const vector<T, N>& v) {
     return detail::isfinite_impl(v);
 }
 template <class T, int N, int... Is>
-    requires(sizeof...(Is) >= 2)
+    requires(sizeof...(Is) >= 2 && !detail::is_int_elem_v<T>)
 SHADER_MATH_INLINE auto isfinite(const detail::swz<T, N, lang_tag, Is...>& s) {
     return detail::isfinite_impl(detail::to_vec(s));
 }
@@ -294,7 +310,7 @@ SHADER_MATH_INLINE void sincos(const A& a, vector<T, N>& s, vector<T, N>& c) {
 
 // isfinite on scalars (by value, see detail::isnan)
 template <class A>
-    requires detail::ScalarCall<A>
+    requires detail::FloatScalarCall<A>
 SHADER_MATH_INLINE bool isfinite(A a) {
     return isfinite(detail::lane1<detail::scalar_call_t<A>, lang_tag>(a))[0];
 }
@@ -348,7 +364,7 @@ SHADER_MATH_SCALAR_FN2(fmod)
 SHADER_MATH_SCALAR_FN2(ldexp)
 SHADER_MATH_SCALAR_FN3(mad)
 template <class A, class T>
-    requires(detail::ScalarCall<A> && std::is_same_v<T, detail::scalar_call_t<A>>)
+    requires(detail::FloatScalarCall<A> && std::is_same_v<T, detail::scalar_call_t<A>>)
 SHADER_MATH_INLINE T frexp(const A& a, T& e) {
     vector<T, 2> ev;
     const T m = frexp(detail::lane1<T, lang_tag>(a), ev)[0];
@@ -356,7 +372,7 @@ SHADER_MATH_INLINE T frexp(const A& a, T& e) {
     return m;
 }
 template <class A, class T>
-    requires(detail::ScalarCall<A> && std::is_same_v<T, detail::scalar_call_t<A>>)
+    requires(detail::FloatScalarCall<A> && std::is_same_v<T, detail::scalar_call_t<A>>)
 SHADER_MATH_INLINE void sincos(const A& a, T& s, T& c) {
     vector<T, 2> sv, cv;
     sincos(detail::lane1<T, lang_tag>(a), sv, cv);
@@ -482,9 +498,9 @@ SHADER_MATH_INLINE matrix<R, C, T> operator%(const matrix<R, C, T>& a, const S& 
     return o;
 }
 template <int N, class T, class B>
-    requires requires(const vector<T, N>& a, const B& b) {
+    requires(!detail::is_int_elem_v<T> && requires(const vector<T, N>& a, const B& b) {
         { a % b } -> std::same_as<vector<T, N>>;
-    }
+    })
 SHADER_MATH_INLINE vector<T, N>& operator%=(vector<T, N>& a, const B& b) {
     a = a % b;
     return a;
@@ -559,6 +575,55 @@ SHADER_MATH_INLINE detail::bvec<N, lang_tag> operator!=(const detail::bvec<N, la
     return detail::bvec<N, lang_tag>(detail::ops::m_xor(a.m_, b.m_));
 }
 
+// ! on int / uint vectors: true where the component is zero
+template <class A>
+    requires(detail::VecOf<A, lang_tag> && detail::IntVec<A>)
+SHADER_MATH_INLINE auto operator!(const A& a) {
+    using T = detail::vec_elem_t<A>;
+    return detail::bvec<detail::vec_size_v<A>, lang_tag>(
+        detail::vops<T>::cmp_eq(detail::to_vec(a).q_, detail::vops<T>::zero()));
+}
+
+// scalar << vector / scalar >> vector (HLSL; GLSL needs a vector on the left)
+template <class S, class B>
+    requires(detail::VecOf<B, lang_tag> && detail::IntVec<B> && detail::is_int_scalar_v<S>)
+SHADER_MATH_INLINE auto operator<<(const S& s, const B& n) {
+    using T = detail::vec_elem_t<B>;
+    return detail::vec_t<B>(static_cast<T>(s)) << n;
+}
+template <class S, class B>
+    requires(detail::VecOf<B, lang_tag> && detail::IntVec<B> && detail::is_int_scalar_v<S>)
+SHADER_MATH_INLINE auto operator>>(const S& s, const B& n) {
+    using T = detail::vec_elem_t<B>;
+    return detail::vec_t<B>(static_cast<T>(s)) >> n;
+}
+
+// dot on int / uint vectors (the float dot is the shared one)
+template <class A, class B>
+    requires(detail::VecOf<A, lang_tag> && detail::SameVec<A, B> && detail::IntVec<A>)
+SHADER_MATH_INLINE auto dot(const A& a, const B& b) {
+    return detail::idot(a, b);
+}
+
+// asint / asuint / asfloat: the same bits as another 32-bit type (float,
+// int, uint vectors and scalars)
+#define SM_HLSL_BITCAST(name, U)                                                         \
+    template <class A>                                                                   \
+        requires(detail::VecOf<A, lang_tag> &&                                           \
+                 requires(const A& a) { detail::bitcast_vec<U>(a); })                    \
+    SHADER_MATH_INLINE auto name(const A& a) {                                           \
+        return detail::bitcast_vec<U>(a);                                                \
+    }                                                                                    \
+    template <class S>                                                                   \
+        requires(!detail::VecLike<S> && detail::is_bits32_scalar_v<S>)                   \
+    SHADER_MATH_INLINE U name(const S& s) {                                              \
+        return detail::bitcast_scalar<U>(s);                                             \
+    }
+SM_HLSL_BITCAST(asint, int)
+SM_HLSL_BITCAST(asuint, uint)
+SM_HLSL_BITCAST(asfloat, float)
+#undef SM_HLSL_BITCAST
+
 // ---- mul: the 9 official overloads ------------------------------------------
 SHADER_MATH_INLINE float mul(float a, float b) { return a * b; }
 #if defined(SHADER_MATH_HAS_HALF)
@@ -590,7 +655,10 @@ SHADER_MATH_INLINE matrix<R, C, T> mul(const matrix<R, C, T>& m, const S& s) {
 template <class A, class B>
     requires(detail::SameVec<A, B> && detail::VecOf<A, lang_tag>)
 SHADER_MATH_INLINE detail::vec_elem_t<A> mul(const A& a, const B& b) {
-    return detail::dot(a, b);
+    if constexpr (detail::IntVec<A>)
+        return detail::idot(a, b);
+    else
+        return detail::dot(a, b);
 }
 
 // row vector x matrix

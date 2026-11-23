@@ -4,7 +4,7 @@
 
 正本は英語版の README.md。この日本語版は追従が遅れることがある。
 
-HLSL / GLSL 互換の float ベクトル・行列ライブラリ（C++20、ヘッダオンリー、SIMD）。
+HLSL / GLSL 互換のベクトル・行列ライブラリ（C++20、ヘッダオンリー、SIMD）。float / half のベクトルと行列、int / uint のベクトルを扱う。
 
 シェーダに書いた式を、そのままの意味で `.cpp` に書けることを目的とする。`operator*` の意味が HLSL（成分ごと）と GLSL（行列積）で逆であるため、公開 API を二重名前空間に分離している。
 
@@ -40,6 +40,17 @@ void glsl_side() {
 - ベクトル: `hlsl::float2/3/4` と `glsl::vec2/3/4`（**別型**。中身と成分ごとの演算は同じ）。
   相互変換は explicit（`glsl::vec3(f)` / `hlsl::float3(v)`）で、混ぜた演算はコンパイルエラー
 - half ベクトル: `hlsl::half2/3/4` と `glsl::f16vec2/3/4`（同じく別型）。スカラーは `hlsl::half` / `glsl::float16_t`
+- 整数ベクトル: `hlsl::int2/3/4` / `uint2/3/4` と `glsl::ivec2/3/4` / `uvec2/3/4`（別型。スカラーの別名は `uint`、HLSL は
+  `dword` も）。算術は折り返し、言語が未定義とする場合も全バックエンドで同じ結果になる: `x / 0` と `x % 0` は全ビット 1
+  （int では `-1`）、`INT_MIN / -1` は折り返し、シフト量は 32 で割った余り、float → int は 0 方向への切り捨てで NaN → 0、
+  範囲外は飽和（[docs/design/int_vectors.md](docs/design/int_vectors.md)）
+  - 演算子: `+ - * / %`（切り捨て）、`& | ^ ~`、`<< >>`（シフト量は同じ幅の int / uint ベクトルか整数スカラー。`>>` は int で
+    算術、uint で論理）、比較は float ベクトルと同じ。HLSL では `!`（0 の成分が真）と `スカラー << ベクトル` も
+  - **暗黙の混在はまだ無い**: `int3 * 2.5f`、`int3 + uint3`、`float3 r = i;`、`sqrt(i)` はコンパイルエラー（`float3(i)` と明示的に
+    変換する）。各言語の変換規則に従う予定。コンストラクタは変換する（`int3(a)`、`int4(i.xy, 2.9f, k)`）
+  - 関数: `abs` `sign`（int のみ）`min` `max` `clamp`、HLSL の `dot` `mul(v, v)` `all` `any` `select` `asint` `asuint`
+    `asfloat`、GLSL の `equal` / `lessThan` / … `mix(x, y, bvec)` `floatBitsToInt` `floatBitsToUint` `intBitsToFloat`
+    `uintBitsToFloat`。浮動小数点の関数（`sqrt`、`length` など）は整数ベクトルを取らない
 - half 行列: `hlsl::halfRxC` と `glsl::f16matCxR`（float と同じく**別型**・explicit 変換。非正方の形対応も float と同一）。
   `determinant` / `inverse` も half のまま計算する。真の fp16 は underflow / overflow が早いので、条件の悪い行列を渡さないこと
   - `sizeof(half3) == 8`（4×binary16 パック）。`sizeof(float3) == 16` と同様、**言語互換であり GPU ABI ではない**
@@ -187,9 +198,9 @@ genType = スカラー / ベクトルだけなので `glsl` で `abs(mat3)` は�
   `log10` `ldexp`（指数は float）`frexp`（指数を float で返す）`select`（HLSL 2021）`dst` `lit`
   （`lit` は HLSL と同じくスカラー引数で `float4` を返す）、float ベクトル / 行列の `%`（`fmod` と同じ）
 - GLSL のみ: `mix` `fract` `inversesqrt` `roundEven` `atan(y, x)` `mod` `fma` `asinh` `acosh` `atanh`、
-  `mix(x, y, bvec)`（選択子が真の成分は y）（GLSL に
+  `mix(x, y, bvec)`（選択子が真の成分は y）、`frexp` / `ldexp`（指数は int ベクトル）（GLSL に
   `saturate` / `rcp` は無い → 定義していない。逆も同様で、言語に無い名前はコンパイルエラー）
-- 対象外: GLSL の `ldexp` / `frexp`（int ベクトルを取るため。int 型は範囲外）。HLSL 2021 の
+- 対象外: HLSL 2021 の
   `and()` / `or()`（C++ の代替トークン `and` / `or` と同名で定義できない。bool ベクトルの
   `&&` / `||` も HLSL 2021 と同じく使えない）
 
@@ -307,7 +318,8 @@ MSVC と Apple Clang は CI ランナーの既定版のみ確認。
   （`bench/compile_time.py` の実測で gcc・clang とも 3.2 倍）。既定で無効なのはこのため
 - GLSL の `not()` は C++ の代替トークン（`!`）と衝突するため `not_()`
 - `v.x` はプロキシ型（可変長引数に直接渡すときは `float(v.x)` にする）
-- 対象は float と half（ベクトル）。`int` / `double`、`1xN` 行列、GPU 専用機能（テクスチャ・微分・atomic）は対象外
+- 対象は float と half（ベクトルと行列）、int / uint（ベクトル）。整数行列、16 / 64 ビット整数、`double`、`1xN` 行列、
+  ビット操作とパック関数（`countbits`、`bitCount`、`packHalf2x16` など）、GPU 専用機能（テクスチャ・微分・atomic）は対象外
 - 言語互換であってメモリ ABI 互換ではない（`sizeof(float3) == 16`。定数バッファのパッキングとは別物）
 - 成分アクセス・swizzle は SIMD レジスタとの union による型パンニングで実装している。
   ISO C++ では未定義動作で、gcc / clang / MSVC の実装上の扱いに依存する（gcc / clang ではプロキシ型に
