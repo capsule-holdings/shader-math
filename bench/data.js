@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795435878927,
+  "lastUpdate": 1795486334105,
   "repoUrl": "https://github.com/capsule-holdings/shader-math",
   "entries": {
     "linux-x64-gcc": [
@@ -23967,6 +23967,160 @@ window.BENCHMARK_DATA = {
           {
             "name": "half4 a * b + c [scalar]",
             "value": 6.544,
+            "unit": "ns/elem"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "emuesuenu@hotmail.com",
+            "name": "Hidenori Kondo",
+            "username": "emuesuenu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "95861d315c33c0aa898ba93310099532b7d294df",
+          "message": "Add full double vector and matrix support for HLSL and GLSL (#127)\n\n* Add full double vector and matrix support for HLSL and GLSL\n\n- Add 64-bit IEEE double lane backend (detail/simd_double.hpp: dreg/dops)\n  satisfying SimdHalfOps with IEEE minNum/maxNum, std::fma, and shared mreg masks.\n- Add full-precision double -> int saturation in detail/int_lane.hpp (f2int<T>(double))\n  and update detail::elem_cast<T> to avoid float truncation.\n- Support double in vector.hpp, matrix.hpp, hlsl.hpp, glsl.hpp, and std.hpp:\n  - HLSL: double1..double4, double1x1..double4x4, bidirectional implicit numeric\n    conversions, %/%= rejection, native double arithmetic/comparisons/fma/asdouble/\n    3-arg asuint/rcp/saturate/mad/dot/select/mul/transpose/ext::inverse, and DXC-faithful\n    float lowering for floor/ceil/trunc/round/frac/fmod/lerp/step/smoothstep/sqrt/rsqrt/\n    transcendentals/geometry/modf/frexp/sincos/determinant.\n  - GLSL: float64_t, dvec2..4, f64vec2..4, dmat2..4x4, f64mat2..4x4, implicit widening\n    from float and all integer widths (including dmat = mat and mixed ops), explicit\n    narrowing, transcendental rejection, native double precision for floor..inverse/modf/\n    frexp/ldexp/fma, packDouble2x32/unpackDouble2x32, and 64-bit bitcasts.\n  - Scalar calls: keep float when plain double literals mix with float (step(0.5, s),\n    clamp(s, 0.0, 1.0)), resolve all-double calls like max(1.0, 2.0) to double.\n- Add tests/test_double.cpp and double coverage in test_std.cpp and test_global_shadow.cpp.\n\nCo-authored-by: Cursor <cursoragent@cursor.com>\n\n* Add double conformance, Vulkan/DXC interop, and documentation\n\n- Add 51 HLSL and 42 GLSL double conformance cases (100% pass rate on Apple Clang,\n  Linux GCC 13, and Linux Clang 18) and refresh expected.tsv with DXC and glslang.\n- Add bit-exact double interop cases for GLSL (dvec, dmat, fma, packDouble2x32,\n  doubleBitsToUint64) and DXC SPIR-V/DXIL (double4, fma, asdouble, 3-arg asuint,\n  double matrices), enabling shaderFloat64 in vk_runner --f16.\n- Update README.md, README.ja.md, and docs/compat_mapping.md (check_docs.py clean).\n\nCo-authored-by: Cursor <cursoragent@cursor.com>\n\n* Update known_mismatches.txt after double support\n\nRemove the three resolved conformance mismatches (h_s_double_lit_max,\ng_s_double_lit_max, g_oos_dvec3); zero new mismatches introduced across\nthe 93 new HLSL/GLSL double cases.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nCo-authored-by: Cursor <cursoragent@cursor.com>\n\n* Avoid f64 FMad / Saturate in DXIL half interop for inbox Windows WARP\n\nInbox Windows WARP (pre-1.0.15) does not implement double-precision FMad\n(dx.op.tertiary.f64 opcode 46), causing DXGI_ERROR_DEVICE_REMOVED when\nDXC lowers double mad() and mul() to FMad in dxil_kernels_half.dxil.\n\n- Split out case_bits_double_dxil for SM_DXIL_HALF_CASES using only the\n  DXIL double ops inbox WARP supports (Fma, FAbs, FMin, FMax, MakeDouble,\n  SplitDouble, double2x2 transpose/add), while keeping the full\n  case_bits_double_hlsl (including mad, saturate, mul) in SM_DXC_HALF_CASES.\n- Check DoublePrecisionFloatShaderOps in d3d12_runner --f16 and create the\n  fence before ExecuteCommandLists so device removal is reported cleanly.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nCo-authored-by: Cursor <cursoragent@cursor.com>\n\n---------\n\nCo-authored-by: Cursor <cursoragent@cursor.com>\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-24T05:11:19+09:00",
+          "tree_id": "4d59ee7d8ebff8f7fedd65e409f391f14f25264f",
+          "url": "https://github.com/capsule-holdings/shader-math/commit/95861d315c33c0aa898ba93310099532b7d294df"
+        },
+        "date": 1795486332846,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "hlsl mul(float4x4, float4x4) [NEON]",
+            "value": 3.43,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [NEON]",
+            "value": 3.434,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [NEON]",
+            "value": 1.556,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [NEON]",
+            "value": 5.127,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [NEON]",
+            "value": 16.512,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [NEON]",
+            "value": 25.572,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [NEON]",
+            "value": 1.541,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [NEON]",
+            "value": 5.257,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [NEON]",
+            "value": 23.398,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [NEON]",
+            "value": 0.556,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [NEON]",
+            "value": 0.418,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [NEON]",
+            "value": 0.696,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [NEON]",
+            "value": 2.662,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4x4) [scalar]",
+            "value": 9.607,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [scalar]",
+            "value": 9.536,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [scalar]",
+            "value": 1.553,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [scalar]",
+            "value": 4.202,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [scalar]",
+            "value": 10.052,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [scalar]",
+            "value": 20.782,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [scalar]",
+            "value": 1.455,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [scalar]",
+            "value": 3.617,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [scalar]",
+            "value": 21.474,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [scalar]",
+            "value": 0.556,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [scalar]",
+            "value": 0.418,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [scalar]",
+            "value": 2.495,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [scalar]",
+            "value": 6.55,
             "unit": "ns/elem"
           }
         ]
