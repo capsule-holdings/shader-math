@@ -173,8 +173,8 @@ jobs:
             cxx: g++
             # Slang release and the sha256 of its slang-<version>-linux-x86_64.tar.gz
             # (Renovate updates both)
-            slang_tag: "v2026.21"
-            slang_sha256: 691f9341e5bec099eec97ee30a83bcbef541cee7fe3b4de68a821d42f9506c2f
+            slang_tag: "v2026.22"
+            slang_sha256: a877b75c6ec515f5d8bf66ea4bae4f0a5ba85050b9540c2046670285808347e6
             # lavapipe runs the half cases compiled to SPIR-V
             packages: libvulkan-dev mesa-vulkan-drivers
             interop_tests: slang_interop
