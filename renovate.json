@@ -15,6 +15,9 @@
   "lockFileMaintenance": {
     "enabled": false
   },
+  "automerge": true,
+  "platformAutomerge": false,
+  "automergeStrategy": "merge-commit",
   "ignorePaths": [],
   "customManagers": [
     {
