@@ -7,7 +7,8 @@
   "timezone": "Asia/Tokyo",
   "labels": ["dependencies"],
   "vulnerabilityAlerts": {
-    "labels": ["dependencies", "security"]
+    "labels": ["dependencies", "security"],
+    "automerge": false
   },
   "osvVulnerabilityAlerts": true,
   "minimumReleaseAge": "14 days",
@@ -69,9 +70,10 @@
   ],
   "packageRules": [
     {
-      "description": "Replacement proposals for renamed or deprecated packages are not a specific version, so skip minimumReleaseAge",
+      "description": "Replacement proposals for renamed or deprecated packages are not a specific version, so skip minimumReleaseAge; they switch to another package without waiting, so a person merges them",
       "matchUpdateTypes": ["replacement"],
-      "minimumReleaseAge": null
+      "minimumReleaseAge": null,
+      "automerge": false
     },
     {
       "description": "Bump Boost FetchContent modules together",
