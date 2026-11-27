@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795486334105,
+  "lastUpdate": 1795784045130,
   "repoUrl": "https://github.com/capsule-holdings/shader-math",
   "entries": {
     "linux-x64-gcc": [
@@ -7987,6 +7987,160 @@ window.BENCHMARK_DATA = {
           {
             "name": "half4 a * b + c [scalar]",
             "value": 98.609,
+            "unit": "ns/elem"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "emuesuenu@hotmail.com",
+            "name": "Hidenori Kondo",
+            "username": "emuesuenu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4ee9a03a8116ff29c8b161bb95d707255c76e84f",
+          "message": "Let Renovate automerge its PRs once CI passes (#130)\n\nRenovate PRs were merged by hand. Match the other capsule-holdings repositories:\nRenovate merges with a merge commit after all checks pass.\n\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>",
+          "timestamp": "2026-11-27T21:50:55+09:00",
+          "tree_id": "f4a8cab89c15546084a572e78a4c9756a80272ce",
+          "url": "https://github.com/capsule-holdings/shader-math/commit/4ee9a03a8116ff29c8b161bb95d707255c76e84f"
+        },
+        "date": 1795784043829,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "hlsl mul(float4x4, float4x4) [SSE2]",
+            "value": 2.728,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [SSE2]",
+            "value": 2.628,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [SSE2]",
+            "value": 0.756,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [SSE2]",
+            "value": 1.642,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [SSE2]",
+            "value": 5.302,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [SSE2]",
+            "value": 10.924,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [SSE2]",
+            "value": 0.573,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [SSE2]",
+            "value": 1.405,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [SSE2]",
+            "value": 7.412,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [SSE2]",
+            "value": 2.84,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [SSE2]",
+            "value": 3.855,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [SSE2]",
+            "value": 0.328,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [SSE2]",
+            "value": 9.741,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4x4) [scalar]",
+            "value": 3.54,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "glsl mat4 * mat4 [scalar]",
+            "value": 3.637,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4, float4x4) [scalar]",
+            "value": 0.65,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl mul(float4x4, float4) [scalar]",
+            "value": 1.731,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) [scalar]",
+            "value": 4.886,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "hlsl inverse(float4x4) latency [scalar]",
+            "value": 11.527,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "dot(float4, float4) [scalar]",
+            "value": 0.605,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) [scalar]",
+            "value": 1.098,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "normalize(float3) latency [scalar]",
+            "value": 7.091,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "floor(float4) [scalar]",
+            "value": 2.791,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "round(float4) [scalar]",
+            "value": 3.749,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "lerp(float4, float4, float) [scalar]",
+            "value": 1.061,
+            "unit": "ns/elem"
+          },
+          {
+            "name": "half4 a * b + c [scalar]",
+            "value": 82.858,
             "unit": "ns/elem"
           }
         ]
